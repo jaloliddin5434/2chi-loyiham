@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:html' as html;
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import '../services/api_service.dart';
 
 class NakladnoyScreen extends StatefulWidget {
   final String mashinaRaqami;
@@ -67,6 +72,202 @@ class NakladnoyScreen extends StatefulWidget {
 }
 
 class _NakladnoyScreenState extends State<NakladnoyScreen> {
+
+  Future<void> _pdfSaqla() async {
+    try {
+      final htmlContent = _nakladnoyHtml();
+      final blob = html.Blob([htmlContent], 'text/html');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      html.window.open(url, '_blank');
+      await Future.delayed(const Duration(seconds: 1));
+      html.Url.revokeObjectUrl(url);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Xato: $e"), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  String _nakladnoyHtml() {
+    final t1 = widget.tara1 ?? 0;
+    final b1 = widget.brutto1 ?? 0;
+    final n1 = b1 - t1;
+    final k1 = widget.konditsion1 ?? 0;
+    final t2 = widget.tara2 ?? 0;
+    final b2 = widget.brutto2 ?? 0;
+    final n2 = b2 - t2;
+    final k2 = widget.konditsion2 ?? 0;
+    final t3 = widget.tara3 ?? 0;
+    final b3 = widget.brutto3 ?? 0;
+    final n3 = b3 - t3;
+    final k3 = widget.konditsion3 ?? 0;
+    final jamiT = t1 + (widget.tara2 != null ? t2 : 0) + (widget.tara3 != null ? t3 : 0);
+    final jamiB = b1 + (widget.brutto2 != null ? b2 : 0) + (widget.brutto3 != null ? b3 : 0);
+    final jamiN = jamiB - jamiT;
+    final jamiK = k1 + (widget.konditsion2 != null ? k2 : 0) + (widget.konditsion3 != null ? k3 : 0);
+
+    String qatorlar = '';
+    if (widget.tara1 != null) {
+      qatorlar += '''
+        <tr>
+          <td>${widget.yukNomi}<br><small>(1-arava)</small></td>
+          <td>${t1.toStringAsFixed(0)}</td>
+          <td>${b1.toStringAsFixed(0)}</td>
+          <td>${n1.toStringAsFixed(0)}</td>
+          <td>${k1 > 0 ? k1.toStringAsFixed(0) : '—'}</td>
+        </tr>''';
+    }
+    if (widget.tara2 != null) {
+      qatorlar += '''
+        <tr>
+          <td>${widget.yukNomi}<br><small>(2-arava)</small></td>
+          <td>${t2.toStringAsFixed(0)}</td>
+          <td>${b2.toStringAsFixed(0)}</td>
+          <td>${n2.toStringAsFixed(0)}</td>
+          <td>${k2 > 0 ? k2.toStringAsFixed(0) : '—'}</td>
+        </tr>''';
+    }
+    if (widget.tara3 != null) {
+      qatorlar += '''
+        <tr>
+          <td>${widget.yukNomi}<br><small>(3-arava)</small></td>
+          <td>${t3.toStringAsFixed(0)}</td>
+          <td>${b3.toStringAsFixed(0)}</td>
+          <td>${n3.toStringAsFixed(0)}</td>
+          <td>${k3 > 0 ? k3.toStringAsFixed(0) : '—'}</td>
+        </tr>''';
+    }
+
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 11px; background: white; }
+  .page { width: 210mm; min-height: 297mm; padding: 10mm; margin: 0 auto; background: white; }
+  .header-green { background-color: #1A4A08; color: white; text-align: center; padding: 8px; font-size: 13px; font-weight: bold; border-radius: 4px 4px 0 0; }
+  .title { text-align: center; font-size: 13px; font-weight: bold; margin: 8px 0 2px 0; }
+  .subtitle { text-align: center; font-size: 11px; color: #333; margin-bottom: 10px; }
+  .top-right { float: right; border: 1px solid #ccc; padding: 5px; font-size: 10px; margin-top: -60px; }
+  .info-block { margin: 6px 0; font-size: 11px; }
+  .divider { border: none; border-top: 1px solid #333; margin: 6px 0; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin: 6px 0; font-size: 11px; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+  th { background-color: #1A4A08; color: white; padding: 6px 4px; text-align: center; font-size: 11px; border: 1px solid #1A4A08; }
+  td { border: 1px solid #ccc; padding: 6px 4px; text-align: center; font-size: 11px; }
+  .jami td { font-weight: bold; background-color: #f5f5f5; }
+  .dostaverna { background-color: #E8F5E0; border: 1px solid #B0D890; padding: 6px 10px; margin: 8px 0; font-size: 11px; border-radius: 4px; }
+  .sign-block { border: 1px solid #ddd; padding: 8px; margin: 6px 0; border-radius: 4px; }
+  .sign-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-top: 20px; }
+  .sign-item { text-align: center; font-size: 10px; }
+  .sign-line { border-bottom: 1px solid #333; margin-bottom: 4px; height: 20px; }
+  .sign-label { color: #666; font-size: 9px; }
+  .muhur { border: 2px solid #ccc; border-radius: 50%; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #999; margin: 0 auto; }
+  @page { size: A4; margin: 0; }
+  @media print {
+    body { margin: 0; }
+    .page { margin: 0; padding: 8mm; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    th { background-color: #1A4A08 !important; color: white !important; }
+    .header-green { background-color: #1A4A08 !important; color: white !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header-green">ЗАВОД НУСХАСИ</div>
+  
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 8px;">
+    <div style="flex: 1;">
+      <div class="title">ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № ${widget.tiketRaqam}</div>
+      <div class="subtitle">Ishlab chiqarishdan qabul qilingan mahsulotlarni tashish uchun<br>${widget.sana}</div>
+    </div>
+    <div style="border: 1px solid #ccc; padding: 6px 10px; font-size: 10px; min-width: 120px; text-align: center;">
+      <div>Хусусий</div>
+      <div>${widget.mashinaTuri}</div>
+      <div>${widget.mashinaRaqami}</div>
+    </div>
+  </div>
+
+  <div class="info-block"><b>Юк жўнатувчи:</b> "Ҳазорасп текстил" МЧЖга қарашли пахта тозалаш завод</div>
+  <div class="info-block"><b>Юк олувчи:</b> ${widget.firma}</div>
+  <hr class="divider">
+
+  <div class="info-grid">
+    <div><b>Тикет №:</b> ${widget.tiketRaqam}</div>
+    <div><b>Сана:</b> ${widget.sana}</div>
+    <div><b>Терим тури:</b> ${widget.terimTuri}</div>
+    <div><b>Туда №:</b> ${widget.tudaRaqam}</div>
+    <div><b>Класс:</b> ${widget.klass}</div>
+    <div><b>Намлик %:</b> ${widget.namlik ?? '—'}</div>
+    <div></div>
+    <div></div>
+    <div><b>Ифлослик %:</b> ${widget.ifloslik ?? '—'}</div>
+  </div>
+  <div class="info-block"><b>Селексия нави:</b> ${widget.seleksiyaNavi}</div>
+
+  <table>
+    <tr>
+      <th>Юкнинг номи</th>
+      <th>Тара (Урама), кг</th>
+      <th>Брутто (Урама б/н), кг</th>
+      <th>Нетто (Соф), кг</th>
+      <th>Кондицион вазн, кг</th>
+    </tr>
+    $qatorlar
+    <tr class="jami">
+      <td><b>Жами:</b></td>
+      <td><b>${jamiT.toStringAsFixed(0)}</b></td>
+      <td><b>${jamiB.toStringAsFixed(0)}</b></td>
+      <td><b>${jamiN.toStringAsFixed(0)}</b></td>
+      <td><b>${jamiK > 0 ? jamiK.toStringAsFixed(0) : '—'}</b></td>
+    </tr>
+  </table>
+
+  <div style="display: flex; justify-content: space-between;">
+    <div class="dostaverna">Доставерна № ${widget.dostaverka}</div>
+    <div style="font-size: 10px; padding: 6px;">Муддат: ${widget.dostaverkaVaqt}</div>
+  </div>
+
+  <div class="sign-block">
+    <div style="font-size: 10px; color: #666;">Шофёр</div>
+    <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+      <div style="font-size: 10px;">Қабул қилди: <b>${widget.qabulQildi}</b> ___________</div>
+      <div style="font-size: 10px;">Юк олинди: <b>${widget.yukOlindi}</b> ___________</div>
+    </div>
+  </div>
+
+  <div class="sign-grid">
+    <div class="sign-item">
+      <div class="sign-line"></div>
+      <div>Раҳбар</div>
+      <div class="sign-label">ИМЗО</div>
+    </div>
+    <div class="sign-item">
+      <div class="sign-line"></div>
+      <div>Шофёр</div>
+      <div class="sign-label">ИМЗО</div>
+    </div>
+    <div class="sign-item">
+      <div class="sign-line"></div>
+      <div>Юк олиб кетувчи</div>
+      <div class="sign-label">ИМЗО</div>
+    </div>
+    <div class="sign-item">
+      <div class="muhur">М.Ў</div>
+      <div>Таразбон</div>
+      <div class="sign-label">ИМЗО</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>''';
+  }
+
   int tanlanganNusxa = 0;
 
   double? netto(double? tara, double? brutto) =>
@@ -126,8 +327,13 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
             );
           }),
           const SizedBox(width: 8),
-          TextButton.icon(
-            onPressed: () {},
+         TextButton.icon(
+            onPressed: () {
+              final htmlContent = _nakladnoyHtml();
+              final blob = html.Blob([htmlContent], 'text/html');
+              final url = html.Url.createObjectUrlFromBlob(blob);
+              html.window.open(url, '_blank');
+            },
             icon: const Icon(Icons.print, size: 18, color: Color(0xFF3AAA1A)),
             label: const Text("Chop etish", style: TextStyle(color: Color(0xFF3AAA1A))),
           ),

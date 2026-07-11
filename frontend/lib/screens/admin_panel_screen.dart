@@ -194,8 +194,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 Future<void> hujjatlarniYukla() async {
     try {
-      final response = await http.get(
-          Uri.parse('${ApiService.baseUrl}/hujjatlar'));
+      final url = tanlanganMahsulotId == 0
+          ? '${ApiService.baseUrl}/hujjatlar'
+          : '${ApiService.baseUrl}/hujjatlar?mahsulot_id=$tanlanganMahsulotId';
+      final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         setState(() {
           hujjatlar = jsonDecode(utf8.decode(response.bodyBytes));
@@ -1581,6 +1583,7 @@ Widget _mashinaGrafik() {
             border: Border.all(color: cardBorder),
             borderRadius: BorderRadius.circular(12)),
         child: Row(children: [
+          _mahsulotTab(0, 'Jami'),
           _mahsulotTab(1, 'Chigit'),
           _mahsulotTab(2, 'Chiganoq'),
           _mahsulotTab(3, "Chiganoq po'chog'i"),

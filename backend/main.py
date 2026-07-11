@@ -205,46 +205,120 @@ def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db)):
 def olchovlar_royxati(hujjat_id: int, db: Session = Depends(get_db)):
     return db.query(Olchov).filter(Olchov.hujjat_id == hujjat_id).all()
 
-# ============ NAVBAT (xotirada) ============
+# ============ NAVBAT (PostgreSQL) ============
+import json
 
 @app.post("/navbat/qosh")
-def navbat_qosh(data: dict):
-    # Mavjud bo'lsa yangilash
-    global navbat_royxati
-    navbat_royxati = [m for m in navbat_royxati
-                      if m.get("hujjatId") != data.get("hujjatId")]
-    navbat_royxati.append(data)
-    return {"status": "ok", "soni": len(navbat_royxati)}
+def navbat_qosh(data: dict, db: Session = Depends(get_db)):
+    from models import Navbat
+    mavjud = db.query(Navbat).filter(Navbat.hujjat_id == data.get("hujjatId")).first()
+    if mavjud:
+        db.delete(mavjud)
+        db.commit()
+    yangi = Navbat(
+        hujjat_id=data.get("hujjatId"),
+        mashina_id=data.get("mashinaId"),
+        raqam=data.get("raqam"),
+        turi=data.get("turi"),
+        shofyor=data.get("shofyor"),
+        firma=data.get("firma"),
+        mahsulot_id=data.get("mahsulotId"),
+        mahsulot_nomi=data.get("mahsulotNomi"),
+        vaqt=data.get("vaqt"),
+        tuda_raqam=data.get("tudaRaqam"),
+        tiket_raqam=data.get("tiketRaqam"),
+        seleksiya_navi=data.get("seleksiyaNavi"),
+        klass=data.get("klass"),
+        sinf=data.get("sinf"),
+        terim_turi=data.get("terimTuri"),
+        namlik=data.get("namlik"),
+        ifloslik=data.get("ifloslik"),
+        tugallandi=False,
+        aravalar_json=json.dumps(data.get("aravalar", {})),
+    )
+    db.add(yangi)
+    db.commit()
+    return {"status": "ok"}
 
 @app.get("/navbat")
-def navbat_get():
-    return navbat_royxati
+def navbat_get(db: Session = Depends(get_db)):
+    from models import Navbat
+    navbat = db.query(Navbat).filter(Navbat.tugallandi == False).order_by(Navbat.kelgan_vaqt.asc()).all()
+    natija = []
+    for n in navbat:
+        natija.append({
+            "hujjatId": n.hujjat_id,
+            "mashinaId": n.mashina_id,
+            "raqam": n.raqam,
+            "turi": n.turi,
+            "shofyor": n.shofyor,
+            "firma": n.firma,
+            "mahsulotId": n.mahsulot_id,
+            "mahsulotNomi": n.mahsulot_nomi,
+            "vaqt": n.vaqt,
+            "tudaRaqam": n.tuda_raqam,
+            "tiketRaqam": n.tiket_raqam,
+            "seleksiyaNavi": n.seleksiya_navi,
+            "klass": n.klass,
+            "sinf": n.sinf,
+            "terimTuri": n.terim_turi,
+            "namlik": n.namlik,
+            "ifloslik": n.ifloslik,
+            "aravalar": json.loads(n.aravalar_json) if n.aravalar_json else {},
+        })
+    return natija
 
 @app.post("/navbat/tugallandi")
-def navbat_tugallandi(data: dict):
-    global navbat_royxati
-    navbat_royxati = [m for m in navbat_royxati
-                      if m.get("hujjatId") != data.get("hujjatId")]
-    data["tugallanganVaqt"] = str(datetime.now())
-    tugallangan_royxati.insert(0, data)
+def navbat_tugallandi(data: dict, db: Session = Depends(get_db)):
+    from models import Navbat
+    navbat = db.query(Navbat).filter(Navbat.hujjat_id == data.get("hujjatId")).first()
+    if navbat:
+        navbat.tugallandi = True
+        navbat.tugallangan_vaqt = datetime.now()
+        navbat.aravalar_json = json.dumps(data.get("aravalar", {}))
+        db.commit()
     return {"status": "ok"}
 
 @app.get("/navbat/tugallanganlar")
-def tugallanganlar_get():
-    return tugallangan_royxati
+def tugallanganlar_get(db: Session = Depends(get_db)):
+    from models import Navbat
+    from datetime import timedelta
+    kun_oldin = datetime.now() - timedelta(hours=24)
+    tugallanganlar = db.query(Navbat).filter(
+        Navbat.tugallandi == True,
+        Navbat.tugallangan_vaqt >= kun_oldin
+    ).order_by(Navbat.tugallangan_vaqt.desc()).all()
+    natija = []
+    for n in tugallanganlar:
+        natija.append({
+            "hujjatId": n.hujjat_id,
+            "mashinaId": n.mashina_id,
+            "raqam": n.raqam,
+            "turi": n.turi,
+            "shofyor": n.shofyor,
+            "firma": n.firma,
+            "mahsulotId": n.mahsulot_id,
+            "mahsulotNomi": n.mahsulot_nomi,
+            "vaqt": n.vaqt,
+            "tugallanganVaqt": str(n.tugallangan_vaqt) if n.tugallangan_vaqt else None,
+            "aravalar": json.loads(n.aravalar_json) if n.aravalar_json else {},
+        })
+    return natija
 
 @app.post("/navbat/bekor")
-def navbat_bekor(data: dict):
-    global navbat_royxati
-    navbat_royxati = [m for m in navbat_royxati
-                      if m.get("hujjatId") != data.get("hujjatId")]
+def navbat_bekor(data: dict, db: Session = Depends(get_db)):
+    from models import Navbat
+    navbat = db.query(Navbat).filter(Navbat.hujjat_id == data.get("hujjatId")).first()
+    if navbat:
+        db.delete(navbat)
+        db.commit()
     return {"status": "ok"}
 
 @app.delete("/navbat/tozala")
-def navbat_tozala():
-    global navbat_royxati, tugallangan_royxati
-    navbat_royxati = []
-    tugallangan_royxati = []
+def navbat_tozala(db: Session = Depends(get_db)):
+    from models import Navbat
+    db.query(Navbat).delete()
+    db.commit()
     return {"status": "ok"}
 
 # ============ STATISTIKA ============

@@ -32,7 +32,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Map<String, dynamic> kunlikStat = {};
   Map<String, dynamic> haftalikStat = {};
   Map<String, dynamic> oylikStat = {};
-  Map<String, dynamic> mavsumStat = {};
+ Map<String, dynamic> mavsumStat = {};
+  List<dynamic> kunlikGrafik = [];
+  List<dynamic> oylikGrafik = [];
+  List<dynamic> mavsumGrafik = [];
   String hozirgiSoat = '';
   Timer? soatTimer;
   Timer? yangilanishTimer;
@@ -172,8 +175,20 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             oylikStat = jsonDecode(utf8.decode(oylik.bodyBytes));
         });
         final mavsum = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/mavsum'));
-        if (mavsum.statusCode == 200)
+       if (mavsum.statusCode == 200)
           setState(() => mavsumStat = jsonDecode(utf8.decode(mavsum.bodyBytes)));
+        
+        final kunlikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/kunlik'));
+        if (kunlikG.statusCode == 200)
+          setState(() => kunlikGrafik = jsonDecode(utf8.decode(kunlikG.bodyBytes)));
+        
+        final oylikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/oylik'));
+        if (oylikG.statusCode == 200)
+          setState(() => oylikGrafik = jsonDecode(utf8.decode(oylikG.bodyBytes)));
+        
+        final mavsumG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/mavsum'));
+        if (mavsumG.statusCode == 200)
+          setState(() => mavsumGrafik = jsonDecode(utf8.decode(mavsumG.bodyBytes)));
       }
     } catch (e) {}
   }
@@ -501,14 +516,17 @@ Future<void> hujjatlarniYukla() async {
 
         // SOLISHTIRMA
         Row(children: [
-          Expanded(child: _solishtirmaKarta(
-              "Mashinalar", "${hujjatlar.length}", "41", "287")),
+         Expanded(child: _solishtirmaKarta(
+              "Tonnaj (t)",
+              "${kunlikStat['jami_tonnaj'] ?? '—'}",
+              "${haftalikStat['jami_tonnaj'] ?? '—'}",
+              "${oylikStat['jami_tonnaj'] ?? '—'}")),
           const SizedBox(width: 10),
           Expanded(child: _solishtirmaKarta(
-              "Tonnaj (t)", "—", "842", "5,890")),
-          const SizedBox(width: 10),
-          Expanded(child: _solishtirmaKarta(
-              "Konditsion (t)", "—", "780", "5,460")),
+              "Konditsion (t)",
+              "${kunlikStat['chigit']?['konditsion'] ?? '—'}",
+              "${haftalikStat['chigit']?['konditsion'] ?? '—'}",
+              "${oylikStat['chigit']?['konditsion'] ?? '—'}")),
         ]),
         const SizedBox(height: 12),
 
@@ -1315,59 +1333,99 @@ Widget _kgKarta(String label, double? value, Color color) {
       ]),
     );
   }
-
-  Widget _mashinaGrafik() {
+Widget _mashinaGrafik() {
     final cardColor = kechagiRejim ? const Color(0xFF0F2A0F) : Colors.white;
-    final List<double> data = [38, 41, 35, 44, 39, 46,
-        hujjatlar.length.toDouble()];
-    final List<String> kunlar = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
+    
+    List<dynamic> grafikData = tanlanganStatTab == 0
+        ? kunlikGrafik
+        : tanlanganStatTab == 1
+            ? oylikGrafik
+            : mavsumGrafik;
+
+    if (grafikData.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: cardColor,
+            border: Border.all(color: cardBorder),
+            borderRadius: BorderRadius.circular(16)),
+        child: const Center(child: Text("Ma'lumot yo'q", style: TextStyle(color: Colors.grey))),
+      );
+    }
+
+    final List<double> chigitData = grafikData.map((e) => (e['chigit'] as num).toDouble()).toList();
+    final List<double> chiganoqData = grafikData.map((e) => (e['chiganoq'] as num).toDouble()).toList();
+    final List<String> labellar = grafikData.map((e) {
+      if (tanlanganStatTab == 2) {
+        final oy = e['oy'].toString();
+        return oy.length >= 7 ? oy.substring(5, 7) : oy;
+      } else {
+        final kun = e['kun'].toString();
+        return kun.length >= 10 ? kun.substring(8, 10) : kun;
+      }
+    }).toList();
+
+    final maxY = [...chigitData, ...chiganoqData].fold(0.0, (a, b) => a > b ? a : b) + 5;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
           color: cardColor,
           border: Border.all(color: cardBorder),
           borderRadius: BorderRadius.circular(16)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         cardLabel(Icons.bar_chart, "MASHINALAR SONI", color: blueColor),
         const SizedBox(height: 16),
         SizedBox(
           height: 150,
           child: BarChart(BarChartData(
             alignment: BarChartAlignment.spaceAround,
-            maxY: 60,
+            maxY: maxY,
             titlesData: FlTitlesData(
               leftTitles: AxisTitles(sideTitles: SideTitles(
                   showTitles: true, reservedSize: 28,
                   getTitlesWidget: (v, m) => Text(v.toInt().toString(),
-                      style: const TextStyle(
-                          fontSize: 10, color: Colors.grey)))),
+                      style: const TextStyle(fontSize: 10, color: Colors.grey)))),
               bottomTitles: AxisTitles(sideTitles: SideTitles(
                   showTitles: true,
-                  getTitlesWidget: (v, m) => Text(
-                      kunlar[v.toInt() % kunlar.length],
-                      style: const TextStyle(
-                          fontSize: 10, color: Colors.grey)))),
-              topTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false)),
+                  getTitlesWidget: (v, m) {
+                    final i = v.toInt();
+                    if (i < 0 || i >= labellar.length) return const Text('');
+                    return Text(labellar[i],
+                        style: const TextStyle(fontSize: 9, color: Colors.grey));
+                  })),
+              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             ),
             gridData: FlGridData(show: true,
                 getDrawingHorizontalLine: (v) => FlLine(
                     color: const Color(0xFFE8F4E0), strokeWidth: 1)),
             borderData: FlBorderData(show: false),
-            barGroups: data.asMap().entries.map((e) =>
+            barGroups: chigitData.asMap().entries.map((e) =>
                 BarChartGroupData(x: e.key, barRods: [
                   BarChartRodData(
                       toY: e.value,
-                      color: e.key == 6 ? goldColor : greenLight,
-                      width: 18,
-                      borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(4)))
+                      color: greenLight,
+                      width: 12,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+                  BarChartRodData(
+                      toY: chiganoqData[e.key],
+                      color: blueColor,
+                      width: 12,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
                 ])).toList(),
           )),
         ),
+        const SizedBox(height: 8),
+        Row(children: [
+          Container(width: 10, height: 10, color: greenLight),
+          const SizedBox(width: 4),
+          const Text("Chigit", style: TextStyle(fontSize: 10, color: Colors.grey)),
+          const SizedBox(width: 12),
+          Container(width: 10, height: 10, color: blueColor),
+          const SizedBox(width: 4),
+          const Text("Chiganoq", style: TextStyle(fontSize: 10, color: Colors.grey)),
+        ]),
       ]),
     );
   }
@@ -2119,7 +2177,7 @@ Widget _kgKarta(String label, double? value, Color color) {
       child: Column(children: [
        // TAB TUGMALARI
         Row(children: [
-          ...['Kunlik', 'Oylik', 'Mavsum', 'Grafik'].asMap().entries.map((e) {
+          ...['Kunlik', 'Oylik', 'Mavsum'].asMap().entries.map((e) {
             final active = tanlanganStatTab == e.key;
             return Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -2248,7 +2306,19 @@ Widget _kgKarta(String label, double? value, Color color) {
           ]),
         ),
         const SizedBox(height: 12),
-        if (tanlanganStatTab == 3)
+        if (tanlanganStatTab == 0)
+        Row(children: [
+          Expanded(child: _mashinaGrafik()),
+          const SizedBox(width: 12),
+          Expanded(child: _tonnajGrafik()),
+        ]),
+        if (tanlanganStatTab == 1)
+        Row(children: [
+          Expanded(child: _mashinaGrafik()),
+          const SizedBox(width: 12),
+          Expanded(child: _tonnajGrafik()),
+        ]),
+        if (tanlanganStatTab == 2)
         Row(children: [
           Expanded(child: _mashinaGrafik()),
           const SizedBox(width: 12),

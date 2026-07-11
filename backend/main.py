@@ -645,3 +645,83 @@ def rasm_ol(data: dict):
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+# ============ GRAFIK MA'LUMOTLAR ============
+
+@app.get("/statistika/grafik/kunlik")
+def grafik_kunlik(db: Session = Depends(get_db)):
+    from datetime import date, timedelta
+    natija = []
+    for i in range(6, -1, -1):
+        kun = date.today() - timedelta(days=i)
+        keyingi_kun = kun + timedelta(days=1)
+        hujjatlar = db.query(Hujjat).filter(
+            Hujjat.created_at >= kun,
+            Hujjat.created_at < keyingi_kun
+        ).all()
+        chigit = len([h for h in hujjatlar if h.mahsulot_id == 1])
+        chiganoq = len([h for h in hujjatlar if h.mahsulot_id == 2])
+        pochog = len([h for h in hujjatlar if h.mahsulot_id == 3])
+        natija.append({
+            "kun": str(kun),
+            "chigit": chigit,
+            "chiganoq": chiganoq,
+            "pochog": pochog,
+            "jami": len(hujjatlar)
+        })
+    return natija
+
+@app.get("/statistika/grafik/oylik")
+def grafik_oylik(db: Session = Depends(get_db)):
+    from datetime import date, timedelta
+    bugun = date.today()
+    oy_boshi = bugun.replace(day=1)
+    natija = []
+    kun = oy_boshi
+    while kun <= bugun:
+        keyingi_kun = kun + timedelta(days=1)
+        hujjatlar = db.query(Hujjat).filter(
+            Hujjat.created_at >= kun,
+            Hujjat.created_at < keyingi_kun
+        ).all()
+        chigit = len([h for h in hujjatlar if h.mahsulot_id == 1])
+        chiganoq = len([h for h in hujjatlar if h.mahsulot_id == 2])
+        pochog = len([h for h in hujjatlar if h.mahsulot_id == 3])
+        natija.append({
+            "kun": str(kun),
+            "chigit": chigit,
+            "chiganoq": chiganoq,
+            "pochog": pochog,
+            "jami": len(hujjatlar)
+        })
+        kun = keyingi_kun
+    return natija
+
+@app.get("/statistika/grafik/mavsum")
+def grafik_mavsum(db: Session = Depends(get_db)):
+    from datetime import date, timedelta
+    bugun = date.today()
+    if bugun.month >= 8:
+        mavsum_boshi = date(bugun.year, 8, 1)
+    else:
+        mavsum_boshi = date(bugun.year - 1, 8, 1)
+    natija = []
+    oy = mavsum_boshi
+    while oy <= bugun:
+        keyingi_oy = date(oy.year + (oy.month // 12), (oy.month % 12) + 1, 1)
+        hujjatlar = db.query(Hujjat).filter(
+            Hujjat.created_at >= oy,
+            Hujjat.created_at < keyingi_oy
+        ).all()
+        chigit = len([h for h in hujjatlar if h.mahsulot_id == 1])
+        chiganoq = len([h for h in hujjatlar if h.mahsulot_id == 2])
+        pochog = len([h for h in hujjatlar if h.mahsulot_id == 3])
+        natija.append({
+            "oy": f"{oy.year}-{oy.month:02d}",
+            "chigit": chigit,
+            "chiganoq": chiganoq,
+            "pochog": pochog,
+            "jami": len(hujjatlar)
+        })
+        oy = keyingi_oy
+    return natija

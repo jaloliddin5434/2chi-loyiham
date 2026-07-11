@@ -367,6 +367,51 @@ def oylik_statistika(db: Session = Depends(get_db)):
         "pochog": {"soni": len(pochog), "tonnaj": tonnaj(pochog)},
         "jami_tonnaj": tonnaj(hujjatlar),
     }
+
+@app.get("/statistika/mavsum")
+def mavsum_statistika(db: Session = Depends(get_db)):
+    from datetime import date
+    bugun = date.today()
+    # Mavsum: 1 Avgust dan 31 Iyul gacha
+    if bugun.month >= 8:
+        mavsum_boshi = date(bugun.year, 8, 1)
+    else:
+        mavsum_boshi = date(bugun.year - 1, 8, 1)
+    
+    hujjatlar = db.query(Hujjat).filter(
+        Hujjat.created_at >= mavsum_boshi
+    ).all()
+    
+    chigit = [h for h in hujjatlar if h.mahsulot_id == 1]
+    chiganoq = [h for h in hujjatlar if h.mahsulot_id == 2]
+    pochog = [h for h in hujjatlar if h.mahsulot_id == 3]
+    
+    def tonnaj(hujjat_list):
+        jami = 0
+        for h in hujjat_list:
+            olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
+            for o in olchovlar:
+                if o.netto:
+                    jami += o.netto
+        return round(jami / 1000, 2)
+    
+    def konditsion_hisob(hujjat_list):
+        jami = 0
+        for h in hujjat_list:
+            olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
+            for o in olchovlar:
+                if o.konditsion:
+                    jami += o.konditsion
+        return round(jami / 1000, 2)
+    
+    return {
+        "mavsum_boshi": str(mavsum_boshi),
+        "mashinalar_soni": len(hujjatlar),
+        "chigit": {"soni": len(chigit), "tonnaj": tonnaj(chigit), "konditsion": konditsion_hisob(chigit)},
+        "chiganoq": {"soni": len(chiganoq), "tonnaj": tonnaj(chiganoq)},
+        "pochog": {"soni": len(pochog), "tonnaj": tonnaj(pochog)},
+        "jami_tonnaj": tonnaj(hujjatlar),
+    }
     
     # ============ BACKUP ============
 

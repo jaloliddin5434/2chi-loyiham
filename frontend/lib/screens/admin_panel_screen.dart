@@ -20,8 +20,10 @@ class AdminPanelScreen extends StatefulWidget {
 class _AdminPanelScreenState extends State<AdminPanelScreen>
     with TickerProviderStateMixin {
 
-    int tanlanganSidebar = 0;
- int tanlanganMahsulotId = 1;
+   int tanlanganTab = 0;
+  int tanlanganStatTab = 0;
+  int tanlanganSidebar = 0;
+  int tanlanganMahsulotId = 1;
   String sanadan = '';
   String sanagacha = '';
   String nakladnoyFilter = '';
@@ -30,6 +32,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Map<String, dynamic> kunlikStat = {};
   Map<String, dynamic> haftalikStat = {};
   Map<String, dynamic> oylikStat = {};
+  Map<String, dynamic> mavsumStat = {};
   String hozirgiSoat = '';
   Timer? soatTimer;
   Timer? yangilanishTimer;
@@ -46,7 +49,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   String sortTuri = 'raqam';
   bool sortOshib = false;
 
-  int tanlanganTab = 0;
 
   final telegramTokenCtrl = TextEditingController();
   final zavodNomiCtrl = TextEditingController(
@@ -166,9 +168,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             kunlikStat = jsonDecode(utf8.decode(kunlik.bodyBytes));
           if (haftalik.statusCode == 200)
             haftalikStat = jsonDecode(utf8.decode(haftalik.bodyBytes));
-          if (oylik.statusCode == 200)
+         if (oylik.statusCode == 200)
             oylikStat = jsonDecode(utf8.decode(oylik.bodyBytes));
         });
+        final mavsum = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/mavsum'));
+        if (mavsum.statusCode == 200)
+          setState(() => mavsumStat = jsonDecode(utf8.decode(mavsum.bodyBytes)));
       }
     } catch (e) {}
   }
@@ -2112,6 +2117,32 @@ Widget _kgKarta(String label, double? value, Color color) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(14),
       child: Column(children: [
+       // TAB TUGMALARI
+        Row(children: [
+          ...['Kunlik', 'Oylik', 'Mavsum', 'Grafik'].asMap().entries.map((e) {
+            final active = tanlanganStatTab == e.key;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () => setState(() => tanlanganStatTab = e.key),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: active ? greenLight : Colors.transparent,
+                    border: Border.all(color: active ? greenLight : cardBorder),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(e.value,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                          color: active ? Colors.white : muted)),
+                ),
+              ),
+            );
+          }),
+        ]),
+        const SizedBox(height: 12),
         Row(children: [
           Expanded(child: _statCard("Bugun mashinalar",
               "${kunlikStat['mashinalar_soni'] ?? 0}", "ta",
@@ -2129,7 +2160,8 @@ Widget _kgKarta(String label, double? value, Color color) {
               "${haftalikStat['jami_tonnaj'] ?? 0}", "tonna",
               Icons.scale, redColor)),
         ]),
-        const SizedBox(height: 12),
+       const SizedBox(height: 12),
+        if (tanlanganStatTab == 0)
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: cardColor,
@@ -2157,7 +2189,8 @@ Widget _kgKarta(String label, double? value, Color color) {
             ]),
           ]),
         ),
-        const SizedBox(height: 12),
+       const SizedBox(height: 12),
+        if (tanlanganStatTab == 1)
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: cardColor,
@@ -2185,7 +2218,37 @@ Widget _kgKarta(String label, double? value, Color color) {
             ]),
           ]),
         ),
+       const SizedBox(height: 12),
+        if (tanlanganStatTab == 2)
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: cardColor,
+              border: Border.all(color: cardBorder),
+              borderRadius: BorderRadius.circular(16)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            cardLabel(Icons.calendar_today, "MAVSUM STATISTIKASI", color: goldColor),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: _mahsulotKarta("Chigit",
+                  mavsumStat['chigit']?['soni'] ?? 0,
+                  "${mavsumStat['chigit']?['tonnaj'] ?? 0} t",
+                  goldColor, goldBg, goldBorder,
+                  konditsion: "${mavsumStat['chigit']?['konditsion'] ?? 0} t")),
+              const SizedBox(width: 12),
+              Expanded(child: _mahsulotKarta("Chiganoq",
+                  mavsumStat['chiganoq']?['soni'] ?? 0,
+                  "${mavsumStat['chiganoq']?['tonnaj'] ?? 0} t",
+                  greenLight, greenBg, greenBorder)),
+              const SizedBox(width: 12),
+              Expanded(child: _mahsulotKarta("Chiganoq po'chog'i",
+                  mavsumStat['pochog']?['soni'] ?? 0,
+                  "${mavsumStat['pochog']?['tonnaj'] ?? 0} t",
+                  blueColor, blueBg, blueBorder)),
+            ]),
+          ]),
+        ),
         const SizedBox(height: 12),
+        if (tanlanganStatTab == 3)
         Row(children: [
           Expanded(child: _mashinaGrafik()),
           const SizedBox(width: 12),

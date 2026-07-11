@@ -2142,7 +2142,8 @@ Widget _kgKarta(String label, double? value, Color color) {
               Expanded(child: _mahsulotKarta("Chigit",
                   kunlikStat['chigit']?['soni'] ?? 0,
                   "${kunlikStat['chigit']?['tonnaj'] ?? 0} t",
-                  goldColor, goldBg, goldBorder)),
+                  goldColor, goldBg, goldBorder,
+                  konditsion: "${kunlikStat['chigit']?['konditsion'] ?? 0} t")),
               const SizedBox(width: 12),
               Expanded(child: _mahsulotKarta("Chiganoq",
                   kunlikStat['chiganoq']?['soni'] ?? 0,
@@ -2169,7 +2170,8 @@ Widget _kgKarta(String label, double? value, Color color) {
               Expanded(child: _mahsulotKarta("Chigit",
                   oylikStat['chigit']?['soni'] ?? 0,
                   "${oylikStat['chigit']?['tonnaj'] ?? 0} t",
-                  goldColor, goldBg, goldBorder)),
+                  goldColor, goldBg, goldBorder,
+                  konditsion: "${oylikStat['chigit']?['konditsion'] ?? 0} t")),
               const SizedBox(width: 12),
               Expanded(child: _mahsulotKarta("Chiganoq",
                   oylikStat['chiganoq']?['soni'] ?? 0,
@@ -2194,24 +2196,36 @@ Widget _kgKarta(String label, double? value, Color color) {
   }
 
   Widget _mahsulotKarta(String nom, int soni, String tonnaj, Color color,
-      Color bg, Color border) {
+      Color bg, Color border, {String? konditsion}) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
           color: bg,
           border: Border.all(color: border),
           borderRadius: BorderRadius.circular(12)),
-      child: Column(children: [
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(nom, style: TextStyle(
             fontSize: 12, fontWeight: FontWeight.w600, color: color)),
-        const SizedBox(height: 8),
-        Text("$soni", style: TextStyle(
-            fontSize: 28, fontWeight: FontWeight.w700, color: color)),
-        Text("ta mashina",
-            style: const TextStyle(fontSize: 11, color: muted)),
+        const Divider(height: 12),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          const Text("Birliklar:", style: TextStyle(fontSize: 11, color: muted)),
+          Text("$soni ta", style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+        ]),
         const SizedBox(height: 4),
-        Text(tonnaj, style: TextStyle(
-            fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          const Text("Netto:", style: TextStyle(fontSize: 11, color: muted)),
+          Text(tonnaj, style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+        ]),
+        if (konditsion != null) ...[
+          const SizedBox(height: 4),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            const Text("Konditsion:", style: TextStyle(fontSize: 11, color: muted)),
+            Text(konditsion, style: TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+          ]),
+        ],
       ]),
     );
   }

@@ -272,12 +272,25 @@ def kunlik_statistika(db: Session = Depends(get_db)):
                     jami += o.netto
         return round(jami / 1000, 2)
     
+    def konditsion_hisob(hujjat_list):
+        jami = 0
+        for h in hujjat_list:
+            olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
+            for o in olchovlar:
+                if o.konditsion:
+                    jami += o.konditsion
+        return round(jami / 1000, 2)
+
+    from models import Navbat as NavbatModel
+    navbat_soni = db.query(NavbatModel).filter(NavbatModel.tugallandi == False).count()
+    tugallangan_soni = db.query(NavbatModel).filter(NavbatModel.tugallandi == True).count()
+
     return {
         "sana": str(bugun),
         "mashinalar_soni": len(hujjatlar),
-        "tugallanganlar_soni": len(tugallangan_royxati),
-        "navbat_soni": len(navbat_royxati),
-        "chigit": {"soni": len(chigit), "tonnaj": tonnaj(chigit)},
+        "tugallanganlar_soni": tugallangan_soni,
+        "navbat_soni": navbat_soni,
+        "chigit": {"soni": len(chigit), "tonnaj": tonnaj(chigit), "konditsion": konditsion_hisob(chigit)},
         "chiganoq": {"soni": len(chiganoq), "tonnaj": tonnaj(chiganoq)},
         "pochog": {"soni": len(pochog), "tonnaj": tonnaj(pochog)},
         "jami_tonnaj": tonnaj(hujjatlar),
@@ -337,10 +350,19 @@ def oylik_statistika(db: Session = Depends(get_db)):
                     jami += o.netto
         return round(jami / 1000, 2)
     
+    def konditsion_hisob(hujjat_list):
+        jami = 0
+        for h in hujjat_list:
+            olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
+            for o in olchovlar:
+                if o.konditsion:
+                    jami += o.konditsion
+        return round(jami / 1000, 2)
+
     return {
         "oy": str(oy_boshi),
         "mashinalar_soni": len(hujjatlar),
-        "chigit": {"soni": len(chigit), "tonnaj": tonnaj(chigit)},
+        "chigit": {"soni": len(chigit), "tonnaj": tonnaj(chigit), "konditsion": konditsion_hisob(chigit)},
         "chiganoq": {"soni": len(chiganoq), "tonnaj": tonnaj(chiganoq)},
         "pochog": {"soni": len(pochog), "tonnaj": tonnaj(pochog)},
         "jami_tonnaj": tonnaj(hujjatlar),
@@ -400,7 +422,7 @@ def avtomatik_telegram_hisobot():
     import time
     while True:
         now = datetime.now()
-        if now.hour == 20 and now.minute == 0:
+        if now.hour == 15 and now.minute == 58:
             try:
                 from datetime import date
                 db = next(get_db())

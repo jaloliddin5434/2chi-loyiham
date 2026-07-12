@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import engine, get_db, Base
@@ -706,7 +706,30 @@ def telegram_kunlik(db: Session = Depends(get_db)):
     
     telegram_xabar_yuborish(matn)
     return {"status": "ok", "xabar": matn}
- # ============ KAMERA ============
+ # ============ PDF SAQLASH ============
+
+@app.post("/nakladnoy/saqlash")
+async def nakladnoy_saqlash(request: Request):
+    try:
+        data = await request.json()
+        mashina_raqami = data.get("mashina_raqami", "noma_lum")
+        mahsulot_nomi = data.get("mahsulot_nomi", "Chigit")
+        sana = data.get("sana", datetime.now().strftime("%Y-%m-%d"))
+        html_content = data.get("html", "")
+        
+        raqam = mashina_raqami.replace(" ", "_").replace("/", "_")
+        papka = Path(f"C:/RASMLAR/{sana}/{mahsulot_nomi}/{raqam}")
+        papka.mkdir(parents=True, exist_ok=True)
+        
+        fayl_yol = papka / "nakladnoy.html"
+        with open(fayl_yol, "w", encoding="utf-8") as f:
+            f.write(html_content)
+        
+        return {"status": "ok", "fayl": str(fayl_yol)}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ============ KAMERA ============
 from pathlib import Path
 import concurrent.futures
 

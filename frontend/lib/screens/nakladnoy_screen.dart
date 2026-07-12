@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'dart:html' as html;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -75,12 +77,26 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
 
   Future<void> _pdfSaqla() async {
     try {
-      final htmlContent = _nakladnoyHtml();
+     final htmlContent = _nakladnoyHtml();
+      
+      // Brauzerda ochish
       final blob = html.Blob([htmlContent], 'text/html');
       final url = html.Url.createObjectUrlFromBlob(blob);
       html.window.open(url, '_blank');
       await Future.delayed(const Duration(seconds: 1));
       html.Url.revokeObjectUrl(url);
+      
+      // Backend ga saqlash
+      await http.post(
+        Uri.parse('${ApiService.baseUrl}/nakladnoy/saqlash'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'mashina_raqami': widget.mashinaRaqami,
+          'mahsulot_nomi': widget.mahsulotNomi,
+          'sana': widget.sana,
+          'html': htmlContent,
+        }),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

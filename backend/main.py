@@ -621,6 +621,27 @@ def sozlama_saqlash(data: dict, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
+# ============ SERVER HOLATI ============
+import psutil
+
+@app.get("/server/holat")
+def server_holat():
+    try:
+        cpu = psutil.cpu_percent(interval=1)
+        ram = psutil.virtual_memory()
+        disk = psutil.disk_usage('C:/')
+        uptime_seconds = (datetime.now() - datetime.fromtimestamp(psutil.boot_time())).total_seconds()
+        kun = int(uptime_seconds // 86400)
+        soat = int((uptime_seconds % 86400) // 3600)
+        return {
+            "cpu": round(cpu, 1),
+            "ram": round(ram.percent, 1),
+            "disk": round(disk.percent, 1),
+            "uptime": f"{kun} kun {soat} soat"
+        }
+    except Exception as e:
+        return {"cpu": 0, "ram": 0, "disk": 0, "uptime": "—"}
+
 # ============ TELEGRAM BOT ============
 import requests as req
 

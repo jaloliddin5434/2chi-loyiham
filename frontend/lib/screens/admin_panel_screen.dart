@@ -186,10 +186,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         final oylikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/oylik'));
         if (oylikG.statusCode == 200)
           setState(() => oylikGrafik = jsonDecode(utf8.decode(oylikG.bodyBytes)));
-        
-        final mavsumG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/mavsum'));
+    final mavsumG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/mavsum'));
         if (mavsumG.statusCode == 200)
           setState(() => mavsumGrafik = jsonDecode(utf8.decode(mavsumG.bodyBytes)));
+
+        final serverH = await http.get(Uri.parse('${ApiService.baseUrl}/server/holat'));
+        if (serverH.statusCode == 200)
+          setState(() => serverHolati = jsonDecode(utf8.decode(serverH.bodyBytes)));
       }
     } catch (e) {}
   }

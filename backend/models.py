@@ -90,3 +90,10 @@ class Navbat(Base):
     tugallangan_vaqt = Column(DateTime, nullable=True)
     aravalar_json = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now())
+
+class Sozlama(Base):
+    __tablename__ = "sozlamalar"
+    id = Column(Integer, primary_key=True, index=True)
+    kalit = Column(String, unique=True, index=True)
+    qiymat = Column(Text, nullable=True)
+    updated_at = Column(DateTime, default=func.now())

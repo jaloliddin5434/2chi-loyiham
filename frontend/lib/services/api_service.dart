@@ -204,6 +204,26 @@ static const String baseUrl = "http://10.112.30.77:8001";
           'tur': tur,
         }),
       );
+   } catch (e) {}
+  }
+
+ static Future<void> sozlamaSaqla(Map<String, dynamic> data) async {
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/sozlamalar'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(data),
+      );
     } catch (e) {}
+  }
+
+  static Future<Map<String, dynamic>> sozlamalarOl() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/sozlamalar'));
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+    } catch (e) {}
+    return {};
   }
 }

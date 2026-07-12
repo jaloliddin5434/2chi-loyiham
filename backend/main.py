@@ -597,6 +597,30 @@ def avtomatik_backup():
 # Serverni ishga tushirganda backup thread boshlash
 backup_thread = threading.Thread(target=avtomatik_backup, daemon=True)
 backup_thread.start()
+# ============ SOZLAMALAR ============
+from models import Sozlama
+
+@app.get("/sozlamalar")
+def sozlamalar_olish(db: Session = Depends(get_db)):
+    sozlamalar = db.query(Sozlama).all()
+    natija = {}
+    for s in sozlamalar:
+        natija[s.kalit] = s.qiymat
+    return natija
+
+@app.post("/sozlamalar")
+def sozlama_saqlash(data: dict, db: Session = Depends(get_db)):
+    for kalit, qiymat in data.items():
+        mavjud = db.query(Sozlama).filter(Sozlama.kalit == kalit).first()
+        if mavjud:
+            mavjud.qiymat = str(qiymat)
+            mavjud.updated_at = datetime.now()
+        else:
+            yangi = Sozlama(kalit=kalit, qiymat=str(qiymat))
+            db.add(yangi)
+    db.commit()
+    return {"status": "ok"}
+
 # ============ TELEGRAM BOT ============
 import requests as req
 

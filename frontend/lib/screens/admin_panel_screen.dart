@@ -106,6 +106,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     soatTimer = Timer.periodic(
         const Duration(seconds: 1), (_) => _soatniYanila());
     hujjatlarniYukla();
+    _sozlamalarYukla();
     yangilanishTimer = Timer.periodic(
         const Duration(seconds: 3), (_) {
       if (mounted) {
@@ -192,6 +193,21 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       }
     } catch (e) {}
   }
+Future<void> _sozlamalarYukla() async {
+    try {
+      final sozlamalar = await ApiService.sozlamalarOl();
+      setState(() {
+        if (sozlamalar['konditsion_narx'] != null) {
+          konditsionNarx = double.tryParse(sozlamalar['konditsion_narx'].toString()) ?? 0;
+          narxCtrl.text = sozlamalar['konditsion_narx'].toString();
+        }
+        if (sozlamalar['telegram_token'] != null) {
+          telegramTokenCtrl.text = sozlamalar['telegram_token'].toString();
+        }
+      });
+    } catch (e) {}
+  }
+
 Future<void> hujjatlarniYukla() async {
     try {
       final url = tanlanganMahsulotId == 0
@@ -2691,6 +2707,9 @@ Widget _mashinaGrafik() {
                 children: [
               ElevatedButton.icon(
                 onPressed: () {
+                  ApiService.sozlamaSaqla({
+                    'telegram_token': telegramTokenCtrl.text,
+                  });
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                         content: Text(
@@ -2800,6 +2819,9 @@ Widget _mashinaGrafik() {
                   setState(() {
                     konditsionNarx =
                         double.tryParse(narxCtrl.text) ?? 0;
+                 });
+                  ApiService.sozlamaSaqla({
+                    'konditsion_narx': narxCtrl.text,
                   });
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(

@@ -549,16 +549,35 @@ def avtomatik_telegram_hisobot():
                 hujjatlar = db.query(Hujjat).filter(
                     Hujjat.created_at >= bugun
                 ).all()
-                chigit = len([h for h in hujjatlar if h.mahsulot_id == 1])
-                chiganoq = len([h for h in hujjatlar if h.mahsulot_id == 2])
-                pochog = len([h for h in hujjatlar if h.mahsulot_id == 3])
+                def tonnaj(mahsulot_id):
+                    h_list = [h for h in hujjatlar if h.mahsulot_id == mahsulot_id]
+                    jami_netto = 0
+                    jami_kond = 0
+                    for h in h_list:
+                        olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
+                        for o in olchovlar:
+                            if o.netto: jami_netto += o.netto
+                            if o.konditsion: jami_kond += o.konditsion
+                    return len(h_list), round(jami_netto/1000, 2), round(jami_kond/1000, 2)
+                
+                chigit_son, chigit_netto, chigit_kond = tonnaj(1)
+                chiganoq_son, chiganoq_netto, _ = tonnaj(2)
+                pochog_son, pochog_netto, _ = tonnaj(3)
+                
                 matn = f"""📊 <b>KUNLIK HISOBOT</b>
 📅 Sana: {bugun}
 
 🚛 Jami mashinalar: <b>{len(hujjatlar)} ta</b>
-🟡 Chigit: <b>{chigit} ta</b>
-🟢 Chiganoq: <b>{chiganoq} ta</b>
-🟠 Chiganoq po'chog'i: <b>{pochog} ta</b>
+
+🟡 <b>Chigit:</b> {chigit_son} ta
+   • Netto: <b>{chigit_netto} t</b>
+   • Konditsion: <b>{chigit_kond} t</b>
+
+🟢 <b>Chiganoq:</b> {chiganoq_son} ta
+   • Netto: <b>{chiganoq_netto} t</b>
+
+🟠 <b>Chiganoq po'chog'i:</b> {pochog_son} ta
+   • Netto: <b>{pochog_netto} t</b>
 
 🏭 Hazorasp Tekstil tarozi tizimi"""
                 telegram_xabar_yuborish(matn)

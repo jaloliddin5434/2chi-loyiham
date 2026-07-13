@@ -75,28 +75,51 @@ class NakladnoyScreen extends StatefulWidget {
 
 class _NakladnoyScreenState extends State<NakladnoyScreen> {
 
+  
   Future<void> _pdfSaqla() async {
     try {
-     final htmlContent = _nakladnoyHtml();
+      final htmlContent = _nakladnoyHtml();
+      final now = DateTime.now();
+      final sana = '${now.year}-${now.month.toString().padLeft(2,'0')}-${now.day.toString().padLeft(2,'0')}';
+      
+     await html.HttpRequest.request(
+        '${ApiService.baseUrl}/nakladnoy/saqlash',
+        method: 'POST',
+        requestHeaders: {'Content-Type': 'application/json'},
+       sendData: jsonEncode({
+          'mashina_raqami': widget.mashinaRaqami,
+          'mahsulot_nomi': widget.mahsulotNomi,
+          'sana': sana,
+          'tara1': widget.tara1 ?? 0,
+          'brutto1': widget.brutto1 ?? 0,
+          'netto1': (widget.brutto1 ?? 0) - (widget.tara1 ?? 0),
+          'konditsion1': widget.konditsion1 ?? 0,
+          'tara2': widget.tara2 ?? 0,
+          'brutto2': widget.brutto2 ?? 0,
+          'tara3': widget.tara3 ?? 0,
+          'brutto3': widget.brutto3 ?? 0,
+         'tiket': widget.tiketRaqam,
+          'firma': widget.firma,
+          'shofyor': widget.shofyor,
+          'namlik': widget.namlik ?? '',
+          'ifloslik': widget.ifloslik ?? '',
+          'seleksiya': widget.seleksiyaNavi,
+          'klass': widget.klass,
+         'terim_turi': widget.terimTuri,
+          'tuda_raqam': widget.tudaRaqam,
+          'qabul_qildi': widget.qabulQildi,
+          'yuk_olindi': widget.yukOlindi,
+          'dostaverka': widget.dostaverka,
+          'dostaverka_vaqt': widget.dostaverkaVaqt,
+         'mashina_turi': widget.mashinaTuri,
+        }),
+      );
       
       // Brauzerda ochish
       final blob = html.Blob([htmlContent], 'text/html');
       final url = html.Url.createObjectUrlFromBlob(blob);
       html.window.open(url, '_blank');
-      await Future.delayed(const Duration(seconds: 1));
       html.Url.revokeObjectUrl(url);
-      
-      // Backend ga saqlash
-      await http.post(
-        Uri.parse('${ApiService.baseUrl}/nakladnoy/saqlash'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'mashina_raqami': widget.mashinaRaqami,
-          'mahsulot_nomi': widget.mahsulotNomi,
-          'sana': widget.sana,
-          'html': htmlContent,
-        }),
-      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -344,11 +367,8 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
           }),
           const SizedBox(width: 8),
          TextButton.icon(
-            onPressed: () {
-              final htmlContent = _nakladnoyHtml();
-              final blob = html.Blob([htmlContent], 'text/html');
-              final url = html.Url.createObjectUrlFromBlob(blob);
-              html.window.open(url, '_blank');
+            onPressed: () async {
+              await _pdfSaqla();
             },
             icon: const Icon(Icons.print, size: 18, color: Color(0xFF3AAA1A)),
             label: const Text("Chop etish", style: TextStyle(color: Color(0xFF3AAA1A))),

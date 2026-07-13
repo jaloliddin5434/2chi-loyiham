@@ -226,4 +226,24 @@ static const String baseUrl = "http://10.112.30.77:8001";
     } catch (e) {}
     return {};
   }
+
+  static Future<void> nakladnoySaqla({
+    required String mashinaRaqami,
+    required String mahsulotNomi,
+    required String sana,
+    String html = '',
+  }) async {
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/nakladnoy/saqlash'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'mashina_raqami': mashinaRaqami,
+          'mahsulot_nomi': mahsulotNomi,
+          'sana': sana,
+          'html': html,
+        }),
+      );
+    } catch (e) {}
+  }
 }

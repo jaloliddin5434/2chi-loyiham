@@ -1041,6 +1041,14 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         tur: 'brutto',
       );
 
+      // Nakladnoy PDF saqlash
+      ApiService.nakladnoySaqla(
+        mashinaRaqami: raqamiCtrl.text,
+        mahsulotNomi: widget.mahsulotNomi,
+        sana: DateTime.now().toString().substring(0, 10),
+        html: '<p>nakladnoy</p>',
+      );
+
       try {
         await ApiService.olchovSaqlash(
           hujjatId: hujjatId!,
@@ -1122,8 +1130,28 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         
 NavbatService.tugallandiQosh(tug);
         try {
-          await ApiService.navbatTugallandi({
+         await ApiService.navbatTugallandi({
             'hujjatId': tug.hujjatId,
+            'aravalar': {
+              '1': {
+                'tara': tug.aravalar[1]?.tara,
+                'brutto': tug.aravalar[1]?.brutto,
+                'netto': tug.aravalar[1]?.netto,
+                'konditsion': tug.aravalar[1]?.konditsion,
+              },
+              '2': {
+                'tara': tug.aravalar[2]?.tara,
+                'brutto': tug.aravalar[2]?.brutto,
+                'netto': tug.aravalar[2]?.netto,
+                'konditsion': tug.aravalar[2]?.konditsion,
+              },
+              '3': {
+                'tara': tug.aravalar[3]?.tara,
+                'brutto': tug.aravalar[3]?.brutto,
+                'netto': tug.aravalar[3]?.netto,
+                'konditsion': tug.aravalar[3]?.konditsion,
+              },
+            },
           });
         } catch (e) {}
         setState(() {
@@ -1251,25 +1279,37 @@ NavbatService.tugallandiQosh(tug);
   }
 
   void hujjatOch() {
+  final _tara1 = aravalar[1]?.tara ?? tanlanganNavbat?.aravalar[1]?.tara;
+    final _brutto1 = aravalar[1]?.brutto ?? tanlanganNavbat?.aravalar[1]?.brutto;
+    final _konditsion1 = aravalar[1]?.konditsion ?? tanlanganNavbat?.aravalar[1]?.konditsion;
+    final _tara2 = aravalar[2]?.tara ?? tanlanganNavbat?.aravalar[2]?.tara;
+    final _brutto2 = aravalar[2]?.brutto ?? tanlanganNavbat?.aravalar[2]?.brutto;
+    final _konditsion2 = aravalar[2]?.konditsion ?? tanlanganNavbat?.aravalar[2]?.konditsion;
+    final _tara3 = aravalar[3]?.tara ?? tanlanganNavbat?.aravalar[3]?.tara;
+    final _brutto3 = aravalar[3]?.brutto ?? tanlanganNavbat?.aravalar[3]?.brutto;
+    final _konditsion3 = aravalar[3]?.konditsion ?? tanlanganNavbat?.aravalar[3]?.konditsion;
+    final _mashinaRaqami = raqamiCtrl.text;
+    final _firma = firmaCtrl.text;
+    final _tiketRaqam = tiketRaqamCtrl.text;
     Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => NakladnoyScreen(
-            mashinaRaqami: raqamiCtrl.text,
+            mashinaRaqami: _mashinaRaqami,
             mashinaTuri: turiCtrl.text,
             shofyor: shofyorCtrl.text,
-            firma: firmaCtrl.text,
+           firma: _firma,
             mahsulotNomi: widget.mahsulotNomi,
             yukNomi: mahsulotYukNomi,
             aravalarSoni: aravalarSoni,
-            tara1: aravalar[1]?.tara,
-            brutto1: aravalar[1]?.brutto,
-            tara2: aravalar[2]?.tara,
-            brutto2: aravalar[2]?.brutto,
-            tara3: aravalar[3]?.tara,
-            brutto3: aravalar[3]?.brutto,
+            tara1: _tara1,
+            brutto1: _brutto1,
+            tara2: _tara2,
+            brutto2: _brutto2,
+            tara3: _tara3,
+            brutto3: _brutto3,
             tudaRaqam: tudaRaqamCtrl.text,
-            tiketRaqam: tiketRaqamCtrl.text,
+            tiketRaqam: _tiketRaqam,
             seleksiyaNavi: seleksiyaNaviCtrl.text,
             klass: klassCtrl.text,
             terimTuri: terimTuriCtrl.text,
@@ -1281,9 +1321,9 @@ NavbatService.tugallandiQosh(tug);
             yukOlindi: yukOlindiCtrl.text,
             dostaverka: dostaverkaCtrl.text,
             dostaverkaVaqt: dostaverkaVaqtCtrl.text,
-            konditsion1: aravalar[1]?.konditsion,
-            konditsion2: aravalar[2]?.konditsion,
-            konditsion3: aravalar[3]?.konditsion,
+           konditsion1: _konditsion1,
+            konditsion2: _konditsion2,
+            konditsion3: _konditsion3,
             sana: avtomatikSana,
           ),
         ));
@@ -1803,6 +1843,8 @@ NavbatService.tugallandiQosh(tug);
 
   @override
   Widget build(BuildContext context) {
+   final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 700;
     final jami = tanlanganArava == 0;
     final arava =
         jami ? null : aravalar[tanlanganArava];
@@ -1832,7 +1874,13 @@ NavbatService.tugallandiQosh(tug);
                 ],
         ),
       ),
-      child: Row(
+     child: isMobile
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+              // Mobile uchun vertikal
+            ])
+            : Row(
           crossAxisAlignment:
               CrossAxisAlignment.stretch,
           children: [

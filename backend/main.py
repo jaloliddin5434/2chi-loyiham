@@ -715,18 +715,134 @@ async def nakladnoy_saqlash(request: Request):
         mashina_raqami = data.get("mashina_raqami", "noma_lum")
         mahsulot_nomi = data.get("mahsulot_nomi", "Chigit")
         sana = data.get("sana", datetime.now().strftime("%Y-%m-%d"))
-        html_content = data.get("html", "")
+        print(f"Kelgan data: tara1={data.get('tara1')}, brutto1={data.get('brutto1')}, firma={data.get('firma')}")
+        tara1 = float(data.get("tara1", 0) or 0)
+        brutto1 = float(data.get("brutto1", 0) or 0)
+        netto1 = brutto1 - tara1
+        tara2 = float(data.get("tara2", 0) or 0)
+        brutto2 = float(data.get("brutto2", 0) or 0)
+        netto2 = brutto2 - tara2
+        tara3 = float(data.get("tara3", 0) or 0)
+        brutto3 = float(data.get("brutto3", 0) or 0)
+        netto3 = brutto3 - tara3
+        tiket = data.get("tiket", "")
+        firma = data.get("firma", "")
+        konditsion1 = float(data.get("konditsion1", 0) or 0)
         
+        
+        namlik = data.get("namlik", "") or "—"
+        ifloslik = data.get("ifloslik", "") or "—"
+        shofyor = data.get("shofyor", "")
+        seleksiya = data.get("seleksiya", "")
+        klass = data.get("klass", "")
+        terim_turi = data.get("terim_turi", "")
+        tuda_raqam = data.get("tuda_raqam", "")
+        qabul_qildi = data.get("qabul_qildi", "")
+        yuk_olindi = data.get("yuk_olindi", "")
+        dostaverka = data.get("dostaverka", "")
+        dostaverka_vaqt = data.get("dostaverka_vaqt", "")
+        mashina_turi = data.get("mashina_turi", "")
+        arava1_qator = f"<tr><td>1-arava</td><td>{round(tara1)}</td><td>{round(brutto1)}</td><td>{round(netto1)}</td><td>{round(konditsion1)}</td></tr>" if tara1 > 0 else ""
+        arava2_qator = f"<tr><td>2-arava</td><td>{round(tara2)}</td><td>{round(brutto2)}</td><td>{round(netto2)}</td><td>-</td></tr>" if tara2 > 0 else ""
+        arava3_qator = f"<tr><td>3-arava</td><td>{round(tara3)}</td><td>{round(brutto3)}</td><td>{round(netto3)}</td><td>-</td></tr>" if tara3 > 0 else ""
+        html_content = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>
+body {{ font-family: Arial; font-size: 11px; margin: 10px; }}
+h2 {{ text-align: center; font-size: 12px; margin: 5px 0; }}
+h3 {{ text-align: center; font-size: 11px; margin: 3px 0; }}
+table {{ width: 100%; border-collapse: collapse; }}
+th, td {{ border: 1px solid black; padding: 4px; }}
+th {{ background: #1A4A08; color: white; text-align: center; }}
+td {{ text-align: center; }}
+td.left {{ text-align: left; }}
+.jami {{ font-weight: bold; }}
+.imzo {{ border: none; }}
+</style></head>
+<body>
+<h2>ЗАВОД НУСХАСИ</h2>
+<h2>ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № {tiket}</h2>
+<h3>Ishlab chiqarishdan qabul qilingan mahsulotlarni tashish uchun</h3>
+<p style="text-align:center">Sana: {sana} &nbsp;&nbsp; Mashina turi: {mashina_turi} &nbsp;&nbsp; Raqam: {mashina_raqami}</p>
+<table style="margin-bottom:8px">
+<tr><td class="left"><b>Юк жўнатувчи:</b> "Ҳазорасп текстил" МЧЖга қарашли пахта тозалаш завод</td></tr>
+<tr><td class="left"><b>Юк олувчи:</b> {firma}</td></tr>
+</table>
+<table style="margin-bottom:8px">
+<tr>
+  <td class="left"><b>Тикет №:</b> {tiket}</td>
+  <td class="left"><b>Сана:</b> {sana}</td>
+  <td class="left"><b>Туда №:</b> {tuda_raqam}</td>
+</tr>
+<tr>
+  <td class="left"><b>Терим тури:</b> {terim_turi}</td>
+  <td class="left"><b>Класс:</b> {klass}</td>
+  <td class="left"><b>Селексия нави:</b> {seleksiya}</td>
+</tr>
+<tr>
+  <td class="left"><b>Намлик %:</b> {namlik}</td>
+  <td class="left"><b>Ифлослик %:</b> {ifloslik}</td>
+  <td class="left"><b>Шофёр:</b> {shofyor}</td>
+</tr>
+</table>
+<table>
+<tr>
+  <th>Юкнинг номи</th>
+  <th>Тара (Урама), кг</th>
+  <th>Брутто (Урама б/н), кг</th>
+  <th>Нетто (Соф), кг</th>
+  <th>Кондицион вазн, кг</th>
+</tr>
+{arava1_qator}
+{arava2_qator}
+{arava3_qator}
+<tr class="jami">
+  <td>Жами:</td>
+  <td>{round(tara1+tara2+tara3)}</td>
+  <td>{round(brutto1+brutto2+brutto3)}</td>
+  <td>{round(netto1+netto2+netto3)}</td>
+  <td>{round(konditsion1)}</td>
+</tr>
+</table>
+<p style="margin-top:8px"><b>Доставерна № {dostaverka}</b> &nbsp;&nbsp; Муддат: {dostaverka_vaqt}</p>
+<table style="margin-top:10px;border:none">
+<tr>
+  <td class="imzo">Қабул қилди: {qabul_qildi} ___________</td>
+  <td class="imzo">Юк олинди: {yuk_olindi} ___________</td>
+</tr>
+<tr>
+  <td class="imzo">Раҳбар ИМЗО ___________</td>
+  <td class="imzo">Шофёр ИМЗО ___________</td>
+</tr>
+<tr>
+  <td class="imzo">Юк олиб кетувчи ИМЗО ___________</td>
+  <td class="imzo">Таразбон ИМЗО ___________</td>
+</tr>
+</table>
+</body></html>"""
+
         raqam = mashina_raqami.replace(" ", "_").replace("/", "_")
         papka = Path(f"C:/RASMLAR/{sana}/{mahsulot_nomi}/{raqam}")
         papka.mkdir(parents=True, exist_ok=True)
         
-        fayl_yol = papka / "nakladnoy.html"
-        with open(fayl_yol, "w", encoding="utf-8") as f:
+        html_fayl = papka / "nakladnoy.html"
+        with open(html_fayl, "w", encoding="utf-8") as f:
             f.write(html_content)
+        print(f"arava1_qator: {arava1_qator}")
+        print(f"HTML uzunligi: {len(html_content)}")
         
-        return {"status": "ok", "fayl": str(fayl_yol)}
+        pdf_fayl = papka / "nakladnoy.pdf"
+        import pdfkit
+        wkhtmltopdf_yol = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
+        config = pdfkit.configuration(wkhtmltopdf=wkhtmltopdf_yol)
+        pdfkit.from_file(str(html_fayl), str(pdf_fayl), configuration=config)
+       
+        
+        return {"status": "ok", "fayl": str(pdf_fayl)}
     except Exception as e:
+        print(f"XATO: {e}")
+        import traceback
+        traceback.print_exc()
         return {"status": "error", "message": str(e)}
 
 # ============ KAMERA ============

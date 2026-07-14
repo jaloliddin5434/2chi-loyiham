@@ -195,7 +195,7 @@ def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db)):
     if yangi.brutto and yangi.tara:
         yangi.netto = yangi.brutto - yangi.tara
         if yangi.namlik and yangi.ifloslik:
-            yangi.konditsion = yangi.netto * (92 / (100 - yangi.namlik)) * (97 / (100 - yangi.ifloslik))
+            yangi.konditsion = yangi.netto * (100 - (yangi.namlik + yangi.ifloslik)) / 89.5
     db.add(yangi)
     db.commit()
     db.refresh(yangi)
@@ -630,15 +630,15 @@ def excel_qatorga_yoz(hujjat_id, db):
         
         try:
             wb = openpyxl.load_workbook(fayl_yol)
-            ws = wb.active
         except:
             wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = "Hisobot"
-            ws.append(["№", "Наклад №", "Маҳсулот", "Тара", "Брутто", "Нетто", "Кондицион", "Машина", "Юк олувчи", "Сана"])
-            for cell in ws[1]:
-                cell.fill = PatternFill(start_color="1A4A08", end_color="1A4A08", fill_type="solid")
-                cell.font = Font(bold=True, color="FFFFFF")
+            wb.remove(wb.active)
+            for sheet_nom in ["Chigit", "Chiganoq", "Chiganoq pochogi"]:
+                ws = wb.create_sheet(sheet_nom)
+                ws.append(["№", "Наклад №", "Тара", "Брутто", "Нетто", "Кондицион", "Машина", "Юк олувчи", "Сана"])
+                for cell in ws[1]:
+                    cell.fill = PatternFill(start_color="1A4A08", end_color="1A4A08", fill_type="solid")
+                    cell.font = Font(bold=True, color="FFFFFF")
         
         hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
         if not hujjat:
@@ -648,13 +648,30 @@ def excel_qatorga_yoz(hujjat_id, db):
         olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == hujjat_id).all()
         mahsulot = db.query(Mahsulot).filter(Mahsulot.id == hujjat.mahsulot_id).first()
         
+        # Mahsulot bo'yicha sheet tanlash
+        mahsulot_id = hujjat.mahsulot_id
+        if mahsulot_id == 1:
+            sheet_nom = "Chigit"
+        elif mahsulot_id == 2:
+            sheet_nom = "Chiganoq"
+        else:
+            sheet_nom = "Chiganoq pochogi"
+        
+        if sheet_nom not in wb.sheetnames:
+            ws = wb.create_sheet(sheet_nom)
+            ws.append(["№", "Наклад №", "Тара", "Брутто", "Нетто", "Кондицион", "Машина", "Юк олувчи", "Сана"])
+            for cell in ws[1]:
+                cell.fill = PatternFill(start_color="1A4A08", end_color="1A4A08", fill_type="solid")
+                cell.font = Font(bold=True, color="FFFFFF")
+        else:
+            ws = wb[sheet_nom]
+        
         for o in olchovlar:
             if o.tara and o.brutto and o.konditsion:
                 qator_raqam = ws.max_row
                 ws.append([
                     qator_raqam,
                     hujjat.raqam,
-                    mahsulot.nom if mahsulot else "",
                     round(o.tara),
                     round(o.brutto),
                     round(o.netto) if o.netto else 0,
@@ -665,7 +682,7 @@ def excel_qatorga_yoz(hujjat_id, db):
                 ])
         
         wb.save(fayl_yol)
-        print(f"✅ Excel ga yozildi: {hujjat.raqam}")
+        print(f"✅ Excel ga yozildi: {hujjat.raqam} ({sheet_nom})")
     except Exception as e:
         print(f"❌ Excel xato: {e}")
 

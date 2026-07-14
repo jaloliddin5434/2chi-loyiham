@@ -21,8 +21,10 @@ class NakladnoyScreen extends StatefulWidget {
   final double? tara3;
   final double? brutto3;
   final int aravalarSoni;
+  final int? hujjatId;
   final String tudaRaqam;
   final String tiketRaqam;
+  final String hujjatRaqam;
   final String seleksiyaNavi;
   final String klass;
   final String terimTuri;
@@ -52,8 +54,10 @@ class NakladnoyScreen extends StatefulWidget {
     this.tara3,
     this.brutto3,
     this.aravalarSoni = 1,
+    this.hujjatId,
     this.tudaRaqam = '',
     this.tiketRaqam = '',
+    this.hujjatRaqam = '',
     this.seleksiyaNavi = 'Xorazm-150',
     this.klass = '1',
     this.terimTuri = 'Kul terim',
@@ -74,8 +78,33 @@ class NakladnoyScreen extends StatefulWidget {
 }
 
 class _NakladnoyScreenState extends State<NakladnoyScreen> {
+  double? _konditsion1;
 
-  
+  @override
+  void initState() {
+    super.initState();
+    _konditsion1 = widget.konditsion1;
+    if (widget.hujjatId != null) {
+      _yuklaKonditsion();
+    }
+  }
+
+  Future<void> _yuklaKonditsion() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiService.baseUrl}/olchovlar/${widget.hujjatId}'),
+      );
+      if (response.statusCode == 200) {
+        final olchovlar = jsonDecode(utf8.decode(response.bodyBytes)) as List;
+        double jami = 0;
+        for (var o in olchovlar) {
+          if (o['konditsion'] != null) jami += o['konditsion'];
+        }
+        if (mounted) setState(() => _konditsion1 = jami);
+      }
+    } catch (e) {}
+  }
+
   Future<void> _pdfSaqla() async {
     try {
       final htmlContent = _nakladnoyHtml();
@@ -94,11 +123,13 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
           'brutto1': widget.brutto1 ?? 0,
           'netto1': (widget.brutto1 ?? 0) - (widget.tara1 ?? 0),
           'konditsion1': widget.konditsion1 ?? 0,
+          'hujjat_id': widget.hujjatRaqam,
           'tara2': widget.tara2 ?? 0,
           'brutto2': widget.brutto2 ?? 0,
           'tara3': widget.tara3 ?? 0,
           'brutto3': widget.brutto3 ?? 0,
          'tiket': widget.tiketRaqam,
+          'nakladnoy_raqam': widget.hujjatRaqam,
           'firma': widget.firma,
           'shofyor': widget.shofyor,
           'namlik': widget.namlik ?? '',
@@ -133,7 +164,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
     final t1 = widget.tara1 ?? 0;
     final b1 = widget.brutto1 ?? 0;
     final n1 = b1 - t1;
-    final k1 = widget.konditsion1 ?? 0;
+    final k1 = _konditsion1 ?? widget.konditsion1 ?? 0;
     final t2 = widget.tara2 ?? 0;
     final b2 = widget.brutto2 ?? 0;
     final n2 = b2 - t2;

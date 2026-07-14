@@ -481,8 +481,14 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       qabulQildi: qabulQildiCtrl.text,
       yukOlindi: yukOlindiCtrl.text,
     );
-
-    NavbatService.navbatQosh(mashina);
+    final bruttoOlchandi = aravalar.values.any((a) => a.brutto != null) ||
+        (tanlanganNavbat?.aravalar.values.any((a) => a.brutto != null) ?? false);
+    if (bruttoOlchandi) {
+      NavbatService.navbatdanOchir(hujjatId!);
+      ApiService.navbatBekor(hujjatId!);
+    } else {
+      NavbatService.navbatQosh(mashina);
+    }
 
     ApiService.navbatQosh({
       'hujjatId': mashina.hujjatId,
@@ -1049,18 +1055,21 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         html: '<p>nakladnoy</p>',
       );
 
-      try {
-        await ApiService.olchovSaqlash(
+     try {
+        final result = await ApiService.olchovSaqlash(
           hujjatId: hujjatId!,
           aravaRaqam: tanlanganArava,
           tara: arava.tara,
           brutto: taroziKg,
           namlik: double.tryParse(namlikCtrl.text),
-          ifloslik:
-              double.tryParse(ifloslikCtrl.text),
+          ifloslik: double.tryParse(ifloslikCtrl.text),
         );
-      } catch (e) {}
-
+        if (result['konditsion'] != null) {
+          arava.konditsion = (result['konditsion'] as num).toDouble();
+        }
+      } catch (e) {
+        print('olchovSaqlash xato: $e');
+      }
       final keyingi = _keyingiBruttoSizArava();
       if (keyingi != null) {
         _xabar(
@@ -1325,6 +1334,7 @@ NavbatService.tugallandiQosh(tug);
             konditsion2: _konditsion2,
             konditsion3: _konditsion3,
             sana: avtomatikSana,
+            hujjatId: hujjatId,
           ),
         ));
   }

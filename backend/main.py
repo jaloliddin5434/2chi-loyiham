@@ -199,6 +199,8 @@ def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db)):
     db.add(yangi)
     db.commit()
     db.refresh(yangi)
+    if yangi.brutto and yangi.tara:
+        excel_qatorga_yoz(yangi.hujjat_id, db)
     return yangi
 
 @app.get("/olchovlar/{hujjat_id}")
@@ -616,6 +618,57 @@ def avtomatik_backup():
 # Serverni ishga tushirganda backup thread boshlash
 backup_thread = threading.Thread(target=avtomatik_backup, daemon=True)
 backup_thread.start()
+# ============ EXCEL HISOBOT ============
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+
+def excel_qatorga_yoz(hujjat_id, db):
+    try:
+        from datetime import date
+        bugun = date.today()
+        fayl_yol = f"C:/RASMLAR/hisobot_{bugun.year}.xlsx"
+        
+        try:
+            wb = openpyxl.load_workbook(fayl_yol)
+            ws = wb.active
+        except:
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Hisobot"
+            ws.append(["№", "Наклад №", "Маҳсулот", "Тара", "Брутто", "Нетто", "Кондицион", "Машина", "Юк олувчи", "Сана"])
+            for cell in ws[1]:
+                cell.fill = PatternFill(start_color="1A4A08", end_color="1A4A08", fill_type="solid")
+                cell.font = Font(bold=True, color="FFFFFF")
+        
+        hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
+        if not hujjat:
+            return
+        
+        mashina = db.query(Mashina).filter(Mashina.id == hujjat.mashina_id).first()
+        olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == hujjat_id).all()
+        mahsulot = db.query(Mahsulot).filter(Mahsulot.id == hujjat.mahsulot_id).first()
+        
+        for o in olchovlar:
+            if o.tara and o.brutto and o.konditsion:
+                qator_raqam = ws.max_row
+                ws.append([
+                    qator_raqam,
+                    hujjat.raqam,
+                    mahsulot.nom if mahsulot else "",
+                    round(o.tara),
+                    round(o.brutto),
+                    round(o.netto) if o.netto else 0,
+                    round(o.konditsion) if o.konditsion else 0,
+                    mashina.davlat_raqami if mashina else "",
+                    mashina.firma if mashina else "",
+                    str(bugun),
+                ])
+        
+        wb.save(fayl_yol)
+        print(f"✅ Excel ga yozildi: {hujjat.raqam}")
+    except Exception as e:
+        print(f"❌ Excel xato: {e}")
+
 # ============ SOZLAMALAR ============
 from models import Sozlama
 
@@ -728,7 +781,7 @@ def telegram_kunlik(db: Session = Depends(get_db)):
  # ============ PDF SAQLASH ============
 
 @app.post("/nakladnoy/saqlash")
-async def nakladnoy_saqlash(request: Request):
+async def nakladnoy_saqlash(request: Request, db: Session = Depends(get_db)):
     try:
         data = await request.json()
         mashina_raqami = data.get("mashina_raqami", "noma_lum")
@@ -745,8 +798,15 @@ async def nakladnoy_saqlash(request: Request):
         brutto3 = float(data.get("brutto3", 0) or 0)
         netto3 = brutto3 - tara3
         tiket = data.get("tiket", "")
+        nakladnoy_raqam = data.get("nakladnoy_raqam", "")
         firma = data.get("firma", "")
-        konditsion1 = float(data.get("konditsion1", 0) or 0)
+        konditsion1_raw = data.get("konditsion1", 0)
+        hujjat_id_raw = data.get("hujjat_id", None)
+        if (not konditsion1_raw or konditsion1_raw == 0) and hujjat_id_raw:
+            olchovlar_db = db.query(Olchov).filter(Olchov.hujjat_id == hujjat_id_raw).all()
+            konditsion1 = sum(o.konditsion for o in olchovlar_db if o.konditsion) or 0
+        else:
+            konditsion1 = float(konditsion1_raw or 0)
         
         
         namlik = data.get("namlik", "") or "—"
@@ -767,20 +827,21 @@ async def nakladnoy_saqlash(request: Request):
         html_content = f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <style>
-body {{ font-family: Arial; font-size: 11px; margin: 10px; }}
-h2 {{ text-align: center; font-size: 12px; margin: 5px 0; }}
-h3 {{ text-align: center; font-size: 11px; margin: 3px 0; }}
-table {{ width: 100%; border-collapse: collapse; }}
-th, td {{ border: 1px solid black; padding: 4px; }}
+body {{ font-family: Arial; font-size: 16px; margin: 20px; }}
+h2 {{ text-align: center; font-size: 18px; margin: 10px 0; }}
+h3 {{ text-align: center; font-size: 16px; margin: 8px 0; }}
+p {{ margin: 8px 0; }}
+table {{ width: 100%; border-collapse: collapse; margin: 12px 0; }}
+th, td {{ border: 1px solid black; padding: 12px 15px; line-height: 1.6; }}
 th {{ background: #1A4A08; color: white; text-align: center; }}
 td {{ text-align: center; }}
 td.left {{ text-align: left; }}
 .jami {{ font-weight: bold; }}
-.imzo {{ border: none; }}
+.imzo {{ border: none; padding: 12px 0; }}
 </style></head>
 <body>
 <h2>ЗАВОД НУСХАСИ</h2>
-<h2>ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № {tiket}</h2>
+<h2>ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № {nakladnoy_raqam} &nbsp;&nbsp; Тикет №: {tiket}</h2>
 <h3>Ishlab chiqarishdan qabul qilingan mahsulotlarni tashish uchun</h3>
 <p style="text-align:center">Sana: {sana} &nbsp;&nbsp; Mashina turi: {mashina_turi} &nbsp;&nbsp; Raqam: {mashina_raqami}</p>
 <table style="margin-bottom:8px">
@@ -854,7 +915,8 @@ td.left {{ text-align: left; }}
         import pdfkit
         wkhtmltopdf_yol = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
         config = pdfkit.configuration(wkhtmltopdf=wkhtmltopdf_yol)
-        pdfkit.from_file(str(html_fayl), str(pdf_fayl), configuration=config)
+        options = {'orientation': 'Landscape', 'page-size': 'A4'}
+        pdfkit.from_file(str(html_fayl), str(pdf_fayl), configuration=config, options=options)
        
         
         return {"status": "ok", "fayl": str(pdf_fayl)}

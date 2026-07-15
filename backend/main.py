@@ -337,6 +337,8 @@ def kunlik_statistika(db: Session = Depends(get_db)):
     chigit = [h for h in hujjatlar if h.mahsulot_id == 1]
     chiganoq = [h for h in hujjatlar if h.mahsulot_id == 2]
     pochog = [h for h in hujjatlar if h.mahsulot_id == 3]
+    patoz = [h for h in hujjatlar if h.mahsulot_id == 4]
+    patoz = [h for h in hujjatlar if h.mahsulot_id == 4]
     
     # Tonnaj hisoblash
     def tonnaj(hujjat_list):
@@ -369,6 +371,7 @@ def kunlik_statistika(db: Session = Depends(get_db)):
         "chigit": {"soni": len(chigit), "tonnaj": tonnaj(chigit), "konditsion": konditsion_hisob(chigit)},
         "chiganoq": {"soni": len(chiganoq), "tonnaj": tonnaj(chiganoq)},
         "pochog": {"soni": len(pochog), "tonnaj": tonnaj(pochog)},
+        "patoz": {"soni": len(patoz), "tonnaj": tonnaj(patoz)},
         "jami_tonnaj": tonnaj(hujjatlar),
     }
 
@@ -384,6 +387,7 @@ def haftalik_statistika(db: Session = Depends(get_db)):
     chigit = [h for h in hujjatlar if h.mahsulot_id == 1]
     chiganoq = [h for h in hujjatlar if h.mahsulot_id == 2]
     pochog = [h for h in hujjatlar if h.mahsulot_id == 3]
+    patoz = [h for h in hujjatlar if h.mahsulot_id == 4]
     
     def tonnaj(hujjat_list):
         jami = 0
@@ -416,6 +420,7 @@ def oylik_statistika(db: Session = Depends(get_db)):
     chigit = [h for h in hujjatlar if h.mahsulot_id == 1]
     chiganoq = [h for h in hujjatlar if h.mahsulot_id == 2]
     pochog = [h for h in hujjatlar if h.mahsulot_id == 3]
+    patoz = [h for h in hujjatlar if h.mahsulot_id == 4]
     
     def tonnaj(hujjat_list):
         jami = 0
@@ -441,9 +446,10 @@ def oylik_statistika(db: Session = Depends(get_db)):
         "chigit": {"soni": len(chigit), "tonnaj": tonnaj(chigit), "konditsion": konditsion_hisob(chigit)},
         "chiganoq": {"soni": len(chiganoq), "tonnaj": tonnaj(chiganoq)},
         "pochog": {"soni": len(pochog), "tonnaj": tonnaj(pochog)},
+        "patoz": {"soni": len(patoz), "tonnaj": tonnaj(patoz)},
         "jami_tonnaj": tonnaj(hujjatlar),
     }
-
+    
 @app.get("/statistika/mavsum")
 def mavsum_statistika(db: Session = Depends(get_db)):
     from datetime import date
@@ -461,6 +467,7 @@ def mavsum_statistika(db: Session = Depends(get_db)):
     chigit = [h for h in hujjatlar if h.mahsulot_id == 1]
     chiganoq = [h for h in hujjatlar if h.mahsulot_id == 2]
     pochog = [h for h in hujjatlar if h.mahsulot_id == 3]
+    patoz = [h for h in hujjatlar if h.mahsulot_id == 4]
     
     def tonnaj(hujjat_list):
         jami = 0
@@ -486,6 +493,7 @@ def mavsum_statistika(db: Session = Depends(get_db)):
         "chigit": {"soni": len(chigit), "tonnaj": tonnaj(chigit), "konditsion": konditsion_hisob(chigit)},
         "chiganoq": {"soni": len(chiganoq), "tonnaj": tonnaj(chiganoq)},
         "pochog": {"soni": len(pochog), "tonnaj": tonnaj(pochog)},
+        "patoz": {"soni": len(patoz), "tonnaj": tonnaj(patoz)},
         "jami_tonnaj": tonnaj(hujjatlar),
     }
     

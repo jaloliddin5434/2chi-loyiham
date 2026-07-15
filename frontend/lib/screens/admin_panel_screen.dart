@@ -97,6 +97,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   static const Color blueBg = Color(0xFFE8F0FC);
   static const Color blueBorder = Color(0xFFA0C0E8);
   static const Color redColor = Color(0xFFC03030);
+  static const Color redBg = Color(0xFFFFE8E8);
+  static const Color redBorder = Color(0xFFE8A0A0);
   static const Color bgPage = Color(0xFFF4F8F0);
 
   @override
@@ -186,7 +188,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         final oylikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/oylik'));
         if (oylikG.statusCode == 200)
           setState(() => oylikGrafik = jsonDecode(utf8.decode(oylikG.bodyBytes)));
-    final mavsumG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/mavsum'));
+        final mavsumG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/mavsum'));
         if (mavsumG.statusCode == 200)
           setState(() => mavsumGrafik = jsonDecode(utf8.decode(mavsumG.bodyBytes)));
 
@@ -194,7 +196,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         if (serverH.statusCode == 200)
           setState(() => serverHolati = jsonDecode(utf8.decode(serverH.bodyBytes)));
       }
-    } catch (e) {}
+    } catch (e) {
+      print('navbatYangilash xato: $e');
+    }
   }
 Future<void> _sozlamalarYukla() async {
     try {
@@ -1605,7 +1609,8 @@ Widget _mashinaGrafik() {
           _mahsulotTab(0, 'Jami'),
           _mahsulotTab(1, 'Chigit'),
           _mahsulotTab(2, 'Chiganoq'),
-          _mahsulotTab(3, "Chiganoq po'chog'i"),
+         _mahsulotTab(3, "Chiganoq po'chog'i"),
+          _mahsulotTab(4, 'Patoz'),
         ]),
       ),
       Container(
@@ -2261,11 +2266,18 @@ Widget _mashinaGrafik() {
                   kunlikStat['chiganoq']?['soni'] ?? 0,
                   "${kunlikStat['chiganoq']?['tonnaj'] ?? 0} t",
                   greenLight, greenBg, greenBorder)),
-              const SizedBox(width: 12),
+            ]),
+            const SizedBox(height: 12),
+            Row(children: [
               Expanded(child: _mahsulotKarta("Chiganoq po'chog'i",
                   kunlikStat['pochog']?['soni'] ?? 0,
                   "${kunlikStat['pochog']?['tonnaj'] ?? 0} t",
                   blueColor, blueBg, blueBorder)),
+              const SizedBox(width: 12),
+              Expanded(child: _mahsulotKarta("Patoz",
+                  kunlikStat['patoz']?['soni'] ?? 0,
+                  "${kunlikStat['patoz']?['tonnaj'] ?? 0} t",
+                  redColor, redBg, redBorder)),
             ]),
           ]),
         ),
@@ -2279,7 +2291,7 @@ Widget _mashinaGrafik() {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             cardLabel(Icons.calendar_month, "OYLIK STATISTIKA", color: greenLight),
             const SizedBox(height: 16),
-            Row(children: [
+           Row(children: [
               Expanded(child: _mahsulotKarta("Chigit",
                   oylikStat['chigit']?['soni'] ?? 0,
                   "${oylikStat['chigit']?['tonnaj'] ?? 0} t",
@@ -2290,11 +2302,18 @@ Widget _mashinaGrafik() {
                   oylikStat['chiganoq']?['soni'] ?? 0,
                   "${oylikStat['chiganoq']?['tonnaj'] ?? 0} t",
                   greenLight, greenBg, greenBorder)),
-              const SizedBox(width: 12),
+            ]),
+            const SizedBox(height: 12),
+            Row(children: [
               Expanded(child: _mahsulotKarta("Chiganoq po'chog'i",
                   oylikStat['pochog']?['soni'] ?? 0,
                   "${oylikStat['pochog']?['tonnaj'] ?? 0} t",
                   blueColor, blueBg, blueBorder)),
+              const SizedBox(width: 12),
+              Expanded(child: _mahsulotKarta("Patoz",
+                  oylikStat['patoz']?['soni'] ?? 0,
+                  "${oylikStat['patoz']?['tonnaj'] ?? 0} t",
+                  redColor, redBg, redBorder)),
             ]),
           ]),
         ),
@@ -2308,7 +2327,7 @@ Widget _mashinaGrafik() {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             cardLabel(Icons.calendar_today, "MAVSUM STATISTIKASI", color: goldColor),
             const SizedBox(height: 16),
-            Row(children: [
+           Row(children: [
               Expanded(child: _mahsulotKarta("Chigit",
                   mavsumStat['chigit']?['soni'] ?? 0,
                   "${mavsumStat['chigit']?['tonnaj'] ?? 0} t",
@@ -2319,11 +2338,18 @@ Widget _mashinaGrafik() {
                   mavsumStat['chiganoq']?['soni'] ?? 0,
                   "${mavsumStat['chiganoq']?['tonnaj'] ?? 0} t",
                   greenLight, greenBg, greenBorder)),
-              const SizedBox(width: 12),
+            ]),
+            const SizedBox(height: 12),
+            Row(children: [
               Expanded(child: _mahsulotKarta("Chiganoq po'chog'i",
                   mavsumStat['pochog']?['soni'] ?? 0,
                   "${mavsumStat['pochog']?['tonnaj'] ?? 0} t",
                   blueColor, blueBg, blueBorder)),
+              const SizedBox(width: 12),
+              Expanded(child: _mahsulotKarta("Patoz",
+                  mavsumStat['patoz']?['soni'] ?? 0,
+                  "${mavsumStat['patoz']?['tonnaj'] ?? 0} t",
+                  redColor, redBg, redBorder)),
             ]),
           ]),
         ),

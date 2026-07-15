@@ -1330,11 +1330,12 @@ NavbatService.tugallandiQosh(tug);
             yukOlindi: yukOlindiCtrl.text,
             dostaverka: dostaverkaCtrl.text,
             dostaverkaVaqt: dostaverkaVaqtCtrl.text,
-           konditsion1: _konditsion1,
+            konditsion1: _konditsion1,
             konditsion2: _konditsion2,
             konditsion3: _konditsion3,
             sana: avtomatikSana,
             hujjatId: hujjatId,
+            hujjatRaqam: hujjatId?.toString() ?? '',
           ),
         ));
   }

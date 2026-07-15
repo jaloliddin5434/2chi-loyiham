@@ -123,7 +123,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
           'brutto1': widget.brutto1 ?? 0,
           'netto1': (widget.brutto1 ?? 0) - (widget.tara1 ?? 0),
           'konditsion1': widget.konditsion1 ?? 0,
-          'hujjat_id': widget.hujjatRaqam,
+          'hujjat_id': widget.hujjatId,
           'tara2': widget.tara2 ?? 0,
           'brutto2': widget.brutto2 ?? 0,
           'tara3': widget.tara3 ?? 0,
@@ -456,7 +456,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
-                            "ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № ${widget.tiketRaqam}",
+                            "ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № ${widget.hujjatRaqam.isNotEmpty ? widget.hujjatRaqam : widget.tiketRaqam}",
                             style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,

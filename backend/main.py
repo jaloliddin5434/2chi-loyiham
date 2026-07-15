@@ -824,6 +824,11 @@ async def nakladnoy_saqlash(request: Request, db: Session = Depends(get_db)):
         netto3 = brutto3 - tara3
         tiket = data.get("tiket", "")
         nakladnoy_raqam = data.get("nakladnoy_raqam", "")
+        hujjat_id_val = data.get("hujjat_id", None)
+        if hujjat_id_val:
+            hujjat_obj = db.query(Hujjat).filter(Hujjat.id == hujjat_id_val).first()
+            if hujjat_obj:
+                nakladnoy_raqam = hujjat_obj.raqam
         firma = data.get("firma", "")
         konditsion1_raw = data.get("konditsion1", 0)
         hujjat_id_raw = data.get("hujjat_id", None)

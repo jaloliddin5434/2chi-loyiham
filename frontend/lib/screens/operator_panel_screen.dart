@@ -1055,9 +1055,10 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         html: '<p>nakladnoy</p>',
       );
 
-     try {
+    try {
+        print('hujjatId: $hujjatId, navbat: ${tanlanganNavbat?.hujjatId}');
         final result = await ApiService.olchovSaqlash(
-          hujjatId: hujjatId!,
+          hujjatId: hujjatId ?? tanlanganNavbat?.hujjatId ?? 0,
           aravaRaqam: tanlanganArava,
           tara: arava.tara,
           brutto: taroziKg,
@@ -1288,7 +1289,7 @@ NavbatService.tugallandiQosh(tug);
   }
 
   void hujjatOch() {
-  final _tara1 = aravalar[1]?.tara ?? tanlanganNavbat?.aravalar[1]?.tara;
+    final _tara1 = aravalar[1]?.tara ?? tanlanganNavbat?.aravalar[1]?.tara;
     final _brutto1 = aravalar[1]?.brutto ?? tanlanganNavbat?.aravalar[1]?.brutto;
     final _konditsion1 = aravalar[1]?.konditsion ?? tanlanganNavbat?.aravalar[1]?.konditsion;
     final _tara2 = aravalar[2]?.tara ?? tanlanganNavbat?.aravalar[2]?.tara;
@@ -1300,6 +1301,7 @@ NavbatService.tugallandiQosh(tug);
     final _mashinaRaqami = raqamiCtrl.text;
     final _firma = firmaCtrl.text;
     final _tiketRaqam = tiketRaqamCtrl.text;
+    final _hujjatId = hujjatId ?? tanlanganNavbat?.hujjatId;
     Navigator.push(
         context,
         MaterialPageRoute(
@@ -1334,8 +1336,8 @@ NavbatService.tugallandiQosh(tug);
             konditsion2: _konditsion2,
             konditsion3: _konditsion3,
             sana: avtomatikSana,
-            hujjatId: hujjatId,
-            hujjatRaqam: hujjatId?.toString() ?? '',
+            hujjatId: _hujjatId,
+            hujjatRaqam: _hujjatId?.toString() ?? '',
           ),
         ));
   }

@@ -619,7 +619,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     bruttoSaqlangan1 =
         bruttoSaqlangan2 = bruttoSaqlangan3 = false;
     mashinaId = null;
-    hujjatId = null;
+    
     bazagaSaqlandi = false;
     tanlanganArava = 1;
     tanlanganNavbat = null;
@@ -1058,7 +1058,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     try {
         print('hujjatId: $hujjatId, navbat: ${tanlanganNavbat?.hujjatId}');
         final result = await ApiService.olchovSaqlash(
-          hujjatId: hujjatId ?? tanlanganNavbat?.hujjatId ?? 0,
+          hujjatId: tanlanganNavbat?.hujjatId ?? hujjatId ?? 0,
           aravaRaqam: tanlanganArava,
           tara: arava.tara,
           brutto: taroziKg,
@@ -1197,17 +1197,18 @@ NavbatService.tugallandiQosh(tug);
       saqlanmoqda = true;
       qoldiqSoniya = 10;
     });
-
-    try {
+try {
       await ApiService.olchovSaqlash(
-        hujjatId: hujjatId!,
+        hujjatId: tanlanganNavbat?.hujjatId ?? hujjatId ?? 0,
         aravaRaqam: tanlanganArava,
         tara: taroziKg,
         namlik: double.tryParse(namlikCtrl.text),
         ifloslik:
             double.tryParse(ifloslikCtrl.text),
       );
-   } catch (e) {}
+   } catch (e) {
+     print('tara olchovSaqlash xato: $e');
+   }
 
     // Kamera rasm olish
     ApiService.rasmOl(

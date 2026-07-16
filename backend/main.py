@@ -639,19 +639,15 @@ def excel_qatorga_yoz(hujjat_id, db):
         
         try:
             wb = openpyxl.load_workbook(fayl_yol)
+            ws = wb.active
         except:
             wb = openpyxl.Workbook()
-            wb.remove(wb.active)
-            for sheet_nom in ["Chigit", "Chiganoq", "Chiganoq pochogi", "Patoz"]:
-                ws = wb.create_sheet(sheet_nom)
-                if sheet_nom == "Chigit":
-                    sarlavha = ["№", "Наклад №", "Тара", "Брутто", "Нетто", "Кондицион", "Машина", "Юк олувчи", "Сана"]
-                else:
-                    sarlavha = ["№", "Наклад №", "Тара", "Брутто", "Нетто", "Машина", "Юк олувчи", "Сана"]
-                ws.append(sarlavha)
-                for cell in ws[1]:
-                    cell.fill = PatternFill(start_color="1A4A08", end_color="1A4A08", fill_type="solid")
-                    cell.font = Font(bold=True, color="FFFFFF")
+            ws = wb.active
+            ws.title = "Hisobot"
+            ws.append(["№", "Наклад №", "Маҳсулот", "Тара", "Брутто", "Нетто", "Кондицион", "Машина", "Юк олувчи", "Сана"])
+            for cell in ws[1]:
+                cell.fill = PatternFill(start_color="1A4A08", end_color="1A4A08", fill_type="solid")
+                cell.font = Font(bold=True, color="FFFFFF")
         
         hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
         if not hujjat:
@@ -659,59 +655,27 @@ def excel_qatorga_yoz(hujjat_id, db):
         
         mashina = db.query(Mashina).filter(Mashina.id == hujjat.mashina_id).first()
         olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == hujjat_id).all()
-        
-        mahsulot_id = hujjat.mahsulot_id
-        if mahsulot_id == 1:
-            sheet_nom = "Chigit"
-        elif mahsulot_id == 2:
-            sheet_nom = "Chiganoq"
-        elif mahsulot_id == 3:
-            sheet_nom = "Chiganoq pochogi"
-        else:
-            sheet_nom = "Patoz"
-        
-        if sheet_nom not in wb.sheetnames:
-            ws = wb.create_sheet(sheet_nom)
-            if sheet_nom == "Chigit":
-                sarlavha = ["№", "Наклад №", "Тара", "Брутто", "Нетто", "Кондицион", "Машина", "Юк олувчи", "Сана"]
-            else:
-                sarlavha = ["№", "Наклад №", "Тара", "Брутто", "Нетто", "Машина", "Юк олувчи", "Сана"]
-            ws.append(sarlavha)
-            for cell in ws[1]:
-                cell.fill = PatternFill(start_color="1A4A08", end_color="1A4A08", fill_type="solid")
-                cell.font = Font(bold=True, color="FFFFFF")
-        else:
-            ws = wb[sheet_nom]
+        mahsulot = db.query(Mahsulot).filter(Mahsulot.id == hujjat.mahsulot_id).first()
+        mahsulot_nomi = mahsulot.nom if mahsulot else ""
         
         for o in olchovlar:
             if o.tara and o.brutto:
                 qator_raqam = ws.max_row
-                if mahsulot_id == 1:
-                    ws.append([
-                        qator_raqam,
-                        hujjat.raqam,
-                        round(o.tara),
-                        round(o.brutto),
-                        round(o.netto) if o.netto else 0,
-                        round(o.konditsion) if o.konditsion else 0,
-                        mashina.davlat_raqami if mashina else "",
-                        mashina.firma if mashina else "",
-                        str(bugun),
-                    ])
-                else:
-                    ws.append([
-                        qator_raqam,
-                        hujjat.raqam,
-                        round(o.tara),
-                        round(o.brutto),
-                        round(o.netto) if o.netto else 0,
-                        mashina.davlat_raqami if mashina else "",
-                        mashina.firma if mashina else "",
-                        str(bugun),
-                    ])
+                ws.append([
+                    qator_raqam,
+                    hujjat.raqam,
+                    mahsulot_nomi,
+                    round(o.tara),
+                    round(o.brutto),
+                    round(o.netto) if o.netto else 0,
+                    round(o.konditsion) if o.konditsion else 0,
+                    mashina.davlat_raqami if mashina else "",
+                    mashina.firma if mashina else "",
+                    str(bugun),
+                ])
         
         wb.save(fayl_yol)
-        print(f"✅ Excel ga yozildi: {hujjat.raqam} ({sheet_nom})")
+        print(f"✅ Excel ga yozildi: {hujjat.raqam} ({mahsulot_nomi})")
     except Exception as e:
         print(f"❌ Excel xato: {e}")
 # ============ SOZLAMALAR ============

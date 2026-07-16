@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'nakladnoy_screen.dart';
 import '../services/api_service.dart';
 import '../services/navbat_service.dart';
+import '../services/offline_service.dart';
 
 class AravaData {
   double? tara;
@@ -269,6 +270,15 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
 
   Future<void> _backendDanYukla() async {
     try {
+      final online = await OfflineService.internetBormi();
+      if (!online) {
+        // Offline — local navbatdan olish
+        final localNavbat = await OfflineService.navbatOl();
+        if (localNavbat.isNotEmpty && mounted) {
+          setState(() {});
+        }
+        return;
+      }
       final navbatData = await ApiService.navbatOl();
       final tugallanganData =
           await ApiService.tugallanganlarOl();

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/offline_service.dart';
 import 'rol_tanlash_screen.dart';
 
 class MahsulotTanlashScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _MahsulotTanlashScreenState extends State<MahsulotTanlashScreen> {
   Future<void> mahsulotlarniYuklash() async {
     try {
       final data = await ApiService.getMahsulotlar();
+      await OfflineService.mahsulotlarSaqla(data);
       setState(() {
         mahsulotlar = data;
         yuklanmoqda = false;
@@ -32,14 +34,15 @@ class _MahsulotTanlashScreenState extends State<MahsulotTanlashScreen> {
         mahsulotlar = [
           {"id": 1, "nom": "Chigit", "konditsiya_bor": true},
           {"id": 2, "nom": "Chiganoq", "konditsiya_bor": false},
-          {"id": 3, "nom": "Chiganoq po'chog'i", "konditsiya_bor": false},
+        {"id": 3, "nom": "Chiganoq po'chog'i", "konditsiya_bor": false},
+          {"id": 4, "nom": "Patoz", "konditsiya_bor": false},
         ];
       });
     }
   }
 
   Color rangOl(int index) {
-    final ranglar = [Colors.amber, Colors.green, Colors.deepOrange];
+    final ranglar = [Colors.amber, Colors.green, Colors.deepOrange, Colors.red];
     return ranglar[index % ranglar.length];
   }
 

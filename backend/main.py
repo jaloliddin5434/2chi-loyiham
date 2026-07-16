@@ -574,21 +574,49 @@ def avtomatik_telegram_hisobot():
                 chigit_son, chigit_netto, chigit_kond = tonnaj(1)
                 chiganoq_son, chiganoq_netto, _ = tonnaj(2)
                 pochog_son, pochog_netto, _ = tonnaj(3)
+                patoz_son, patoz_netto, _ = tonnaj(4)
+                
+                # Mavsum statistikasi
+                from datetime import date as d
+                bugun_d = d.today()
+                if bugun_d.month >= 8:
+                    mavsum_boshi = datetime(bugun_d.year, 8, 1)
+                else:
+                    mavsum_boshi = datetime(bugun_d.year - 1, 8, 1)
+                mavsum_hujjatlar = db.query(Hujjat).filter(Hujjat.created_at >= mavsum_boshi).all()
+                
+                def mavsum_tonnaj(mahsulot_id):
+                    h_list = [h for h in mavsum_hujjatlar if h.mahsulot_id == mahsulot_id]
+                    jami_netto = 0
+                    jami_kond = 0
+                    for h in h_list:
+                        olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
+                        for o in olchovlar:
+                            if o.netto: jami_netto += o.netto
+                            if o.konditsion: jami_kond += o.konditsion
+                    return len(h_list), round(jami_netto/1000, 2), round(jami_kond/1000, 2)
+                
+                mchigit_son, mchigit_netto, mchigit_kond = mavsum_tonnaj(1)
+                mchiganoq_son, mchiganoq_netto, _ = mavsum_tonnaj(2)
+                mpochog_son, mpochog_netto, _ = mavsum_tonnaj(3)
+                mpatoz_son, mpatoz_netto, _ = mavsum_tonnaj(4)
                 
                 matn = f"""📊 <b>KUNLIK HISOBOT</b>
 📅 Sana: {bugun}
 
-🚛 Jami mashinalar: <b>{len(hujjatlar)} ta</b>
+🚛 Jami: <b>{len(hujjatlar)} ta</b>
 
-🟡 <b>Chigit:</b> {chigit_son} ta
-   • Netto: <b>{chigit_netto} t</b>
-   • Konditsion: <b>{chigit_kond} t</b>
+🟡 <b>Chigit:</b> {chigit_son} ta | Netto: <b>{chigit_netto} t</b> | Kond: <b>{chigit_kond} t</b>
+🟢 <b>Chiganoq:</b> {chiganoq_son} ta | Netto: <b>{chiganoq_netto} t</b>
+🟠 <b>Pochog:</b> {pochog_son} ta | Netto: <b>{pochog_netto} t</b>
+🔴 <b>Patoz:</b> {patoz_son} ta | Netto: <b>{patoz_netto} t</b>
 
-🟢 <b>Chiganoq:</b> {chiganoq_son} ta
-   • Netto: <b>{chiganoq_netto} t</b>
-
-🟠 <b>Chiganoq po'chog'i:</b> {pochog_son} ta
-   • Netto: <b>{pochog_netto} t</b>
+━━━━━━━━━━━━━━━
+📦 <b>MAVSUM JAMI</b>
+🟡 Chigit: {mchigit_son} ta | {mchigit_netto} t | Kond: {mchigit_kond} t
+🟢 Chiganoq: {mchiganoq_son} ta | {mchiganoq_netto} t
+🟠 Pochog: {mpochog_son} ta | {mpochog_netto} t
+🔴 Patoz: {mpatoz_son} ta | {mpatoz_netto} t
 
 🏭 Hazorasp Tekstil tarozi tizimi"""
                 telegram_xabar_yuborish(matn)
@@ -767,21 +795,46 @@ def telegram_kunlik(db: Session = Depends(get_db)):
     chigit_son, chigit_netto, chigit_kond = tonnaj_hisob(1)
     chiganoq_son, chiganoq_netto, _ = tonnaj_hisob(2)
     pochog_son, pochog_netto, _ = tonnaj_hisob(3)
+    patoz_son, patoz_netto, _ = tonnaj_hisob(4)
+    
+    if bugun.month >= 8:
+        mavsum_boshi = datetime(bugun.year, 8, 1)
+    else:
+        mavsum_boshi = datetime(bugun.year - 1, 8, 1)
+    mavsum_hujjatlar = db.query(Hujjat).filter(Hujjat.created_at >= mavsum_boshi).all()
+    
+    def mavsum_tonnaj(mahsulot_id):
+        h_list = [h for h in mavsum_hujjatlar if h.mahsulot_id == mahsulot_id]
+        jami_netto = 0
+        jami_kond = 0
+        for h in h_list:
+            olchovlar_m = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
+            for o in olchovlar_m:
+                if o.netto: jami_netto += o.netto
+                if o.konditsion: jami_kond += o.konditsion
+        return len(h_list), round(jami_netto/1000, 2), round(jami_kond/1000, 2)
+    
+    mchigit_son, mchigit_netto, mchigit_kond = mavsum_tonnaj(1)
+    mchiganoq_son, mchiganoq_netto, _ = mavsum_tonnaj(2)
+    mpochog_son, mpochog_netto, _ = mavsum_tonnaj(3)
+    mpatoz_son, mpatoz_netto, _ = mavsum_tonnaj(4)
     
     matn = f"""📊 <b>KUNLIK HISOBOT</b>
 📅 Sana: {bugun}
 
-🚛 Jami mashinalar: <b>{len(hujjatlar)} ta</b>
+🚛 Jami: <b>{len(hujjatlar)} ta</b>
 
-🟡 <b>Chigit:</b> {chigit_son} ta
-   • Netto: <b>{chigit_netto} t</b>
-   • Konditsion: <b>{chigit_kond} t</b>
+🟡 <b>Chigit:</b> {chigit_son} ta | Netto: <b>{chigit_netto} t</b> | Kond: <b>{chigit_kond} t</b>
+🟢 <b>Chiganoq:</b> {chiganoq_son} ta | Netto: <b>{chiganoq_netto} t</b>
+🟠 <b>Pochog:</b> {pochog_son} ta | Netto: <b>{pochog_netto} t</b>
+🔴 <b>Patoz:</b> {patoz_son} ta | Netto: <b>{patoz_netto} t</b>
 
-🟢 <b>Chiganoq:</b> {chiganoq_son} ta
-   • Netto: <b>{chiganoq_netto} t</b>
-
-🟠 <b>Chiganoq po'chog'i:</b> {pochog_son} ta
-   • Netto: <b>{pochog_netto} t</b>
+━━━━━━━━━━━━━━━
+📦 <b>MAVSUM JAMI</b>
+🟡 Chigit: {mchigit_son} ta | {mchigit_netto} t | Kond: {mchigit_kond} t
+🟢 Chiganoq: {mchiganoq_son} ta | {mchiganoq_netto} t
+🟠 Pochog: {mpochog_son} ta | {mpochog_netto} t
+🔴 Patoz: {mpatoz_son} ta | {mpatoz_netto} t
 
 🏭 Hazorasp Tekstil tarozi tizimi"""
     

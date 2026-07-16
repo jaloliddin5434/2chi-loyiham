@@ -1053,6 +1053,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         mahsulotNomi: widget.mahsulotNomi,
         sana: DateTime.now().toString().substring(0, 10),
         html: '<p>nakladnoy</p>',
+        hujjatId: tanlanganNavbat?.hujjatId ?? hujjatId,
       );
 
     try {

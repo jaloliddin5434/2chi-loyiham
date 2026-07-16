@@ -253,7 +253,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
   
   <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 8px;">
     <div style="flex: 1;">
-      <div class="title">ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № ${widget.tiketRaqam}</div>
+      <div class="title">ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № ${widget.hujjatRaqam.isNotEmpty ? widget.hujjatRaqam : widget.tiketRaqam}</div>
       <div class="subtitle">Ishlab chiqarishdan qabul qilingan mahsulotlarni tashish uchun<br>${widget.sana}</div>
     </div>
     <div style="border: 1px solid #ccc; padding: 6px 10px; font-size: 10px; min-width: 120px; text-align: center;">

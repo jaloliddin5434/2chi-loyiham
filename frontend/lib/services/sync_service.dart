@@ -45,18 +45,22 @@ class SyncService {
 
       // Nakladnoylarni sync qilish
       final nakladnoylar = await OfflineService.nakladnoylarOl();
+      final qolganNakladnoylar = <dynamic>[];
       for (final n in nakladnoylar) {
         try {
-          await http.post(
+          final res = await http.post(
             Uri.parse('${ApiService.baseUrl}/nakladnoy/saqlash'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(n),
           );
+          if (res.statusCode != 200) qolganNakladnoylar.add(n);
         } catch (e) {
-          break;
+          qolganNakladnoylar.add(n);
         }
       }
-      if (nakladnoylar.isNotEmpty) await OfflineService.nakladnoylarTozala();
+      if (qolganNakladnoylar.length != nakladnoylar.length) {
+        html.window.localStorage['kutayotgan_nakladnoy'] = jsonEncode(qolganNakladnoylar);
+      }
       print('✅ Sync tugadi');
     } catch (e) {
       print('❌ Sync xato: $e');

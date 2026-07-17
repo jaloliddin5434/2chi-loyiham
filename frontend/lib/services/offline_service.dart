@@ -11,9 +11,9 @@ class OfflineService {
     }
   }
 
-static dynamic _olish(String key) {
+  static dynamic _olish(String key) {
     final data = html.window.localStorage[key];
-   print('📖 O\'qildi: $key = ${data != null ? data.substring(0, data.length < 50 ? data.length : 50) : null}');
+    print('📖 O\'qildi: $key = ${data != null ? data.substring(0, data.length < 50 ? data.length : 50) : null}');
     if (data == null) return null;
     return jsonDecode(data);
   }
@@ -58,5 +58,19 @@ static dynamic _olish(String key) {
 
   static Future<void> kutayotganlarTozala() async {
     html.window.localStorage.remove('kutayotgan');
+  }
+
+  static Future<void> nakladnoyQosh(Map<String, dynamic> nakladnoy) async {
+    final list = (_olish('kutayotgan_nakladnoy') as List?)?.cast<dynamic>() ?? [];
+    list.add(nakladnoy);
+    _saqlash('kutayotgan_nakladnoy', list);
+  }
+
+  static Future<List<dynamic>> nakladnoylarOl() async {
+    return (_olish('kutayotgan_nakladnoy') as List?)?.cast<dynamic>() ?? [];
+  }
+
+  static Future<void> nakladnoylarTozala() async {
+    html.window.localStorage.remove('kutayotgan_nakladnoy');
   }
 }

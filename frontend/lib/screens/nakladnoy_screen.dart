@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../services/api_service.dart';
+import '../services/offline_service.dart';
 
 class NakladnoyScreen extends StatefulWidget {
   final String mashinaRaqami;
@@ -146,7 +147,19 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
             'mashina_turi': widget.mashinaTuri,
           }),
         );
-      } catch (e) {}
+      } catch (e) {
+        await OfflineService.nakladnoyQosh({
+          'mashina_raqami': widget.mashinaRaqami,
+          'mahsulot_nomi': widget.mahsulotNomi,
+          'sana': sana,
+          'tara1': widget.tara1 ?? 0,
+          'brutto1': widget.brutto1 ?? 0,
+          'hujjat_id': widget.hujjatId,
+          'nakladnoy_raqam': widget.hujjatRaqam,
+          'firma': widget.firma,
+          'mashina_turi': widget.mashinaTuri,
+        });
+      }
       
       // Brauzerda ochish
       final blob = html.Blob([htmlContent], 'text/html');

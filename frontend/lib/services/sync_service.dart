@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:html' as html;
+import 'package:http/http.dart' as http;
 import 'offline_service.dart';
 import 'api_service.dart';
 
@@ -23,10 +25,7 @@ class SyncService {
     _syncing = true;
     try {
       final kutayotganlar = await OfflineService.kutayotganlarOl();
-      if (kutayotganlar.isEmpty) {
-        _syncing = false;
-        return;
-      }
+     
       for (final op in kutayotganlar) {
         try {
           final tur = op['tur'];
@@ -43,6 +42,21 @@ class SyncService {
         } catch (e) {}
       }
       await OfflineService.kutayotganlarTozala();
+
+      // Nakladnoylarni sync qilish
+      final nakladnoylar = await OfflineService.nakladnoylarOl();
+      for (final n in nakladnoylar) {
+        try {
+          await http.post(
+            Uri.parse('${ApiService.baseUrl}/nakladnoy/saqlash'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(n),
+          );
+        } catch (e) {
+          break;
+        }
+      }
+      if (nakladnoylar.isNotEmpty) await OfflineService.nakladnoylarTozala();
       print('✅ Sync tugadi');
     } catch (e) {
       print('❌ Sync xato: $e');

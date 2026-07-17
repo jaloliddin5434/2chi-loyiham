@@ -73,4 +73,18 @@ class OfflineService {
   static Future<void> nakladnoylarTozala() async {
     html.window.localStorage.remove('kutayotgan_nakladnoy');
   }
+
+  static Future<void> rasmQosh(Map<String, dynamic> rasm) async {
+    final list = (_olish('kutayotgan_rasmlar') as List?)?.cast<dynamic>() ?? [];
+    list.add(rasm);
+    _saqlash('kutayotgan_rasmlar', list);
+  }
+
+  static Future<List<dynamic>> rasmlarOl() async {
+    return (_olish('kutayotgan_rasmlar') as List?)?.cast<dynamic>() ?? [];
+  }
+
+  static Future<void> rasmlarTozala() async {
+    html.window.localStorage.remove('kutayotgan_rasmlar');
+  }
 }

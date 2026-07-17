@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'offline_service.dart';
 
 class ApiService {
 static const String baseUrl = "http://10.112.30.77:8001";
@@ -207,7 +208,13 @@ static const String baseUrl = "http://10.112.30.77:8001";
           'tur': tur,
         }),
       );
-   } catch (e) {}
+   } catch (e) {
+      await OfflineService.rasmQosh({
+        'mashina_raqami': mashinaRaqami,
+        'mahsulot_nomi': mahsulotNomi,
+        'tur': tur,
+      });
+    }
   }
 
  static Future<void> sozlamaSaqla(Map<String, dynamic> data) async {

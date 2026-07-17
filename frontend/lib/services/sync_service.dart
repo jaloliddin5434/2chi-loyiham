@@ -61,6 +61,24 @@ class SyncService {
       if (qolganNakladnoylar.length != nakladnoylar.length) {
         html.window.localStorage['kutayotgan_nakladnoy'] = jsonEncode(qolganNakladnoylar);
       }
+      // Rasmlarni sync qilish
+      final rasmlar = await OfflineService.rasmlarOl();
+      final qolganRasmlar = <dynamic>[];
+      for (final r in rasmlar) {
+        try {
+          final res = await http.post(
+            Uri.parse('${ApiService.baseUrl}/kamera/rasm'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(r),
+          );
+          if (res.statusCode != 200) qolganRasmlar.add(r);
+        } catch (e) {
+          qolganRasmlar.add(r);
+        }
+      }
+      if (qolganRasmlar.length != rasmlar.length) {
+        html.window.localStorage['kutayotgan_rasmlar'] = jsonEncode(qolganRasmlar);
+      }
       print('✅ Sync tugadi');
     } catch (e) {
       print('❌ Sync xato: $e');

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:html' as html;
 import 'offline_service.dart';
 import 'api_service.dart';
 
@@ -7,16 +7,9 @@ class SyncService {
   static Timer? _syncTimer;
   static bool _syncing = false;
 
-  // Internet monitoring boshlash
   static void boshlash() {
-    Connectivity().onConnectivityChanged.listen((result) {
-      if (result != ConnectivityResult.none) {
-        _syncQil();
-      }
-    });
-    // Har 30 soniyada tekshirish
     _syncTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
-      final online = await OfflineService.internetBormi();
+      final online = html.window.navigator.onLine ?? true;
       if (online) _syncQil();
     });
   }
@@ -25,7 +18,6 @@ class SyncService {
     _syncTimer?.cancel();
   }
 
-  // Kutayotgan operatsiyalarni backend ga yuborish
   static Future<void> _syncQil() async {
     if (_syncing) return;
     _syncing = true;
@@ -38,9 +30,7 @@ class SyncService {
       for (final op in kutayotganlar) {
         try {
           final tur = op['tur'];
-          if (tur == 'navbat_qosh') {
-            await ApiService.navbatQosh(Map<String, dynamic>.from(op['data']));
-          } else if (tur == 'olchov_saqlash') {
+          if (tur == 'olchov_saqlash') {
             await ApiService.olchovSaqlash(
               hujjatId: op['data']['hujjat_id'],
               aravaRaqam: op['data']['arava_raqam'],

@@ -29,12 +29,13 @@ class _MahsulotTanlashScreenState extends State<MahsulotTanlashScreen> {
         yuklanmoqda = false;
       });
     } catch (e) {
+      final localMahsulotlar = await OfflineService.mahsulotlarOl();
       setState(() {
         yuklanmoqda = false;
-        mahsulotlar = [
+        mahsulotlar = localMahsulotlar.isNotEmpty ? localMahsulotlar : [
           {"id": 1, "nom": "Chigit", "konditsiya_bor": true},
           {"id": 2, "nom": "Chiganoq", "konditsiya_bor": false},
-        {"id": 3, "nom": "Chiganoq po'chog'i", "konditsiya_bor": false},
+          {"id": 3, "nom": "Chiganoq po'chog'i", "konditsiya_bor": false},
           {"id": 4, "nom": "Patoz", "konditsiya_bor": false},
         ];
       });

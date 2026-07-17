@@ -15,6 +15,7 @@ static const String baseUrl = "http://10.112.30.77:8001";
       {"id": 1, "nom": "Chigit", "konditsiya_bor": true},
       {"id": 2, "nom": "Chiganoq", "konditsiya_bor": false},
       {"id": 3, "nom": "Chiganoq po'chog'i", "konditsiya_bor": false},
+      {"id": 4, "nom": "Patoz", "konditsiya_bor": false},
     ];
   }
 
@@ -145,8 +146,10 @@ static const String baseUrl = "http://10.112.30.77:8001";
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
-    } catch (e) {}
-    return [];
+    } catch (e) {
+      throw Exception('Navbat yuklanmadi');
+    }
+    throw Exception('Navbat yuklanmadi');
   }
 
   static Future<void> navbatTugallandi(Map<String, dynamic> mashina) async {

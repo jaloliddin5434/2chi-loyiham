@@ -270,10 +270,14 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
 
   Future<void> _backendDanYukla() async {
     try {
-     
       final navbatData = await ApiService.navbatOl();
-      final tugallanganData =
-          await ApiService.tugallanganlarOl();
+      final tugallanganData = await ApiService.tugallanganlarOl();
+     if (navbatData.isNotEmpty) {
+        await OfflineService.navbatSaqla(navbatData);
+      }
+      if (tugallanganData.isNotEmpty) {
+        await OfflineService.tugallanganlarSaqla(tugallanganData);
+      }
 
       // Mavjud id lar
       final mavjudNavbatIds = NavbatService.navbat.value
@@ -306,10 +310,28 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
           ];
         }
       }
-
-      if (mounted) setState(() => serverUlangan = true);
-    } catch (e) {
+} catch (e) {
       if (mounted) setState(() => serverUlangan = false);
+      try {
+        final localNavbat = await OfflineService.navbatOl();
+        for (final m in localNavbat) {
+          final id = (m['hujjatId'] ?? 0) as int;
+          final mavjud = NavbatService.navbat.value.any((x) => x.hujjatId == id);
+          if (!mavjud) {
+            NavbatService.navbatQosh(_mapDanMashina(Map<String, dynamic>.from(m)));
+          }
+        }
+     final localTugallangan = await OfflineService.tugallanganlarOl();
+        for (final m in localTugallangan) {
+          final id = (m['hujjatId'] ?? 0) as int;
+          final mavjud = NavbatService.tugallanganlar.value.any((x) => x.hujjatId == id);
+          if (!mavjud) {
+            NavbatService.tugallandiQosh(_mapDanMashina(Map<String, dynamic>.from(m)));
+          }
+        }
+      } catch (e2) {
+        print('Offline navbat xato: $e2');
+      }
     }
   }
 

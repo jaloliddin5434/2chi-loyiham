@@ -26,6 +26,7 @@ class NavbatMashina {
   final Map<int, AravaData> aravalar;
   final int hujjatId;
   final int mashinaId;
+  String hujjatRaqam;
   final DateTime kelganVaqt;
   bool tugallandi;
   DateTime? tugallanganVaqt;
@@ -52,6 +53,7 @@ class NavbatMashina {
     required this.aravalar,
     required this.hujjatId,
     required this.mashinaId,
+    this.hujjatRaqam = '',
     required this.kelganVaqt,
     this.tugallandi = false,
     this.tugallanganVaqt,
@@ -247,6 +249,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       aravalar: aravalarMap,
       hujjatId: m['hujjatId'] ?? 0,
       mashinaId: m['mashinaId'] ?? 0,
+      hujjatRaqam: m['hujjatRaqam'] ?? '',
       kelganVaqt:
           DateTime.tryParse(m['kelganVaqt'] ?? '') ??
               DateTime.now(),
@@ -1363,7 +1366,7 @@ try {
             konditsion3: _konditsion3,
             sana: avtomatikSana,
             hujjatId: _hujjatId,
-            hujjatRaqam: _hujjatId?.toString() ?? '',
+           hujjatRaqam: tanlanganNavbat?.hujjatRaqam ?? '',
           ),
         ));
   }

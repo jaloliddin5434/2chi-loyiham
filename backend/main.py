@@ -626,8 +626,6 @@ def avtomatik_telegram_hisobot():
             time.sleep(61)
         time.sleep(30)
 
-hisobot_thread = threading.Thread(target=avtomatik_telegram_hisobot, daemon=True)
-hisobot_thread.start()
 
 def avtomatik_backup():
     import time
@@ -767,6 +765,9 @@ def telegram_xabar_yuborish(matn: str):
         })
     except Exception as e:
         print(f"Telegram xato: {e}")
+
+hisobot_thread = threading.Thread(target=avtomatik_telegram_hisobot, daemon=True)
+hisobot_thread.start()
 
 @app.post("/telegram/test")
 def telegram_test():

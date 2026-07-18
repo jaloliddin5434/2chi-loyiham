@@ -117,10 +117,16 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
 
   int bugunMashinalar = 0;
   double bugunTonnaj = 0;
-
   int? mashinaId;
   int? hujjatId;
   String _hujjatRaqam = '';
+  String _defTudaRaqam = '';
+  String _defKlass = '1';
+  String _defSinf = '';
+  String _defTerimTuri = 'Kul terim';
+  String _defSeleksiyaNavi = 'Xorazm-150';
+  String _defNamlik = '';
+  String _defIfloslik = '';
   bool bazagaSaqlandi = false;
   DateTime? mashinaKelganVaqt;
 
@@ -274,6 +280,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
 
   Future<void> _backendDanYukla() async {
     try {
+      
       final navbatData = await ApiService.navbatOl();
       final tugallanganData = await ApiService.tugallanganlarOl();
      if (navbatData.isNotEmpty) {
@@ -388,6 +395,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     });
 
     // Backend dan yuklash
+    _sozlamalarYukla();
     _backendDanYukla();
     navbatYangilashTimer = Timer.periodic(
         const Duration(seconds: 5),
@@ -470,7 +478,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     _aravaAnimCtrl.forward(from: 0);
   }
 
-  void keyingiMashina() {
+  Future<void> keyingiMashina() async {
     if (!bazagaSaqlandi) {
       _xabar("❌ Avval tara o'lchang!");
       return;
@@ -560,7 +568,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       },
     });
 
-    _tozala();
+   await _tozala();
     _xabar("✅ Mashina navbatga qo'shildi!");
   }
 
@@ -623,22 +631,19 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       if (tanlanganNavbat?.hujjatId ==
           mashina.hujjatId) {
         setState(() => tanlanganNavbat = null);
-        _tozala();
+        await _tozala();
       }
     }
   }
 
-  void _tozala() {
+  Future<void> _tozala() async {
     raqamiCtrl.clear();
     turiCtrl.text = "FAW";
     shofyorCtrl.clear();
-    tudaRaqamCtrl.clear();
-    tiketRaqamCtrl.text = DateTime.now()
+  tiketRaqamCtrl.text = DateTime.now()
         .millisecondsSinceEpoch
         .toString()
         .substring(5, 12);
-    ifloslikCtrl.clear();
-    namlikCtrl.clear();
     aravalar[1] = AravaData();
     aravalar[2] = AravaData();
     aravalar[3] = AravaData();
@@ -653,9 +658,32 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     tanlanganNavbat = null;
     saqlanmoqda = false;
     qoldiqSoniya = 0;
-    mashinaKelganVaqt = null;
+   mashinaKelganVaqt = null;
   }
-
+  
+  Future<void> _sozlamalarYukla() async {
+    try {
+      final sozlamalar = await ApiService.sozlamalarOl();
+      if (sozlamalar.isNotEmpty && mounted) {
+        setState(() {
+          _defTudaRaqam = sozlamalar['tuda_raqam'] ?? '';
+          _defKlass = sozlamalar['klass'] ?? '1';
+          _defSinf = sozlamalar['sinf'] ?? '';
+          _defTerimTuri = sozlamalar['terim_turi'] ?? 'Kul terim';
+          _defSeleksiyaNavi = sozlamalar['seleksiya_navi'] ?? 'Xorazm-150';
+          _defNamlik = sozlamalar['namlik'] ?? '';
+          _defIfloslik = sozlamalar['ifloslik'] ?? '';
+          tudaRaqamCtrl.text = _defTudaRaqam;
+          klassCtrl.text = _defKlass;
+          sinfCtrl.text = _defSinf;
+          terimTuriCtrl.text = _defTerimTuri;
+          seleksiyaNaviCtrl.text = _defSeleksiyaNavi;
+          namlikCtrl.text = _defNamlik;
+          ifloslikCtrl.text = _defIfloslik;
+        });
+      }
+    } catch (e) {}
+  }
   void navbatdanTanlash(NavbatMashina mashina) {
     setState(() {
       tanlanganNavbat = mashina;

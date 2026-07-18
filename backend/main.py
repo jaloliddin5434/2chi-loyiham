@@ -268,7 +268,9 @@ def navbat_get(db: Session = Depends(get_db)):
             "namlik": n.namlik,
             "ifloslik": n.ifloslik,
             "aravalar": json.loads(n.aravalar_json) if n.aravalar_json else {},
+            "hujjatRaqam": db.query(Hujjat).filter(Hujjat.id == n.hujjat_id).first().raqam if n.hujjat_id else '',
         })
+        
     return natija
 
 @app.post("/navbat/tugallandi")

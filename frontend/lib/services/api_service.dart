@@ -243,6 +243,7 @@ static const String baseUrl = "http://10.112.30.77:8001";
     required String sana,
     String html = '',
     int? hujjatId,
+    String nakladnoyRaqam = '',
   }) async {
     try {
       await http.post(
@@ -254,6 +255,7 @@ static const String baseUrl = "http://10.112.30.77:8001";
           'sana': sana,
           'html': html,
           'hujjat_id': hujjatId,
+          'nakladnoy_raqam': nakladnoyRaqam,
         }),
       );
    } catch (e) {}

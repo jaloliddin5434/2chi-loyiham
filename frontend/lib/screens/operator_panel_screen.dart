@@ -120,6 +120,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
 
   int? mashinaId;
   int? hujjatId;
+  String _hujjatRaqam = '';
   bool bazagaSaqlandi = false;
   DateTime? mashinaKelganVaqt;
 
@@ -1081,6 +1082,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         sana: DateTime.now().toString().substring(0, 10),
         html: '<p>nakladnoy</p>',
         hujjatId: tanlanganNavbat?.hujjatId ?? hujjatId,
+        nakladnoyRaqam: tanlanganNavbat?.hujjatRaqam ?? _hujjatRaqam,
       );
 
     try {
@@ -1301,6 +1303,7 @@ try {
         aravalarSoni: aravalarSoni,
       );
       hujjatId = hujjat['id'];
+      _hujjatRaqam = hujjat['raqam'] ?? '';
       setState(() => bazagaSaqlandi = true);
     } catch (e) {
       _xabar("❌ Xato: $e");
@@ -1366,7 +1369,7 @@ try {
             konditsion3: _konditsion3,
             sana: avtomatikSana,
             hujjatId: _hujjatId,
-           hujjatRaqam: tanlanganNavbat?.hujjatRaqam ?? '',
+            hujjatRaqam: tanlanganNavbat?.hujjatRaqam ?? _hujjatRaqam,
           ),
         ));
   }

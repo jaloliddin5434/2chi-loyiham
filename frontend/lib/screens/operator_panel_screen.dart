@@ -171,19 +171,18 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   final dostaverkaVaqtCtrl =
       TextEditingController(text: "10.04.2026 - 30.06.2026");
 
-  static const Color green = Color(0xFF1A7A08);
-  static const Color greenLight = Color(0xFF3AAA1A);
-  static const Color greenBg = Color(0xFFEAFADE);
-  static const Color greenBorder = Color(0xFFB0D890);
-  static const Color cardBorder = Color(0xFFD8EDD0);
-  static const Color muted = Color(0xFF9AC080);
-  static const Color mutedText = Color(0xFF7AAA5A);
-  static const Color goldColor = Color(0xFFC89020);
-  static const Color goldBg = Color(0xFFFFF8E0);
-  static const Color goldBorder = Color(0xFFF0D070);
-  static const Color blueColor = Color(0xFF2A6AB8);
-  static const Color blueBg = Color(0xFFE8F0FC);
-
+ static const Color green = Color(0xFF1565C0);
+  static const Color greenLight = Color(0xFF1976D2);
+  static const Color greenBg = Color(0xFFE3F2FD);
+  static const Color greenBorder = Color(0xFF90CAF9);
+  static const Color cardBorder = Color(0xFFBBDEFB);
+  static const Color muted = Color(0xFF78909C);
+  static const Color mutedText = Color(0xFF546E7A);
+  static const Color goldColor = Color(0xFFF57C00);
+  static const Color goldBg = Color(0xFFFFF3E0);
+  static const Color goldBorder = Color(0xFFFFCC80);
+  static const Color blueColor = Color(0xFF7B1FA2);
+  static const Color blueBg = Color(0xFFF3E5F5);
   bool get konditsionBor => widget.mahsulotId == 1;
   bool get dostavernaBor => widget.mahsulotId == 1;
   bool get faqatBrutto => tanlanganNavbat != null;
@@ -754,7 +753,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
           Expanded(
               child: Text(mashina.raqam,
                   style: const TextStyle(
-                      color: Color(0xFF1A4A08),
+                      color: Color(0xFF0D1B2A),
                       fontSize: 15,
                       fontWeight: FontWeight.w700))),
           Container(
@@ -923,7 +922,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
                 style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A4A08)))),
+                    color: Color(0xFF0D1B2A)))),
       ]),
     );
   }
@@ -949,7 +948,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
             style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF1A4A08))),
+                color: Color(0xFF0D1B2A))),
         const SizedBox(height: 6),
         Row(children: [
           _olchovKarta("Tara", arava.tara,
@@ -1039,7 +1038,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
                   BorderRadius.circular(16)),
           title: const Text("Bruttoni saqlash",
               style: TextStyle(
-                  color: Color(0xFF1A4A08),
+                  color: Color(0xFF0D1B2A),
                   fontSize: 15)),
           content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1499,7 +1498,7 @@ try {
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: enabled
-                ? const Color(0xFF1A4A08)
+                ? const Color(0xFF0D1B2A)
                 : Colors.grey),
         decoration: InputDecoration(
           labelText: label,
@@ -1520,7 +1519,7 @@ try {
       bool blue = false}) {
     Color bg = Colors.white.withValues(alpha: 0.8),
         border = cardBorder,
-        textColor = const Color(0xFF1A4A08);
+        textColor = const Color(0xFF0D1B2A);
     if (special) {
       bg = greenBg;
       border = greenBorder;
@@ -1829,7 +1828,7 @@ try {
                     fontWeight: FontWeight.w700,
                     color: tanlangan
                         ? blueColor
-                        : const Color(0xFF1A4A08))),
+                        : const Color(0xFF0D1B2A))),
             Text(
                 "${mashina.vaqt} · ${mashina.mahsulotNomi}",
                 style: const TextStyle(
@@ -1889,7 +1888,7 @@ try {
                 style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A4A08))),
+                    color: Color(0xFF0D1B2A))),
             Row(children: [
               Text(mashina.vaqt,
                   style: const TextStyle(
@@ -1941,9 +1940,9 @@ try {
                   const Color(0xFF0A1A0A)
                 ]
               : [
-                  const Color(0xFFE8F5E0),
-                  const Color(0xFFF0F8E8),
-                  const Color(0xFFE0F0D4)
+                  const Color(0xFFECF0F8),
+                  const Color(0xFFF0F4FC),
+                  const Color(0xFFE8EEF8)
                 ],
         ),
       ),

@@ -83,8 +83,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     'uptime': '3 kun 14 soat',
   };
 
-  static const Color green = Color(0xFF1A7A08);
-  static const Color greenLight = Color(0xFF3AAA1A);
+  static const Color green = Color(0xFF1565C0);
+  static const Color greenLight = Color(0xFF1976D2);
   static const Color greenBg = Color(0xFFEAFADE);
   static const Color greenBorder = Color(0xFFB0D890);
   static const Color cardBorder = Color(0xFFD8EDD0);
@@ -398,7 +398,7 @@ Future<void> hujjatlarniYukla() async {
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
       child: Text(text, style: TextStyle(
           fontSize: 11,
-          color: const Color(0xFF1A4A08),
+          color: const Color(0xFF0D1B2A),
           fontWeight: bold ? FontWeight.w700 : FontWeight.normal)),
     );
   }
@@ -824,7 +824,7 @@ void _jsonNavbatOchir(Map<String, dynamic> m) {
         const SizedBox(width: 8),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(m['raqam'] ?? '—', style: const TextStyle(
-              fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF1A4A08))),
+              fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0D1B2A))),
           Text("${m['firma'] ?? '—'} · ${m['vaqt'] ?? '—'}",
               style: const TextStyle(fontSize: 10, color: muted)),
         ])),
@@ -883,7 +883,7 @@ void _jsonNavbatOchir(Map<String, dynamic> m) {
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(m['raqam'] ?? '—', style: const TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF1A4A08))),
+                fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0D1B2A))),
             Text("${m['firma'] ?? '—'} · ${m['vaqt'] ?? '—'}",
                 style: const TextStyle(fontSize: 10, color: muted)),
           ])),
@@ -948,7 +948,7 @@ void _jsonNavbatOchir(Map<String, dynamic> m) {
         Text(mashina.raqam, style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF1A4A08))),
+            color: Color(0xFF0D1B2A))),
         Text("${mashina.firma} · ${mashina.vaqt}",
             style: const TextStyle(fontSize: 10, color: muted)),
       ])),
@@ -1011,7 +1011,7 @@ Future<void> _navbatMashinaTuzat(NavbatMashina mashina) async {
         const Icon(Icons.edit, color: blueColor, size: 18),
         const SizedBox(width: 8),
         Text("${mashina.raqam} ni tuzatish",
-            style: const TextStyle(color: Color(0xFF1A4A08), fontSize: 14)),
+            style: const TextStyle(color: Color(0xFF0D1B2A), fontSize: 14)),
       ]),
       content: SizedBox(
         width: 520,
@@ -1233,7 +1233,7 @@ Widget _tuzatField(String label, TextEditingController ctrl,
           Text(mashina.raqam, style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF1A4A08))),
+              color: Color(0xFF0D1B2A))),
           Text("${mashina.firma} · ${mashina.vaqt}",
               style: const TextStyle(fontSize: 10, color: muted)),
         ])),
@@ -1315,7 +1315,7 @@ Widget _kgKarta(String label, double? value, Color color) {
           const SizedBox(width: 8),
           Text(mashina.raqam, style: const TextStyle(
               fontSize: 15,
-              color: Color(0xFF1A4A08),
+              color: Color(0xFF0D1B2A),
               fontWeight: FontWeight.w700)),
         ]),
         content: SizedBox(
@@ -1353,7 +1353,7 @@ Widget _kgKarta(String label, double? value, Color color) {
         Expanded(child: Text(value, style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF1A4A08)))),
+            color: Color(0xFF0D1B2A)))),
       ]),
     );
   }
@@ -1769,7 +1769,7 @@ Widget _mashinaGrafik() {
                           },
                           children: [
                             TableRow(
-                              decoration: const BoxDecoration(color: Color(0xFF1A4A08)),
+                              decoration: const BoxDecoration(color: Color(0xFF0D1B2A)),
                               children: ['№', 'Sana', 'Firma', 'Mashina',
                                 'Shofyor', 'Tara', 'Brutto', 'Netto', 'Holat', 'Amal']
                                   .map((h) => Padding(
@@ -1932,7 +1932,7 @@ Widget _mashinaGrafik() {
             const SizedBox(width: 8),
             Text("Hujjat ${hujjat['raqam']} ni tuzatish",
                 style: const TextStyle(
-                    color: Color(0xFF1A4A08), fontSize: 14)),
+                    color: Color(0xFF0D1B2A), fontSize: 14)),
           ]),
           content: SizedBox(
             width: 520,
@@ -2475,7 +2475,7 @@ Widget _mashinaGrafik() {
           Text(f['rol'], style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF1A4A08))),
+              color: Color(0xFF0D1B2A))),
           Text("Login: ${f['login']}",
               style: const TextStyle(fontSize: 11, color: muted)),
           Text("Oxirgi kirish: ${f['oxirgiKirish']}",
@@ -2490,7 +2490,7 @@ Widget _mashinaGrafik() {
                     borderRadius: BorderRadius.circular(16)),
                 title: Text("${f['rol']} parolini o'zgartirish",
                     style: const TextStyle(
-                        color: Color(0xFF1A4A08), fontSize: 14)),
+                        color: Color(0xFF0D1B2A), fontSize: 14)),
                 content: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -2574,7 +2574,7 @@ Widget _mashinaGrafik() {
               borderRadius: BorderRadius.circular(16)),
           title: const Text("Yangi foydalanuvchi qo'shish",
               style: TextStyle(
-                  color: Color(0xFF1A4A08), fontSize: 14)),
+                  color: Color(0xFF0D1B2A), fontSize: 14)),
           content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -3204,7 +3204,7 @@ Widget _mashinaGrafik() {
                   horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                    colors: [Color(0xFF1A7A08), Color(0xFF3AAA1A)]),
+                    colors: [Color(0xFF1565C0), Color(0xFF1976D2)]),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Row(

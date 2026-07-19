@@ -387,7 +387,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
         iconTheme: const IconThemeData(color: Color(0xFF3A8A1A)),
         title: Text(
           "Tovar Transport Nakladnoy — ${widget.tiketRaqam}",
-          style: const TextStyle(color: Color(0xFF1A4A08), fontSize: 14),
+          style: const TextStyle(color: Color(0xFF0D1B2A), fontSize: 14),
         ),
         actions: [
           ...['Zavod', 'Shofyor', 'Ohrana'].asMap().entries.map((e) {
@@ -399,14 +399,14 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: active ? const Color(0xFF3AAA1A) : const Color(0xFFEAFADE),
-                    border: Border.all(color: const Color(0xFFB0D890)),
+                    color: active ? const Color(0xFF1976D2) : const Color(0xFFE3F2FD),
+                    border: Border.all(color: const Color(0xFF90CAF9)),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(e.value,
                       style: TextStyle(
                           fontSize: 11,
-                          color: active ? Colors.white : const Color(0xFF3AAA1A))),
+                          color: active ? Colors.white : const Color(0xFF1976D2))),
                 ),
               ),
             );
@@ -416,8 +416,8 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
             onPressed: () async {
               await _pdfSaqla();
             },
-            icon: const Icon(Icons.print, size: 18, color: Color(0xFF3AAA1A)),
-            label: const Text("Chop etish", style: TextStyle(color: Color(0xFF3AAA1A))),
+            icon: const Icon(Icons.print, size: 18, color: Color(0xFF1976D2)),
+            label: const Text("Chop etish", style: TextStyle(color: Color(0xFF1976D2))),
           ),
           const SizedBox(width: 8),
         ],
@@ -448,7 +448,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1A4A08),
+                    color: const Color(0xFF0D1B2A),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -475,7 +475,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                             style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF1A4A08)),
+                                color: Color(0xFF0D1B2A)),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 4),
@@ -511,7 +511,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                     "\"Ҳазорасп текстил\" МЧЖга қарашли пахта тозалаш заводи"),
                 _infoRow("Юк олувчи:", widget.firma),
                 const SizedBox(height: 10),
-                const Divider(color: Color(0xFF1A4A08), thickness: 1),
+                const Divider(color: Color(0xFF0D1B2A), thickness: 1),
                 const SizedBox(height: 8),
 
                 // TIKET MA'LUMOTLARI
@@ -532,7 +532,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
 
                 // ASOSIY JADVAL
                 Table(
-                  border: TableBorder.all(color: const Color(0xFFB0D890)),
+                  border: TableBorder.all(color: const Color(0xFF90CAF9)),
                   columnWidths: const {
                     0: FlexColumnWidth(2),
                     1: FlexColumnWidth(1.5),
@@ -543,7 +543,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                   children: [
                     // HEADER
                     TableRow(
-                      decoration: const BoxDecoration(color: Color(0xFF1A4A08)),
+                      decoration: const BoxDecoration(color: Color(0xFF0D1B2A)),
                       children: [
                         _th("Юкнинг номи"),
                         _th("Тара (Урама), кг"),
@@ -572,7 +572,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                       ]),
                     // JAMI
                     TableRow(
-                      decoration: const BoxDecoration(color: Color(0xFFEAFADE)),
+                      decoration: const BoxDecoration(color: Color(0xFFE3F2FD)),
                       children: [
                         _td("Жами:", bold: true),
                         _td(jamiTara.toStringAsFixed(0), bold: true),
@@ -591,8 +591,8 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEAFADE),
-                    border: Border.all(color: const Color(0xFFB0D890)),
+                    color: const Color(0xFFE3F2FD),
+                    border: Border.all(color: const Color(0xFF90CAF9)),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -643,13 +643,13 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                     height: 70,
                     decoration: BoxDecoration(
                       border: Border.all(
-                          color: const Color(0xFFB0D890), width: 1.5),
+                          color: const Color(0xFF90CAF9), width: 1.5),
                       shape: BoxShape.circle,
                     ),
                     child: const Center(
                       child: Text("М.У.",
                           style: TextStyle(
-                              fontSize: 11, color: Color(0xFFB0D890))),
+                              fontSize: 11, color: Color(0xFF90CAF9))),
                     ),
                   ),
                 ]),
@@ -666,12 +666,12 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
       Padding(
         padding: const EdgeInsets.all(6),
         child: Text(left,
-            style: const TextStyle(fontSize: 11, color: Color(0xFF1A4A08))),
+            style: const TextStyle(fontSize: 11, color: Color(0xFF0D1B2A))),
       ),
       Padding(
         padding: const EdgeInsets.all(6),
         child: Text(right,
-            style: const TextStyle(fontSize: 11, color: Color(0xFF1A4A08))),
+            style: const TextStyle(fontSize: 11, color: Color(0xFF0D1B2A))),
       ),
     ]);
   }
@@ -687,7 +687,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
               style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: Color(0xFF1A4A08))),
+                  color: Color(0xFF0D1B2A))),
         ),
       ]),
     );
@@ -705,7 +705,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
               style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: Color(0xFF1A4A08))),
+                  color: Color(0xFF0D1B2A))),
         ),
       ]),
     );
@@ -738,7 +738,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
         Text(label,
             style: const TextStyle(fontSize: 10, color: Colors.grey)),
         const SizedBox(height: 20),
-        Container(height: 1, color: const Color(0xFF1A4A08)),
+        Container(height: 1, color: const Color(0xFF0D1B2A)),
         const Text("имзо",
             style: TextStyle(fontSize: 9, color: Colors.grey)),
       ],

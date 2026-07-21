@@ -1,4 +1,27 @@
-INFO:     Started server process [28452]
+INFO:     Started server process [22684]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56011 - "POST /login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56023 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56030 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56032 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56034 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56024 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56025 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56027 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56031 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56036 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56035 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     10.112.30.77:56047 - "GET /navbat HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:56049 - "POST /login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56061 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56062 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56063 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56064 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56065 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56066 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56068 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56067 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56069 - "POST /hujjatlar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56070 - "POST /hujjatlar HTTP/1.1" 200 OK

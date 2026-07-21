@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import engine, get_db, Base
-from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati
+from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich
 from schemas import UserLogin, Token, UserCreate, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
 import models
@@ -111,16 +111,27 @@ def mahsulotlar_royxati(db: Session = Depends(get_db), current_user: dict = Depe
 
 # ============ HUJJATLAR ============
 
+def keyingi_hujjat_raqami(db: Session, yil: int) -> str:
+    hisoblagich = db.query(HujjatRaqamHisoblagich).filter(
+        HujjatRaqamHisoblagich.yil == yil
+    ).with_for_update().first()
+
+    if not hisoblagich:
+        hisoblagich = HujjatRaqamHisoblagich(yil=yil, oxirgi_raqam=0)
+        db.add(hisoblagich)
+        db.flush()
+        hisoblagich = db.query(HujjatRaqamHisoblagich).filter(
+            HujjatRaqamHisoblagich.yil == yil
+        ).with_for_update().first()
+
+    hisoblagich.oxirgi_raqam += 1
+    db.flush()
+    return f"{yil}/{str(hisoblagich.oxirgi_raqam).zfill(3)}"
+
 @app.post("/hujjatlar")
 def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    oxirgi = db.query(Hujjat).order_by(Hujjat.id.desc()).first()
-    if oxirgi:
-        raqam = int(oxirgi.raqam.split("/")[1]) + 1
-        yil = oxirgi.raqam.split("/")[0]
-    else:
-        yil = str(datetime.now().year)
-        raqam = 1
-    yangi_raqam = f"{yil}/{str(raqam).zfill(3)}"
+    yil = datetime.now().year
+    yangi_raqam = keyingi_hujjat_raqami(db, yil)
     yangi = Hujjat(raqam=yangi_raqam, **hujjat.dict())
     db.add(yangi)
     db.commit()

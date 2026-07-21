@@ -105,6 +105,11 @@ class Navbat(Base):
     aravalar_json = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now())
 
+class HujjatRaqamHisoblagich(Base):
+    __tablename__ = "hujjat_raqam_hisoblagich"
+    yil = Column(Integer, primary_key=True)
+    oxirgi_raqam = Column(Integer, default=0)
+
 class Sozlama(Base):
     __tablename__ = "sozlamalar"
     id = Column(Integer, primary_key=True, index=True)

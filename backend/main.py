@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import engine, get_db, Base
-from models import User, Mahsulot, Mashina, Hujjat, Olchov
+from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati
 from schemas import UserLogin, Token, UserCreate, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
 import models
@@ -166,11 +166,28 @@ def hujjat_detail(hujjat_id: int, db: Session = Depends(get_db), current_user: d
         raise HTTPException(status_code=404, detail="Hujjat topilmadi!")
     return hujjat
 
+RUXSAT_ETILGAN_OTISHLAR = {
+    HujjatHolati.JARAYON: {HujjatHolati.TUGALLANDI, HujjatHolati.BEKOR_QILINDI},
+    HujjatHolati.TUGALLANDI: set(),
+    HujjatHolati.BEKOR_QILINDI: set(),
+}
+
+def holat_otishi_ruxsatmi(eski: HujjatHolati, yangi: HujjatHolati) -> bool:
+    if eski == yangi:
+        return True
+    return yangi in RUXSAT_ETILGAN_OTISHLAR.get(eski, set())
+
 @app.put("/hujjatlar/{hujjat_id}")
 def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
     if not hujjat:
         raise HTTPException(status_code=404, detail="Hujjat topilmadi!")
+    if data.holat is not None and data.holat != hujjat.holat:
+        if not holat_otishi_ruxsatmi(hujjat.holat, data.holat):
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{hujjat.holat.value}' holatidan '{data.holat.value}' holatiga o'tish mumkin emas!"
+            )
     for key, value in data.dict(exclude_unset=True).items():
         setattr(hujjat, key, value)
     db.commit()

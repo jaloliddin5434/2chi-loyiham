@@ -1,6 +1,12 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text
+import enum
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum
 from sqlalchemy.sql import func
 from database import Base
+
+class HujjatHolati(str, enum.Enum):
+    JARAYON = "jarayon"
+    TUGALLANDI = "tugallandi"
+    BEKOR_QILINDI = "bekor"
 
 class User(Base):
     __tablename__ = "users"
@@ -45,7 +51,15 @@ class Hujjat(Base):
     davomlilik_gacha = Column(String, nullable=True)
     yuk_oluvchi = Column(String, nullable=True)
     shartnoma = Column(String, nullable=True)
-    holat = Column(String, default="jarayon")
+    holat = Column(
+        SQLEnum(
+            HujjatHolati,
+            name="hujjat_holati_enum",
+            values_callable=lambda enum_klass: [e.value for e in enum_klass],
+        ),
+        default=HujjatHolati.JARAYON,
+        nullable=False,
+    )
     bekor_sabab = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now())
 

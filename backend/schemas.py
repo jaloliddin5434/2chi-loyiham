@@ -1,6 +1,7 @@
 from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
 from datetime import datetime
+from models import HujjatHolati
 
 class UserCreate(BaseModel):
     username: str
@@ -55,7 +56,7 @@ class HujjatUpdate(BaseModel):
     davomlilik_gacha: Optional[str] = None
     yuk_oluvchi: Optional[str] = None
     shartnoma: Optional[str] = None
-    holat: Optional[str] = None
+    holat: Optional[HujjatHolati] = None
     bekor_sabab: Optional[str] = None
 
 class OlchovCreate(BaseModel):

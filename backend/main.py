@@ -128,11 +128,13 @@ def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db), current
     return yangi
 
 @app.get("/hujjatlar")
-def hujjatlar_royxati(mahsulot_id: int = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def hujjatlar_royxati(mahsulot_id: int = None, bekor_qilinganlarni_korsat: bool = False, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    so_rov = db.query(Hujjat)
     if mahsulot_id:
-        hujjatlar = db.query(Hujjat).filter(Hujjat.mahsulot_id == mahsulot_id).all()
-    else:
-        hujjatlar = db.query(Hujjat).all()
+        so_rov = so_rov.filter(Hujjat.mahsulot_id == mahsulot_id)
+    if not bekor_qilinganlarni_korsat:
+        so_rov = so_rov.filter(Hujjat.holat != HujjatHolati.BEKOR_QILINDI)
+    hujjatlar = so_rov.all()
     natija = []
     for h in hujjatlar:
         mashina = db.query(Mashina).filter(Mashina.id == h.mashina_id).first()
@@ -188,20 +190,17 @@ def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, db: Session = Depends(g
                 status_code=400,
                 detail=f"'{hujjat.holat.value}' holatidan '{data.holat.value}' holatiga o'tish mumkin emas!"
             )
+    if data.holat == HujjatHolati.BEKOR_QILINDI:
+        if not data.bekor_sabab or not data.bekor_sabab.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Hujjatni bekor qilish uchun sabab ko'rsatilishi shart!"
+            )
     for key, value in data.dict(exclude_unset=True).items():
         setattr(hujjat, key, value)
     db.commit()
     db.refresh(hujjat)
     return hujjat
-
-@app.delete("/hujjatlar/{hujjat_id}")
-def hujjat_ochirish(hujjat_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
-    if not hujjat:
-        raise HTTPException(status_code=404, detail="Hujjat topilmadi!")
-    db.delete(hujjat)
-    db.commit()
-    return {"message": "Hujjat o'chirildi!"}
 
 # ============ OLCHOVLAR ============
 

@@ -5,6 +5,7 @@ from database import engine, get_db, Base, SessionLocal
 from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi
 from schemas import UserLogin, Token, UserCreate, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
+from config import PG_DUMP_YOL, WKHTMLTOPDF_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL
 import models
 from datetime import datetime
 
@@ -540,9 +541,9 @@ def backup_qilish(current_user: dict = Depends(require_role("admin"))):
         
         sana = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         backup_fayl = os.path.join(backup_dir, f"backup_{sana}.sql")
-        
-        pg_dump = r"C:\Program Files\PostgreSQL\18\bin\pg_dump.exe"
-        
+
+        pg_dump = PG_DUMP_YOL
+
         import subprocess
         result = subprocess.run(
     [pg_dump, "-U", "postgres", "-p", "5433", "-d", "hazorasp_tarozi", "-f", backup_fayl],
@@ -666,7 +667,7 @@ def avtomatik_backup():
                 os.makedirs(backup_dir, exist_ok=True)
                 sana = now.strftime("%Y-%m-%d_%H-%M-%S")
                 backup_fayl = os.path.join(backup_dir, f"backup_{sana}.sql")
-                pg_dump = r"C:\Program Files\PostgreSQL\18\bin\pg_dump.exe"
+                pg_dump = PG_DUMP_YOL
                 import subprocess
                 subprocess.run(
                     [pg_dump, "-U", "postgres", "-p", "5433", "-d", "hazorasp_tarozi", "-f", backup_fayl],
@@ -1060,7 +1061,7 @@ td.left {{ text-align: left; }}
         
         pdf_fayl = papka / "nakladnoy.pdf"
         import pdfkit
-        wkhtmltopdf_yol = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
+        wkhtmltopdf_yol = WKHTMLTOPDF_YOL
         config = pdfkit.configuration(wkhtmltopdf=wkhtmltopdf_yol)
         options = {'orientation': 'Landscape', 'page-size': 'A4'}
         pdfkit.from_file(str(html_fayl), str(pdf_fayl), configuration=config, options=options)
@@ -1076,11 +1077,6 @@ td.left {{ text-align: left; }}
 # ============ KAMERA ============
 from pathlib import Path
 import concurrent.futures
-
-KAMERA_1 = "10.112.12.43"
-KAMERA_2 = "10.112.12.47"
-KAMERA_LOGIN = "test"
-KAMERA_PAROL = "Test@123"
 
 def bir_kameradan_rasm_ol(cam_ip, fayl_yol):
     try:
@@ -1120,8 +1116,8 @@ def rasm_ol(data: dict, current_user: dict = Depends(get_current_user)):
         fayl2 = papka / f"{tur}_cam2_{vaqt}.jpg"
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            future1 = executor.submit(bir_kameradan_rasm_ol, KAMERA_1, fayl1)
-            future2 = executor.submit(bir_kameradan_rasm_ol, KAMERA_2, fayl2)
+            future1 = executor.submit(bir_kameradan_rasm_ol, KAMERA_1_IP, fayl1)
+            future2 = executor.submit(bir_kameradan_rasm_ol, KAMERA_2_IP, fayl2)
             natija1 = future1.result()
             natija2 = future2.result()
         

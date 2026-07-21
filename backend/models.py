@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum, ForeignKey
 from sqlalchemy.sql import func
 from database import Base
 
@@ -38,8 +38,8 @@ class Hujjat(Base):
     __tablename__ = "hujjatlar"
     id = Column(Integer, primary_key=True, index=True)
     raqam = Column(String, unique=True, index=True)
-    mashina_id = Column(Integer)
-    mahsulot_id = Column(Integer)
+    mashina_id = Column(Integer, ForeignKey("mashinalar.id", ondelete="RESTRICT"))
+    mahsulot_id = Column(Integer, ForeignKey("mahsulotlar.id", ondelete="RESTRICT"))
     operator_id = Column(Integer)
     aravalar_soni = Column(Integer, default=1)
     tuda_raqam = Column(String, nullable=True)
@@ -66,7 +66,7 @@ class Hujjat(Base):
 class Olchov(Base):
     __tablename__ = "olchovlar"
     id = Column(Integer, primary_key=True, index=True)
-    hujjat_id = Column(Integer)
+    hujjat_id = Column(Integer, ForeignKey("hujjatlar.id", ondelete="CASCADE"))
     arava_raqam = Column(Integer)
     tara = Column(Float, nullable=True)
     brutto = Column(Float, nullable=True)
@@ -82,7 +82,7 @@ class Olchov(Base):
 class Navbat(Base):
     __tablename__ = "navbat"
     id = Column(Integer, primary_key=True, index=True)
-    hujjat_id = Column(Integer, unique=True, index=True)
+    hujjat_id = Column(Integer, ForeignKey("hujjatlar.id", ondelete="CASCADE"), unique=True, index=True)
     mashina_id = Column(Integer)
     raqam = Column(String)
     turi = Column(String, nullable=True)

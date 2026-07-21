@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from database import engine, get_db, Base
 from models import User, Mahsulot, Mashina, Hujjat, Olchov
 from schemas import UserLogin, Token, UserCreate, MashinaCreate, HujjatCreate, OlchovCreate
-from auth import verify_password, create_access_token, hash_password
+from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
 import models
 from typing import List
 from datetime import datetime
@@ -81,7 +81,7 @@ def setup(db: Session = Depends(get_db)):
 # ============ MASHINALAR ============
 
 @app.post("/mashinalar")
-def mashina_qoshish(mashina: MashinaCreate, db: Session = Depends(get_db)):
+def mashina_qoshish(mashina: MashinaCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     mavjud = db.query(Mashina).filter(
         Mashina.davlat_raqami == mashina.davlat_raqami
     ).first()
@@ -94,11 +94,11 @@ def mashina_qoshish(mashina: MashinaCreate, db: Session = Depends(get_db)):
     return yangi
 
 @app.get("/mashinalar")
-def mashinalar_royxati(db: Session = Depends(get_db)):
+def mashinalar_royxati(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     return db.query(Mashina).all()
 
 @app.get("/mashinalar/qidiruv/{raqam}")
-def mashina_qidiruv(raqam: str, db: Session = Depends(get_db)):
+def mashina_qidiruv(raqam: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     return db.query(Mashina).filter(
         Mashina.davlat_raqami.ilike(f"%{raqam}%")
     ).all()
@@ -106,13 +106,13 @@ def mashina_qidiruv(raqam: str, db: Session = Depends(get_db)):
 # ============ MAHSULOTLAR ============
 
 @app.get("/mahsulotlar")
-def mahsulotlar_royxati(db: Session = Depends(get_db)):
+def mahsulotlar_royxati(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     return db.query(Mahsulot).filter(Mahsulot.is_active == True).all()
 
 # ============ HUJJATLAR ============
 
 @app.post("/hujjatlar")
-def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db)):
+def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     oxirgi = db.query(Hujjat).order_by(Hujjat.id.desc()).first()
     if oxirgi:
         raqam = int(oxirgi.raqam.split("/")[1]) + 1
@@ -128,7 +128,7 @@ def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db)):
     return yangi
 
 @app.get("/hujjatlar")
-def hujjatlar_royxati(mahsulot_id: int = None, db: Session = Depends(get_db)):
+def hujjatlar_royxati(mahsulot_id: int = None, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if mahsulot_id:
         hujjatlar = db.query(Hujjat).filter(Hujjat.mahsulot_id == mahsulot_id).all()
     else:
@@ -160,14 +160,14 @@ def hujjatlar_royxati(mahsulot_id: int = None, db: Session = Depends(get_db)):
     return natija
 
 @app.get("/hujjatlar/{hujjat_id}")
-def hujjat_detail(hujjat_id: int, db: Session = Depends(get_db)):
+def hujjat_detail(hujjat_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
     if not hujjat:
         raise HTTPException(status_code=404, detail="Hujjat topilmadi!")
     return hujjat
 
 @app.put("/hujjatlar/{hujjat_id}")
-def hujjat_yangilash(hujjat_id: int, data: dict, db: Session = Depends(get_db)):
+def hujjat_yangilash(hujjat_id: int, data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
     if not hujjat:
         raise HTTPException(status_code=404, detail="Hujjat topilmadi!")
@@ -179,7 +179,7 @@ def hujjat_yangilash(hujjat_id: int, data: dict, db: Session = Depends(get_db)):
     return hujjat
 
 @app.delete("/hujjatlar/{hujjat_id}")
-def hujjat_ochirish(hujjat_id: int, db: Session = Depends(get_db)):
+def hujjat_ochirish(hujjat_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
     if not hujjat:
         raise HTTPException(status_code=404, detail="Hujjat topilmadi!")
@@ -190,7 +190,7 @@ def hujjat_ochirish(hujjat_id: int, db: Session = Depends(get_db)):
 # ============ OLCHOVLAR ============
 
 @app.post("/olchovlar")
-def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db)):
+def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     yangi = Olchov(**olchov.dict())
     if yangi.brutto and yangi.tara:
         yangi.netto = yangi.brutto - yangi.tara
@@ -205,14 +205,14 @@ def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db)):
     return yangi
 
 @app.get("/olchovlar/{hujjat_id}")
-def olchovlar_royxati(hujjat_id: int, db: Session = Depends(get_db)):
+def olchovlar_royxati(hujjat_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     return db.query(Olchov).filter(Olchov.hujjat_id == hujjat_id).all()
 
 # ============ NAVBAT (PostgreSQL) ============
 import json
 
 @app.post("/navbat/qosh")
-def navbat_qosh(data: dict, db: Session = Depends(get_db)):
+def navbat_qosh(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from models import Navbat
     mavjud = db.query(Navbat).filter(Navbat.hujjat_id == data.get("hujjatId")).first()
     if mavjud:
@@ -244,7 +244,7 @@ def navbat_qosh(data: dict, db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 @app.get("/navbat")
-def navbat_get(db: Session = Depends(get_db)):
+def navbat_get(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from models import Navbat
     navbat = db.query(Navbat).filter(Navbat.tugallandi == False).order_by(Navbat.kelgan_vaqt.asc()).all()
     natija = []
@@ -274,7 +274,7 @@ def navbat_get(db: Session = Depends(get_db)):
     return natija
 
 @app.post("/navbat/tugallandi")
-def navbat_tugallandi(data: dict, db: Session = Depends(get_db)):
+def navbat_tugallandi(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from models import Navbat
     navbat = db.query(Navbat).filter(Navbat.hujjat_id == data.get("hujjatId")).first()
     if navbat:
@@ -285,7 +285,7 @@ def navbat_tugallandi(data: dict, db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 @app.get("/navbat/tugallanganlar")
-def tugallanganlar_get(db: Session = Depends(get_db)):
+def tugallanganlar_get(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from models import Navbat
     from datetime import timedelta
     kun_oldin = datetime.now() - timedelta(hours=24)
@@ -311,7 +311,7 @@ def tugallanganlar_get(db: Session = Depends(get_db)):
     return natija
 
 @app.post("/navbat/bekor")
-def navbat_bekor(data: dict, db: Session = Depends(get_db)):
+def navbat_bekor(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from models import Navbat
     navbat = db.query(Navbat).filter(Navbat.hujjat_id == data.get("hujjatId")).first()
     if navbat:
@@ -320,7 +320,7 @@ def navbat_bekor(data: dict, db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 @app.delete("/navbat/tozala")
-def navbat_tozala(db: Session = Depends(get_db)):
+def navbat_tozala(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from models import Navbat
     db.query(Navbat).delete()
     db.commit()
@@ -329,7 +329,7 @@ def navbat_tozala(db: Session = Depends(get_db)):
 # ============ STATISTIKA ============
 
 @app.get("/statistika/kunlik")
-def kunlik_statistika(db: Session = Depends(get_db)):
+def kunlik_statistika(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date
     bugun = date.today()
     hujjatlar = db.query(Hujjat).filter(
@@ -379,7 +379,7 @@ def kunlik_statistika(db: Session = Depends(get_db)):
     }
 
 @app.get("/statistika/haftalik")
-def haftalik_statistika(db: Session = Depends(get_db)):
+def haftalik_statistika(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date, timedelta
     bugun = date.today()
     hafta_boshi = bugun - timedelta(days=7)
@@ -412,7 +412,7 @@ def haftalik_statistika(db: Session = Depends(get_db)):
     }
 
 @app.get("/statistika/oylik")
-def oylik_statistika(db: Session = Depends(get_db)):
+def oylik_statistika(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date, timedelta
     bugun = date.today()
     oy_boshi = bugun.replace(day=1)
@@ -454,7 +454,7 @@ def oylik_statistika(db: Session = Depends(get_db)):
     }
     
 @app.get("/statistika/mavsum")
-def mavsum_statistika(db: Session = Depends(get_db)):
+def mavsum_statistika(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date
     bugun = date.today()
     # Mavsum: 1 Avgust dan 31 Iyul gacha
@@ -507,7 +507,7 @@ import shutil
 from datetime import datetime
 
 @app.post("/backup")
-def backup_qilish():
+def backup_qilish(current_user: dict = Depends(require_role("admin"))):
     try:
         backup_dir = r"C:\hazorasp_tarozi\backup"
         os.makedirs(backup_dir, exist_ok=True)
@@ -538,7 +538,7 @@ def backup_qilish():
         return {"status": "error", "message": str(e)}
 
 @app.get("/backup/royxat")
-def backup_royxat():
+def backup_royxat(current_user: dict = Depends(require_role("admin"))):
     try:
         backup_dir = r"C:\hazorasp_tarozi\backup"
         os.makedirs(backup_dir, exist_ok=True)
@@ -710,7 +710,7 @@ def excel_qatorga_yoz(hujjat_id, db):
 from models import Sozlama
 
 @app.get("/sozlamalar")
-def sozlamalar_olish(db: Session = Depends(get_db)):
+def sozlamalar_olish(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     sozlamalar = db.query(Sozlama).all()
     natija = {}
     for s in sozlamalar:
@@ -718,7 +718,7 @@ def sozlamalar_olish(db: Session = Depends(get_db)):
     return natija
 
 @app.post("/sozlamalar")
-def sozlama_saqlash(data: dict, db: Session = Depends(get_db)):
+def sozlama_saqlash(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
     for kalit, qiymat in data.items():
         mavjud = db.query(Sozlama).filter(Sozlama.kalit == kalit).first()
         if mavjud:
@@ -734,7 +734,7 @@ def sozlama_saqlash(data: dict, db: Session = Depends(get_db)):
 import psutil
 
 @app.get("/server/holat")
-def server_holat():
+def server_holat(current_user: dict = Depends(get_current_user)):
     try:
         cpu = psutil.cpu_percent(interval=1)
         ram = psutil.virtual_memory()
@@ -772,12 +772,12 @@ hisobot_thread = threading.Thread(target=avtomatik_telegram_hisobot, daemon=True
 hisobot_thread.start()
 
 @app.post("/telegram/test")
-def telegram_test():
+def telegram_test(current_user: dict = Depends(get_current_user)):
     telegram_xabar_yuborish("✅ Hazorasp Tekstil tarozi tizimi ulandi!")
     return {"status": "ok"}
 
 @app.get("/telegram/kunlik")
-def telegram_kunlik(db: Session = Depends(get_db)):
+def telegram_kunlik(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date
     bugun = date.today()
     hujjatlar = db.query(Hujjat).filter(
@@ -846,7 +846,7 @@ def telegram_kunlik(db: Session = Depends(get_db)):
  # ============ PDF SAQLASH ============
 
 @app.post("/nakladnoy/saqlash")
-async def nakladnoy_saqlash(request: Request, db: Session = Depends(get_db)):
+async def nakladnoy_saqlash(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
         data = await request.json()
         mashina_raqami = data.get("mashina_raqami", "noma_lum")
@@ -1028,7 +1028,7 @@ def bir_kameradan_rasm_ol(cam_ip, fayl_yol):
         return {"status": "error", "message": str(e)}
 
 @app.post("/kamera/rasm")
-def rasm_ol(data: dict):
+def rasm_ol(data: dict, current_user: dict = Depends(get_current_user)):
     try:
         mashina_raqami = data.get("mashina_raqami", "noma_lum")
         mahsulot_nomi = data.get("mahsulot_nomi", "Chigit")
@@ -1063,7 +1063,7 @@ def rasm_ol(data: dict):
 # ============ GRAFIK MA'LUMOTLAR ============
 
 @app.get("/statistika/grafik/kunlik")
-def grafik_kunlik(db: Session = Depends(get_db)):
+def grafik_kunlik(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date, timedelta
     natija = []
     for i in range(6, -1, -1):
@@ -1086,7 +1086,7 @@ def grafik_kunlik(db: Session = Depends(get_db)):
     return natija
 
 @app.get("/statistika/grafik/oylik")
-def grafik_oylik(db: Session = Depends(get_db)):
+def grafik_oylik(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date, timedelta
     bugun = date.today()
     oy_boshi = bugun.replace(day=1)
@@ -1112,7 +1112,7 @@ def grafik_oylik(db: Session = Depends(get_db)):
     return natija
 
 @app.get("/statistika/grafik/mavsum")
-def grafik_mavsum(db: Session = Depends(get_db)):
+def grafik_mavsum(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date, timedelta
     bugun = date.today()
     if bugun.month >= 8:

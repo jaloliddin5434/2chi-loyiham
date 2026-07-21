@@ -1,13 +1,36 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'offline_service.dart';
 
 class ApiService {
 static const String baseUrl = "http://10.112.30.77:8001";
+  static String? _token;
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+  static Map<String, String> _headers() {
+    final headers = {'Content-Type': 'application/json'};
+    if (_token != null) {
+      headers['Authorization'] = 'Bearer $_token';
+    }
+    return headers;
+  }
+
+  static void _tokenTugadi() {
+    _token = null;
+    navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+  }
+
+  static void _check401(http.Response response) {
+    if (response.statusCode == 401) {
+      _tokenTugadi();
+    }
+  }
 
   static Future<List<dynamic>> getMahsulotlar() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/mahsulotlar'));
+      final response = await http.get(Uri.parse('$baseUrl/mahsulotlar'), headers: _headers());
+      _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
@@ -22,25 +45,17 @@ static const String baseUrl = "http://10.112.30.77:8001";
 
   static Future<Map<String, dynamic>> login(
       String username, String password, String role) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'username': username, 'password': password, 'role': role}),
-      );
-      if (response.statusCode == 200) {
-        return jsonDecode(utf8.decode(response.bodyBytes));
-      } else {
-        throw Exception('Login yoki parol noto\'g\'ri!');
-      }
-    } catch (e) {
-      if (username == 'admin' && password == 'admin123' && role == 'admin') {
-        return {'username': 'admin', 'role': 'admin', 'access_token': 'local'};
-      } else if (username == 'operator' && password == 'operator123' && role == 'operator') {
-        return {'username': 'operator', 'role': 'operator', 'access_token': 'local'};
-      }
-      throw Exception('Login yoki parol noto\'g\'ri!');
+    final response = await http.post(
+      Uri.parse('$baseUrl/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'username': username, 'password': password, 'role': role}),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      _token = data['access_token'];
+      return data;
     }
+    throw Exception('Login yoki parol noto\'g\'ri!');
   }
 
   static Future<Map<String, dynamic>> mashinaQoshish({
@@ -53,7 +68,7 @@ static const String baseUrl = "http://10.112.30.77:8001";
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/mashinalar'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
         body: jsonEncode({
           'davlat_raqami': davlatRaqami,
           'turi': turi,
@@ -62,6 +77,7 @@ static const String baseUrl = "http://10.112.30.77:8001";
           'viloyat': viloyat,
         }),
       );
+      _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
@@ -83,13 +99,14 @@ static const String baseUrl = "http://10.112.30.77:8001";
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/hujjatlar'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
         body: jsonEncode({
           'mashina_id': mashinaId,
           'mahsulot_id': mahsulotId,
           'aravalar_soni': aravalarSoni,
         }),
       );
+      _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
@@ -114,7 +131,7 @@ static const String baseUrl = "http://10.112.30.77:8001";
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/olchovlar'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
         body: jsonEncode({
           'hujjat_id': hujjatId,
           'arava_raqam': aravaRaqam,
@@ -124,6 +141,7 @@ static const String baseUrl = "http://10.112.30.77:8001";
           'ifloslik': ifloslik,
         }),
       );
+      _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
@@ -133,17 +151,19 @@ static const String baseUrl = "http://10.112.30.77:8001";
 
   static Future<void> navbatQosh(Map<String, dynamic> mashina) async {
     try {
-      await http.post(
+      final response = await http.post(
         Uri.parse('$baseUrl/navbat/qosh'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
         body: jsonEncode(mashina),
       );
+      _check401(response);
     } catch (e) {}
   }
 
   static Future<List<dynamic>> navbatOl() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/navbat'));
+      final response = await http.get(Uri.parse('$baseUrl/navbat'), headers: _headers());
+      _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
@@ -155,17 +175,19 @@ static const String baseUrl = "http://10.112.30.77:8001";
 
   static Future<void> navbatTugallandi(Map<String, dynamic> mashina) async {
     try {
-      await http.post(
+      final response = await http.post(
         Uri.parse('$baseUrl/navbat/tugallandi'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
         body: jsonEncode(mashina),
       );
+      _check401(response);
     } catch (e) {}
   }
 
   static Future<List<dynamic>> tugallanganlarOl() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/navbat/tugallanganlar'));
+      final response = await http.get(Uri.parse('$baseUrl/navbat/tugallanganlar'), headers: _headers());
+      _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
@@ -175,17 +197,19 @@ static const String baseUrl = "http://10.112.30.77:8001";
 
   static Future<void> navbatBekor(int hujjatId) async {
     try {
-      await http.post(
+      final response = await http.post(
         Uri.parse('$baseUrl/navbat/bekor'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
         body: jsonEncode({'hujjatId': hujjatId}),
       );
+      _check401(response);
     } catch (e) {}
   }
 
   static Future<List<dynamic>> getHujjatlar() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/hujjatlar'));
+      final response = await http.get(Uri.parse('$baseUrl/hujjatlar'), headers: _headers());
+      _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
@@ -199,15 +223,16 @@ static const String baseUrl = "http://10.112.30.77:8001";
     required String tur,
   }) async {
     try {
-      await http.post(
+      final response = await http.post(
         Uri.parse('$baseUrl/kamera/rasm'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
         body: jsonEncode({
           'mashina_raqami': mashinaRaqami,
           'mahsulot_nomi': mahsulotNomi,
           'tur': tur,
         }),
       );
+      _check401(response);
    } catch (e) {
       await OfflineService.rasmQosh({
         'mashina_raqami': mashinaRaqami,
@@ -219,17 +244,19 @@ static const String baseUrl = "http://10.112.30.77:8001";
 
  static Future<void> sozlamaSaqla(Map<String, dynamic> data) async {
     try {
-      await http.post(
+      final response = await http.post(
         Uri.parse('$baseUrl/sozlamalar'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
         body: jsonEncode(data),
       );
+      _check401(response);
     } catch (e) {}
   }
 
   static Future<Map<String, dynamic>> sozlamalarOl() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/sozlamalar'));
+      final response = await http.get(Uri.parse('$baseUrl/sozlamalar'), headers: _headers());
+      _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
@@ -246,9 +273,9 @@ static const String baseUrl = "http://10.112.30.77:8001";
     String nakladnoyRaqam = '',
   }) async {
     try {
-      await http.post(
+      final response = await http.post(
         Uri.parse('$baseUrl/nakladnoy/saqlash'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers(),
         body: jsonEncode({
           'mashina_raqami': mashinaRaqami,
           'mahsulot_nomi': mahsulotNomi,
@@ -258,6 +285,7 @@ static const String baseUrl = "http://10.112.30.77:8001";
           'nakladnoy_raqam': nakladnoyRaqam,
         }),
       );
+      _check401(response);
    } catch (e) {}
   }
 }

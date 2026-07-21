@@ -189,13 +189,18 @@ def hujjat_ochirish(hujjat_id: int, db: Session = Depends(get_db), current_user:
 
 # ============ OLCHOVLAR ============
 
+KONDITSION_KOEFFITSENT = 89.5
+
+def konditsion_hisobla(netto: float, namlik: float, ifloslik: float) -> float:
+    return netto * (100 - (namlik + ifloslik)) / KONDITSION_KOEFFITSENT
+
 @app.post("/olchovlar")
 def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     yangi = Olchov(**olchov.dict())
     if yangi.brutto and yangi.tara:
         yangi.netto = yangi.brutto - yangi.tara
         if yangi.namlik and yangi.ifloslik:
-            yangi.konditsion = yangi.netto * (100 - (yangi.namlik + yangi.ifloslik)) / 89.5
+            yangi.konditsion = konditsion_hisobla(yangi.netto, yangi.namlik, yangi.ifloslik)
     db.add(yangi)
     db.commit()
     db.refresh(yangi)
@@ -703,9 +708,9 @@ def excel_qatorga_yoz(hujjat_id, db):
                 ])
         
         wb.save(fayl_yol)
-        print(f"✅ Excel ga yozildi: {hujjat.raqam} ({mahsulot_nomi})")
+        print(f"Excel ga yozildi: {hujjat.raqam} ({mahsulot_nomi})")
     except Exception as e:
-        print(f"❌ Excel xato: {e}")
+        print(f"Excel xato: {e}")
 # ============ SOZLAMALAR ============
 from models import Sozlama
 

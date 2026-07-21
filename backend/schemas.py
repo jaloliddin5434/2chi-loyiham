@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
 from datetime import datetime
 
@@ -52,3 +52,26 @@ class OlchovCreate(BaseModel):
     namlik: Optional[float] = None
     ifloslik: Optional[float] = None
     qolda_kiritildi: bool = False
+
+    @field_validator('namlik')
+    @classmethod
+    def namlik_tekshiruv(cls, qiymat):
+        if qiymat is not None and not (0 <= qiymat <= 100):
+            raise ValueError('Namlik foizi 0 dan 100 gacha bo\'lishi kerak!')
+        return qiymat
+
+    @field_validator('ifloslik')
+    @classmethod
+    def ifloslik_tekshiruv(cls, qiymat):
+        if qiymat is not None and not (0 <= qiymat <= 100):
+            raise ValueError('Ifloslik foizi 0 dan 100 gacha bo\'lishi kerak!')
+        return qiymat
+
+    @model_validator(mode='after')
+    def yigindi_tekshiruv(self):
+        if self.namlik is not None and self.ifloslik is not None:
+            if self.namlik + self.ifloslik > 100:
+                raise ValueError(
+                    'Namlik va ifloslik yig\'indisi 100 foizdan oshmasligi kerak!'
+                )
+        return self

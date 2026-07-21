@@ -1,11 +1,18 @@
-DATABASE_URL = "postgresql+psycopg2://postgres:Xorazm2026@localhost:5433/hazorasp_tarozi?client_encoding=utf8"
+import os
+from dotenv import load_dotenv
 
-SECRET_KEY = "hazorasp_tarozi_secret_key_2026"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 480
+load_dotenv()
 
-UPLOAD_DIR = "C:/RASMLAR"
-BACKUP_DIR = "C:/BACKUP"
+DATABASE_URL = os.getenv("DATABASE_URL")
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
 
-TELEGRAM_TOKEN = "8619880300:AAHU1sWHDxMRY4yeEtJjqTBxFRMUpjGFxKQ"
-TELEGRAM_CHAT_ID = "442890093"
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", "C:/RASMLAR")
+BACKUP_DIR = os.getenv("BACKUP_DIR", r"C:\hazorasp_tarozi\backup")
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+if not DATABASE_URL or not SECRET_KEY:
+    raise RuntimeError(".env faylida DATABASE_URL yoki SECRET_KEY topilmadi!")

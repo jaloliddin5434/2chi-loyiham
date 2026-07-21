@@ -403,9 +403,6 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     NavbatService.navbat.addListener(_navbatYangilandi);
     NavbatService.tugallanganlar
         .addListener(_navbatYangilandi);
-
-    ifloslikCtrl.addListener(_konditsionHisobla);
-    namlikCtrl.addListener(_konditsionHisobla);
   }
 
   void _navbatYangilandi() {
@@ -426,20 +423,6 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     xabarTimer = Timer(const Duration(seconds: 2), () {
       if (mounted) setState(() => xabarMatni = '');
     });
-  }
-
-  void _konditsionHisobla() {
-    if (!konditsionBor) return;
-    final namlik = double.tryParse(namlikCtrl.text) ?? 0;
-    final ifloslik =
-        double.tryParse(ifloslikCtrl.text) ?? 0;
-    for (final arava in aravalar.values) {
-      if (arava.netto != null) {
-      arava.konditsion = arava.netto! *
-            (100 - (ifloslik + namlik)) / 89.5;
-      }
-    }
-    setState(() {});
   }
 
   @override
@@ -1093,7 +1076,6 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         saqlanmoqda = true;
         qoldiqSoniya = 10;
       });
-      _konditsionHisobla();
 
       // Kamera rasm olish
       ApiService.rasmOl(

@@ -1,8 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from database import engine, get_db, Base
-from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich
+from database import engine, get_db, Base, SessionLocal
+from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi
 from schemas import UserLogin, Token, UserCreate, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
 import models
@@ -677,9 +677,10 @@ def avtomatik_backup():
                     [pg_dump, "-U", "postgres", "-p", "5433", "-d", "hazorasp_tarozi", "-f", backup_fayl],
                     env={**os.environ, "PGPASSWORD": "Xorazm2026"}
                 )
-                print(f"✅ Avtomatik backup: {backup_fayl}")
+                print(f"Avtomatik backup: {backup_fayl}")
             except Exception as e:
-                print(f"❌ Backup xato: {e}")
+                print(f"Backup xato: {e}")
+                tizim_xatosini_saqla("backup", str(e))
             time.sleep(61)
         time.sleep(30)
 
@@ -761,6 +762,36 @@ def sozlama_saqlash(data: dict, db: Session = Depends(get_db), current_user: dic
     db.commit()
     return {"status": "ok"}
 
+# ============ TIZIM XATOLARI RO'YXATI ============
+
+@app.get("/tizim-xatolari")
+def tizim_xatolari_royxati(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") not in ("admin", "hisobchi"):
+        raise HTTPException(status_code=403, detail="Bu amal uchun sizda ruxsat yo'q!")
+    xatolar = db.query(TizimXatosi).order_by(
+        TizimXatosi.created_at.desc()
+    ).limit(50).all()
+    return [
+        {
+            "id": x.id,
+            "turi": x.turi,
+            "xabar": x.xabar,
+            "korilgan": x.korilgan,
+            "vaqt": str(x.created_at),
+        }
+        for x in xatolar
+    ]
+
+@app.post("/tizim-xatolari/{xato_id}/korildi")
+def tizim_xatosi_korildi(xato_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") not in ("admin", "hisobchi"):
+        raise HTTPException(status_code=403, detail="Bu amal uchun sizda ruxsat yo'q!")
+    xato = db.query(TizimXatosi).filter(TizimXatosi.id == xato_id).first()
+    if xato:
+        xato.korilgan = True
+        db.commit()
+    return {"status": "ok"}
+
 # ============ SERVER HOLATI ============
 import psutil
 
@@ -782,6 +813,19 @@ def server_holat(current_user: dict = Depends(get_current_user)):
     except Exception as e:
         return {"cpu": 0, "ram": 0, "disk": 0, "uptime": "—"}
 
+# ============ TIZIM XATOLARI ============
+
+def tizim_xatosini_saqla(turi: str, xabar: str):
+    db = SessionLocal()
+    try:
+        yangi = TizimXatosi(turi=turi, xabar=xabar)
+        db.add(yangi)
+        db.commit()
+    except Exception as e:
+        print(f"Tizim xatosini saqlashda xato: {e}")
+    finally:
+        db.close()
+
 # ============ TELEGRAM BOT ============
 import requests as req
 
@@ -791,13 +835,15 @@ def telegram_xabar_yuborish(matn: str):
         if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
             return
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        req.post(url, json={
+        javob = req.post(url, json={
             "chat_id": TELEGRAM_CHAT_ID,
             "text": matn,
             "parse_mode": "HTML"
         })
+        javob.raise_for_status()
     except Exception as e:
         print(f"Telegram xato: {e}")
+        tizim_xatosini_saqla("telegram", str(e))
 
 hisobot_thread = threading.Thread(target=avtomatik_telegram_hisobot, daemon=True)
 hisobot_thread.start()
@@ -1054,8 +1100,11 @@ def bir_kameradan_rasm_ol(cam_ip, fayl_yol):
                 f.write(response.content)
             return {"status": "ok", "fayl": str(fayl_yol)}
         else:
-            return {"status": "error", "message": f"Kamera {cam_ip} javob bermadi"}
+            xabar = f"Kamera {cam_ip} javob bermadi"
+            tizim_xatosini_saqla("kamera", xabar)
+            return {"status": "error", "message": xabar}
     except Exception as e:
+        tizim_xatosini_saqla("kamera", str(e))
         return {"status": "error", "message": str(e)}
 
 @app.post("/kamera/rasm")

@@ -110,6 +110,14 @@ class HujjatRaqamHisoblagich(Base):
     yil = Column(Integer, primary_key=True)
     oxirgi_raqam = Column(Integer, default=0)
 
+class TizimXatosi(Base):
+    __tablename__ = "tizim_xatolari"
+    id = Column(Integer, primary_key=True, index=True)
+    turi = Column(String)
+    xabar = Column(Text)
+    korilgan = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=func.now())
+
 class Sozlama(Base):
     __tablename__ = "sozlamalar"
     id = Column(Integer, primary_key=True, index=True)

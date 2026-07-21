@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import func, cast, Date
 from database import engine, get_db, Base, SessionLocal
 from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi
 from schemas import UserLogin, Token, UserCreate, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate
@@ -359,50 +360,45 @@ def navbat_tozala(db: Session = Depends(get_db), current_user: dict = Depends(ge
 def kunlik_statistika(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date
     bugun = date.today()
-    hujjatlar = db.query(Hujjat).filter(
-        Hujjat.created_at >= bugun
-    ).all()
-    
-    # Mahsulot bo'yicha
-    chigit = [h for h in hujjatlar if h.mahsulot_id == 1]
-    chiganoq = [h for h in hujjatlar if h.mahsulot_id == 2]
-    pochog = [h for h in hujjatlar if h.mahsulot_id == 3]
-    patoz = [h for h in hujjatlar if h.mahsulot_id == 4]
-    patoz = [h for h in hujjatlar if h.mahsulot_id == 4]
-    
-    # Tonnaj hisoblash
-    def tonnaj(hujjat_list):
-        jami = 0
-        for h in hujjat_list:
-            olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
-            for o in olchovlar:
-                if o.netto:
-                    jami += o.netto
-        return round(jami / 1000, 2)
-    
-    def konditsion_hisob(hujjat_list):
-        jami = 0
-        for h in hujjat_list:
-            olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
-            for o in olchovlar:
-                if o.konditsion:
-                    jami += o.konditsion
-        return round(jami / 1000, 2)
+
+    mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= bugun).count()
 
     from models import Navbat as NavbatModel
     navbat_soni = db.query(NavbatModel).filter(NavbatModel.tugallandi == False).count()
     tugallangan_soni = db.query(NavbatModel).filter(NavbatModel.tugallandi == True).count()
 
+    natijalar = db.query(
+        Hujjat.mahsulot_id,
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
+    ).outerjoin(
+        Olchov, Olchov.hujjat_id == Hujjat.id
+    ).filter(
+        Hujjat.created_at >= bugun
+    ).group_by(Hujjat.mahsulot_id).all()
+
+    natija = {}
+    for row in natijalar:
+        natija[row.mahsulot_id] = {
+            "soni": row.soni,
+            "tonnaj": round(row.jami_netto / 1000, 2),
+            "konditsion": round(row.jami_konditsion / 1000, 2),
+        }
+    jami_tonnaj = round(sum(row.jami_netto for row in natijalar) / 1000, 2)
+
+    bosh = {"soni": 0, "tonnaj": 0.0, "konditsion": 0.0}
+
     return {
         "sana": str(bugun),
-        "mashinalar_soni": len(hujjatlar),
+        "mashinalar_soni": mashinalar_soni,
         "tugallanganlar_soni": tugallangan_soni,
         "navbat_soni": navbat_soni,
-        "chigit": {"soni": len(chigit), "tonnaj": tonnaj(chigit), "konditsion": konditsion_hisob(chigit)},
-        "chiganoq": {"soni": len(chiganoq), "tonnaj": tonnaj(chiganoq)},
-        "pochog": {"soni": len(pochog), "tonnaj": tonnaj(pochog)},
-        "patoz": {"soni": len(patoz), "tonnaj": tonnaj(patoz)},
-        "jami_tonnaj": tonnaj(hujjatlar),
+        "chigit": natija.get(1, bosh),
+        "chiganoq": {"soni": natija.get(2, bosh)["soni"], "tonnaj": natija.get(2, bosh)["tonnaj"]},
+        "pochog": {"soni": natija.get(3, bosh)["soni"], "tonnaj": natija.get(3, bosh)["tonnaj"]},
+        "patoz": {"soni": natija.get(4, bosh)["soni"], "tonnaj": natija.get(4, bosh)["tonnaj"]},
+        "jami_tonnaj": jami_tonnaj,
     }
 
 @app.get("/statistika/haftalik")
@@ -410,32 +406,37 @@ def haftalik_statistika(db: Session = Depends(get_db), current_user: dict = Depe
     from datetime import date, timedelta
     bugun = date.today()
     hafta_boshi = bugun - timedelta(days=7)
-    hujjatlar = db.query(Hujjat).filter(
+
+    mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= hafta_boshi).count()
+
+    natijalar = db.query(
+        Hujjat.mahsulot_id,
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+    ).outerjoin(
+        Olchov, Olchov.hujjat_id == Hujjat.id
+    ).filter(
         Hujjat.created_at >= hafta_boshi
-    ).all()
-    
-    chigit = [h for h in hujjatlar if h.mahsulot_id == 1]
-    chiganoq = [h for h in hujjatlar if h.mahsulot_id == 2]
-    pochog = [h for h in hujjatlar if h.mahsulot_id == 3]
-    patoz = [h for h in hujjatlar if h.mahsulot_id == 4]
-    
-    def tonnaj(hujjat_list):
-        jami = 0
-        for h in hujjat_list:
-            olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
-            for o in olchovlar:
-                if o.netto:
-                    jami += o.netto
-        return round(jami / 1000, 2)
-    
+    ).group_by(Hujjat.mahsulot_id).all()
+
+    natija = {}
+    for row in natijalar:
+        natija[row.mahsulot_id] = {
+            "soni": row.soni,
+            "tonnaj": round(row.jami_netto / 1000, 2),
+        }
+    jami_tonnaj = round(sum(row.jami_netto for row in natijalar) / 1000, 2)
+
+    bosh = {"soni": 0, "tonnaj": 0.0}
+
     return {
         "dan": str(hafta_boshi),
         "gacha": str(bugun),
-        "mashinalar_soni": len(hujjatlar),
-        "chigit": {"soni": len(chigit), "tonnaj": tonnaj(chigit)},
-        "chiganoq": {"soni": len(chiganoq), "tonnaj": tonnaj(chiganoq)},
-        "pochog": {"soni": len(pochog), "tonnaj": tonnaj(pochog)},
-        "jami_tonnaj": tonnaj(hujjatlar),
+        "mashinalar_soni": mashinalar_soni,
+        "chigit": natija.get(1, bosh),
+        "chiganoq": natija.get(2, bosh),
+        "pochog": natija.get(3, bosh),
+        "jami_tonnaj": jami_tonnaj,
     }
 
 @app.get("/statistika/oylik")
@@ -443,43 +444,41 @@ def oylik_statistika(db: Session = Depends(get_db), current_user: dict = Depends
     from datetime import date, timedelta
     bugun = date.today()
     oy_boshi = bugun.replace(day=1)
-    hujjatlar = db.query(Hujjat).filter(
+
+    mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= oy_boshi).count()
+
+    natijalar = db.query(
+        Hujjat.mahsulot_id,
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
+    ).outerjoin(
+        Olchov, Olchov.hujjat_id == Hujjat.id
+    ).filter(
         Hujjat.created_at >= oy_boshi
-    ).all()
-    
-    chigit = [h for h in hujjatlar if h.mahsulot_id == 1]
-    chiganoq = [h for h in hujjatlar if h.mahsulot_id == 2]
-    pochog = [h for h in hujjatlar if h.mahsulot_id == 3]
-    patoz = [h for h in hujjatlar if h.mahsulot_id == 4]
-    
-    def tonnaj(hujjat_list):
-        jami = 0
-        for h in hujjat_list:
-            olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
-            for o in olchovlar:
-                if o.netto:
-                    jami += o.netto
-        return round(jami / 1000, 2)
-    
-    def konditsion_hisob(hujjat_list):
-        jami = 0
-        for h in hujjat_list:
-            olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
-            for o in olchovlar:
-                if o.konditsion:
-                    jami += o.konditsion
-        return round(jami / 1000, 2)
+    ).group_by(Hujjat.mahsulot_id).all()
+
+    natija = {}
+    for row in natijalar:
+        natija[row.mahsulot_id] = {
+            "soni": row.soni,
+            "tonnaj": round(row.jami_netto / 1000, 2),
+            "konditsion": round(row.jami_konditsion / 1000, 2),
+        }
+    jami_tonnaj = round(sum(row.jami_netto for row in natijalar) / 1000, 2)
+
+    bosh = {"soni": 0, "tonnaj": 0.0, "konditsion": 0.0}
 
     return {
         "oy": str(oy_boshi),
-        "mashinalar_soni": len(hujjatlar),
-        "chigit": {"soni": len(chigit), "tonnaj": tonnaj(chigit), "konditsion": konditsion_hisob(chigit)},
-        "chiganoq": {"soni": len(chiganoq), "tonnaj": tonnaj(chiganoq)},
-        "pochog": {"soni": len(pochog), "tonnaj": tonnaj(pochog)},
-        "patoz": {"soni": len(patoz), "tonnaj": tonnaj(patoz)},
-        "jami_tonnaj": tonnaj(hujjatlar),
+        "mashinalar_soni": mashinalar_soni,
+        "chigit": natija.get(1, bosh),
+        "chiganoq": {"soni": natija.get(2, bosh)["soni"], "tonnaj": natija.get(2, bosh)["tonnaj"]},
+        "pochog": {"soni": natija.get(3, bosh)["soni"], "tonnaj": natija.get(3, bosh)["tonnaj"]},
+        "patoz": {"soni": natija.get(4, bosh)["soni"], "tonnaj": natija.get(4, bosh)["tonnaj"]},
+        "jami_tonnaj": jami_tonnaj,
     }
-    
+
 @app.get("/statistika/mavsum")
 def mavsum_statistika(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date
@@ -489,44 +488,41 @@ def mavsum_statistika(db: Session = Depends(get_db), current_user: dict = Depend
         mavsum_boshi = date(bugun.year, 8, 1)
     else:
         mavsum_boshi = date(bugun.year - 1, 8, 1)
-    
-    hujjatlar = db.query(Hujjat).filter(
+
+    mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= mavsum_boshi).count()
+
+    natijalar = db.query(
+        Hujjat.mahsulot_id,
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
+    ).outerjoin(
+        Olchov, Olchov.hujjat_id == Hujjat.id
+    ).filter(
         Hujjat.created_at >= mavsum_boshi
-    ).all()
-    
-    chigit = [h for h in hujjatlar if h.mahsulot_id == 1]
-    chiganoq = [h for h in hujjatlar if h.mahsulot_id == 2]
-    pochog = [h for h in hujjatlar if h.mahsulot_id == 3]
-    patoz = [h for h in hujjatlar if h.mahsulot_id == 4]
-    
-    def tonnaj(hujjat_list):
-        jami = 0
-        for h in hujjat_list:
-            olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
-            for o in olchovlar:
-                if o.netto:
-                    jami += o.netto
-        return round(jami / 1000, 2)
-    
-    def konditsion_hisob(hujjat_list):
-        jami = 0
-        for h in hujjat_list:
-            olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
-            for o in olchovlar:
-                if o.konditsion:
-                    jami += o.konditsion
-        return round(jami / 1000, 2)
-    
+    ).group_by(Hujjat.mahsulot_id).all()
+
+    natija = {}
+    for row in natijalar:
+        natija[row.mahsulot_id] = {
+            "soni": row.soni,
+            "tonnaj": round(row.jami_netto / 1000, 2),
+            "konditsion": round(row.jami_konditsion / 1000, 2),
+        }
+    jami_tonnaj = round(sum(row.jami_netto for row in natijalar) / 1000, 2)
+
+    bosh = {"soni": 0, "tonnaj": 0.0, "konditsion": 0.0}
+
     return {
         "mavsum_boshi": str(mavsum_boshi),
-        "mashinalar_soni": len(hujjatlar),
-        "chigit": {"soni": len(chigit), "tonnaj": tonnaj(chigit), "konditsion": konditsion_hisob(chigit)},
-        "chiganoq": {"soni": len(chiganoq), "tonnaj": tonnaj(chiganoq)},
-        "pochog": {"soni": len(pochog), "tonnaj": tonnaj(pochog)},
-        "patoz": {"soni": len(patoz), "tonnaj": tonnaj(patoz)},
-        "jami_tonnaj": tonnaj(hujjatlar),
+        "mashinalar_soni": mashinalar_soni,
+        "chigit": natija.get(1, bosh),
+        "chiganoq": {"soni": natija.get(2, bosh)["soni"], "tonnaj": natija.get(2, bosh)["tonnaj"]},
+        "pochog": {"soni": natija.get(3, bosh)["soni"], "tonnaj": natija.get(3, bosh)["tonnaj"]},
+        "patoz": {"soni": natija.get(4, bosh)["soni"], "tonnaj": natija.get(4, bosh)["tonnaj"]},
+        "jami_tonnaj": jami_tonnaj,
     }
-    
+
     # ============ BACKUP ============
 
 import os
@@ -586,54 +582,47 @@ def avtomatik_telegram_hisobot():
                 from datetime import date
                 db = next(get_db())
                 bugun = date.today()
-                hujjatlar = db.query(Hujjat).filter(
-                    Hujjat.created_at >= bugun
-                ).all()
-                def tonnaj(mahsulot_id):
-                    h_list = [h for h in hujjatlar if h.mahsulot_id == mahsulot_id]
-                    jami_netto = 0
-                    jami_kond = 0
-                    for h in h_list:
-                        olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
-                        for o in olchovlar:
-                            if o.netto: jami_netto += o.netto
-                            if o.konditsion: jami_kond += o.konditsion
-                    return len(h_list), round(jami_netto/1000, 2), round(jami_kond/1000, 2)
-                
-                chigit_son, chigit_netto, chigit_kond = tonnaj(1)
-                chiganoq_son, chiganoq_netto, _ = tonnaj(2)
-                pochog_son, pochog_netto, _ = tonnaj(3)
-                patoz_son, patoz_netto, _ = tonnaj(4)
-                
-                # Mavsum statistikasi
-                from datetime import date as d
-                bugun_d = d.today()
-                if bugun_d.month >= 8:
-                    mavsum_boshi = datetime(bugun_d.year, 8, 1)
+                mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= bugun).count()
+
+                if bugun.month >= 8:
+                    mavsum_boshi = datetime(bugun.year, 8, 1)
                 else:
-                    mavsum_boshi = datetime(bugun_d.year - 1, 8, 1)
-                mavsum_hujjatlar = db.query(Hujjat).filter(Hujjat.created_at >= mavsum_boshi).all()
-                
-                def mavsum_tonnaj(mahsulot_id):
-                    h_list = [h for h in mavsum_hujjatlar if h.mahsulot_id == mahsulot_id]
-                    jami_netto = 0
-                    jami_kond = 0
-                    for h in h_list:
-                        olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
-                        for o in olchovlar:
-                            if o.netto: jami_netto += o.netto
-                            if o.konditsion: jami_kond += o.konditsion
-                    return len(h_list), round(jami_netto/1000, 2), round(jami_kond/1000, 2)
-                
-                mchigit_son, mchigit_netto, mchigit_kond = mavsum_tonnaj(1)
-                mchiganoq_son, mchiganoq_netto, _ = mavsum_tonnaj(2)
-                mpochog_son, mpochog_netto, _ = mavsum_tonnaj(3)
-                mpatoz_son, mpatoz_netto, _ = mavsum_tonnaj(4)
-                
+                    mavsum_boshi = datetime(bugun.year - 1, 8, 1)
+
+                bosh3 = (0, 0.0, 0.0)
+
+                bugun_natijalar = db.query(
+                    Hujjat.mahsulot_id,
+                    func.count(func.distinct(Hujjat.id)).label('soni'),
+                    func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+                    func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
+                ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
+                    Hujjat.created_at >= bugun
+                ).group_by(Hujjat.mahsulot_id).all()
+                yb = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in bugun_natijalar}
+                chigit_son, chigit_netto, chigit_kond = yb.get(1, bosh3)
+                chiganoq_son, chiganoq_netto, _ = yb.get(2, bosh3)
+                pochog_son, pochog_netto, _ = yb.get(3, bosh3)
+                patoz_son, patoz_netto, _ = yb.get(4, bosh3)
+
+                mavsum_natijalar = db.query(
+                    Hujjat.mahsulot_id,
+                    func.count(func.distinct(Hujjat.id)).label('soni'),
+                    func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+                    func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
+                ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
+                    Hujjat.created_at >= mavsum_boshi
+                ).group_by(Hujjat.mahsulot_id).all()
+                ym = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in mavsum_natijalar}
+                mchigit_son, mchigit_netto, mchigit_kond = ym.get(1, bosh3)
+                mchiganoq_son, mchiganoq_netto, _ = ym.get(2, bosh3)
+                mpochog_son, mpochog_netto, _ = ym.get(3, bosh3)
+                mpatoz_son, mpatoz_netto, _ = ym.get(4, bosh3)
+
                 matn = f"""📊 <b>KUNLIK HISOBOT</b>
 📅 Sana: {bugun}
 
-🚛 Jami: <b>{len(hujjatlar)} ta</b>
+🚛 Jami: <b>{mashinalar_soni} ta</b>
 
 🟡 <b>Chigit:</b> {chigit_son} ta | Netto: <b>{chigit_netto} t</b> | Kond: <b>{chigit_kond} t</b>
 🟢 <b>Chiganoq:</b> {chiganoq_son} ta | Netto: <b>{chiganoq_netto} t</b>
@@ -649,9 +638,9 @@ def avtomatik_telegram_hisobot():
 
 🏭 Hazorasp Tekstil tarozi tizimi"""
                 telegram_xabar_yuborish(matn)
-                print(f"✅ Avtomatik hisobot yuborildi: {bugun}")
+                print(f"Avtomatik hisobot yuborildi: {bugun}")
             except Exception as e:
-                print(f"❌ Hisobot xato: {e}")
+                print(f"Hisobot xato: {e}")
             time.sleep(61)
         time.sleep(30)
 
@@ -853,52 +842,47 @@ def telegram_test(current_user: dict = Depends(get_current_user)):
 def telegram_kunlik(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date
     bugun = date.today()
-    hujjatlar = db.query(Hujjat).filter(
-        Hujjat.created_at >= bugun
-    ).all()
-    
-    def tonnaj_hisob(mahsulot_id):
-        h_list = [h for h in hujjatlar if h.mahsulot_id == mahsulot_id]
-        jami_netto = 0
-        jami_kond = 0
-        for h in h_list:
-            olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
-            for o in olchovlar:
-                if o.netto: jami_netto += o.netto
-                if o.konditsion: jami_kond += o.konditsion
-        return len(h_list), round(jami_netto/1000, 2), round(jami_kond/1000, 2)
-    
-    chigit_son, chigit_netto, chigit_kond = tonnaj_hisob(1)
-    chiganoq_son, chiganoq_netto, _ = tonnaj_hisob(2)
-    pochog_son, pochog_netto, _ = tonnaj_hisob(3)
-    patoz_son, patoz_netto, _ = tonnaj_hisob(4)
-    
+    mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= bugun).count()
+
     if bugun.month >= 8:
         mavsum_boshi = datetime(bugun.year, 8, 1)
     else:
         mavsum_boshi = datetime(bugun.year - 1, 8, 1)
-    mavsum_hujjatlar = db.query(Hujjat).filter(Hujjat.created_at >= mavsum_boshi).all()
-    
-    def mavsum_tonnaj(mahsulot_id):
-        h_list = [h for h in mavsum_hujjatlar if h.mahsulot_id == mahsulot_id]
-        jami_netto = 0
-        jami_kond = 0
-        for h in h_list:
-            olchovlar_m = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
-            for o in olchovlar_m:
-                if o.netto: jami_netto += o.netto
-                if o.konditsion: jami_kond += o.konditsion
-        return len(h_list), round(jami_netto/1000, 2), round(jami_kond/1000, 2)
-    
-    mchigit_son, mchigit_netto, mchigit_kond = mavsum_tonnaj(1)
-    mchiganoq_son, mchiganoq_netto, _ = mavsum_tonnaj(2)
-    mpochog_son, mpochog_netto, _ = mavsum_tonnaj(3)
-    mpatoz_son, mpatoz_netto, _ = mavsum_tonnaj(4)
-    
+
+    bosh3 = (0, 0.0, 0.0)
+
+    bugun_natijalar = db.query(
+        Hujjat.mahsulot_id,
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
+    ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
+        Hujjat.created_at >= bugun
+    ).group_by(Hujjat.mahsulot_id).all()
+    yb = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in bugun_natijalar}
+    chigit_son, chigit_netto, chigit_kond = yb.get(1, bosh3)
+    chiganoq_son, chiganoq_netto, _ = yb.get(2, bosh3)
+    pochog_son, pochog_netto, _ = yb.get(3, bosh3)
+    patoz_son, patoz_netto, _ = yb.get(4, bosh3)
+
+    mavsum_natijalar = db.query(
+        Hujjat.mahsulot_id,
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
+    ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
+        Hujjat.created_at >= mavsum_boshi
+    ).group_by(Hujjat.mahsulot_id).all()
+    ym = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in mavsum_natijalar}
+    mchigit_son, mchigit_netto, mchigit_kond = ym.get(1, bosh3)
+    mchiganoq_son, mchiganoq_netto, _ = ym.get(2, bosh3)
+    mpochog_son, mpochog_netto, _ = ym.get(3, bosh3)
+    mpatoz_son, mpatoz_netto, _ = ym.get(4, bosh3)
+
     matn = f"""📊 <b>KUNLIK HISOBOT</b>
 📅 Sana: {bugun}
 
-🚛 Jami: <b>{len(hujjatlar)} ta</b>
+🚛 Jami: <b>{mashinalar_soni} ta</b>
 
 🟡 <b>Chigit:</b> {chigit_son} ta | Netto: <b>{chigit_netto} t</b> | Kond: <b>{chigit_kond} t</b>
 🟢 <b>Chiganoq:</b> {chiganoq_son} ta | Netto: <b>{chiganoq_netto} t</b>
@@ -1136,23 +1120,72 @@ def rasm_ol(data: dict, current_user: dict = Depends(get_current_user)):
 @app.get("/statistika/grafik/kunlik")
 def grafik_kunlik(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date, timedelta
+    kun_boshi = date.today() - timedelta(days=6)
+    oxirgi_kun = date.today() + timedelta(days=1)
+
+    qatorlar = db.query(
+        cast(Hujjat.created_at, Date).label('kun'),
+        Hujjat.mahsulot_id,
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+    ).filter(
+        Hujjat.created_at >= kun_boshi,
+        Hujjat.created_at < oxirgi_kun
+    ).group_by(cast(Hujjat.created_at, Date), Hujjat.mahsulot_id).all()
+
+    mahsulot_dict = {}
+    jami_dict = {}
+    for row in qatorlar:
+        kun_str = str(row.kun)
+        mahsulot_dict[(kun_str, row.mahsulot_id)] = row.soni
+        jami_dict[kun_str] = jami_dict.get(kun_str, 0) + row.soni
+
     natija = []
     for i in range(6, -1, -1):
         kun = date.today() - timedelta(days=i)
-        keyingi_kun = kun + timedelta(days=1)
-        hujjatlar = db.query(Hujjat).filter(
-            Hujjat.created_at >= kun,
-            Hujjat.created_at < keyingi_kun
-        ).all()
-        chigit = len([h for h in hujjatlar if h.mahsulot_id == 1])
-        chiganoq = len([h for h in hujjatlar if h.mahsulot_id == 2])
-        pochog = len([h for h in hujjatlar if h.mahsulot_id == 3])
+        kun_str = str(kun)
         natija.append({
-            "kun": str(kun),
-            "chigit": chigit,
-            "chiganoq": chiganoq,
-            "pochog": pochog,
-            "jami": len(hujjatlar)
+            "kun": kun_str,
+            "chigit": mahsulot_dict.get((kun_str, 1), 0),
+            "chiganoq": mahsulot_dict.get((kun_str, 2), 0),
+            "pochog": mahsulot_dict.get((kun_str, 3), 0),
+            "jami": jami_dict.get(kun_str, 0),
+        })
+    return natija
+
+@app.get("/statistika/grafik/haftalik")
+def grafik_haftalik(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    from datetime import date, timedelta
+    bugun = date.today()
+    joriy_hafta_boshi = bugun - timedelta(days=bugun.weekday())
+    hafta_boshi_8 = joriy_hafta_boshi - timedelta(weeks=7)
+    oxirgi_chegara = bugun + timedelta(days=1)
+
+    qatorlar = db.query(
+        func.date_trunc('week', Hujjat.created_at).label('hafta'),
+        Hujjat.mahsulot_id,
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+    ).filter(
+        Hujjat.created_at >= hafta_boshi_8,
+        Hujjat.created_at < oxirgi_chegara
+    ).group_by(func.date_trunc('week', Hujjat.created_at), Hujjat.mahsulot_id).all()
+
+    mahsulot_dict = {}
+    jami_dict = {}
+    for row in qatorlar:
+        hafta_str = str(row.hafta.date())
+        mahsulot_dict[(hafta_str, row.mahsulot_id)] = row.soni
+        jami_dict[hafta_str] = jami_dict.get(hafta_str, 0) + row.soni
+
+    natija = []
+    for i in range(7, -1, -1):
+        hafta = joriy_hafta_boshi - timedelta(weeks=i)
+        hafta_str = str(hafta)
+        natija.append({
+            "hafta_boshi": hafta_str,
+            "chigit": mahsulot_dict.get((hafta_str, 1), 0),
+            "chiganoq": mahsulot_dict.get((hafta_str, 2), 0),
+            "pochog": mahsulot_dict.get((hafta_str, 3), 0),
+            "jami": jami_dict.get(hafta_str, 0),
         })
     return natija
 
@@ -1161,25 +1194,36 @@ def grafik_oylik(db: Session = Depends(get_db), current_user: dict = Depends(get
     from datetime import date, timedelta
     bugun = date.today()
     oy_boshi = bugun.replace(day=1)
+    oxirgi_kun = bugun + timedelta(days=1)
+
+    qatorlar = db.query(
+        cast(Hujjat.created_at, Date).label('kun'),
+        Hujjat.mahsulot_id,
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+    ).filter(
+        Hujjat.created_at >= oy_boshi,
+        Hujjat.created_at < oxirgi_kun
+    ).group_by(cast(Hujjat.created_at, Date), Hujjat.mahsulot_id).all()
+
+    mahsulot_dict = {}
+    jami_dict = {}
+    for row in qatorlar:
+        kun_str = str(row.kun)
+        mahsulot_dict[(kun_str, row.mahsulot_id)] = row.soni
+        jami_dict[kun_str] = jami_dict.get(kun_str, 0) + row.soni
+
     natija = []
     kun = oy_boshi
     while kun <= bugun:
-        keyingi_kun = kun + timedelta(days=1)
-        hujjatlar = db.query(Hujjat).filter(
-            Hujjat.created_at >= kun,
-            Hujjat.created_at < keyingi_kun
-        ).all()
-        chigit = len([h for h in hujjatlar if h.mahsulot_id == 1])
-        chiganoq = len([h for h in hujjatlar if h.mahsulot_id == 2])
-        pochog = len([h for h in hujjatlar if h.mahsulot_id == 3])
+        kun_str = str(kun)
         natija.append({
-            "kun": str(kun),
-            "chigit": chigit,
-            "chiganoq": chiganoq,
-            "pochog": pochog,
-            "jami": len(hujjatlar)
+            "kun": kun_str,
+            "chigit": mahsulot_dict.get((kun_str, 1), 0),
+            "chiganoq": mahsulot_dict.get((kun_str, 2), 0),
+            "pochog": mahsulot_dict.get((kun_str, 3), 0),
+            "jami": jami_dict.get(kun_str, 0),
         })
-        kun = keyingi_kun
+        kun = kun + timedelta(days=1)
     return natija
 
 @app.get("/statistika/grafik/mavsum")
@@ -1190,23 +1234,34 @@ def grafik_mavsum(db: Session = Depends(get_db), current_user: dict = Depends(ge
         mavsum_boshi = date(bugun.year, 8, 1)
     else:
         mavsum_boshi = date(bugun.year - 1, 8, 1)
+    oxirgi_oy = date(bugun.year + (bugun.month // 12), (bugun.month % 12) + 1, 1)
+
+    qatorlar = db.query(
+        func.date_trunc('month', Hujjat.created_at).label('oy'),
+        Hujjat.mahsulot_id,
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+    ).filter(
+        Hujjat.created_at >= mavsum_boshi,
+        Hujjat.created_at < oxirgi_oy
+    ).group_by(func.date_trunc('month', Hujjat.created_at), Hujjat.mahsulot_id).all()
+
+    mahsulot_dict = {}
+    jami_dict = {}
+    for row in qatorlar:
+        oy_str = row.oy.strftime("%Y-%m")
+        mahsulot_dict[(oy_str, row.mahsulot_id)] = row.soni
+        jami_dict[oy_str] = jami_dict.get(oy_str, 0) + row.soni
+
     natija = []
     oy = mavsum_boshi
     while oy <= bugun:
-        keyingi_oy = date(oy.year + (oy.month // 12), (oy.month % 12) + 1, 1)
-        hujjatlar = db.query(Hujjat).filter(
-            Hujjat.created_at >= oy,
-            Hujjat.created_at < keyingi_oy
-        ).all()
-        chigit = len([h for h in hujjatlar if h.mahsulot_id == 1])
-        chiganoq = len([h for h in hujjatlar if h.mahsulot_id == 2])
-        pochog = len([h for h in hujjatlar if h.mahsulot_id == 3])
+        oy_str = f"{oy.year}-{oy.month:02d}"
         natija.append({
-            "oy": f"{oy.year}-{oy.month:02d}",
-            "chigit": chigit,
-            "chiganoq": chiganoq,
-            "pochog": pochog,
-            "jami": len(hujjatlar)
+            "oy": oy_str,
+            "chigit": mahsulot_dict.get((oy_str, 1), 0),
+            "chiganoq": mahsulot_dict.get((oy_str, 2), 0),
+            "pochog": mahsulot_dict.get((oy_str, 3), 0),
+            "jami": jami_dict.get(oy_str, 0),
         })
-        oy = keyingi_oy
+        oy = date(oy.year + (oy.month // 12), (oy.month % 12) + 1, 1)
     return natija

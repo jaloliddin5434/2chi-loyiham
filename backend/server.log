@@ -1,8 +1,4 @@
-INFO:     Started server process [14244]
+INFO:     Started server process [21480]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     127.0.0.1:54483 - "POST /login HTTP/1.1" 200 OK
-Excel ga yozilmoqda: hujjat_id=219
-Excel ga yozildi: 2026/210 (Chigit)
-INFO:     127.0.0.1:54485 - "POST /olchovlar HTTP/1.1" 200 OK

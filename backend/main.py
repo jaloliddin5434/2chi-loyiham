@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import engine, get_db, Base
 from models import User, Mahsulot, Mashina, Hujjat, Olchov
-from schemas import UserLogin, Token, UserCreate, MashinaCreate, HujjatCreate, OlchovCreate
+from schemas import UserLogin, Token, UserCreate, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
 import models
 from typing import List
@@ -167,13 +167,12 @@ def hujjat_detail(hujjat_id: int, db: Session = Depends(get_db), current_user: d
     return hujjat
 
 @app.put("/hujjatlar/{hujjat_id}")
-def hujjat_yangilash(hujjat_id: int, data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
     if not hujjat:
         raise HTTPException(status_code=404, detail="Hujjat topilmadi!")
-    for key, value in data.items():
-        if hasattr(hujjat, key):
-            setattr(hujjat, key, value)
+    for key, value in data.dict(exclude_unset=True).items():
+        setattr(hujjat, key, value)
     db.commit()
     db.refresh(hujjat)
     return hujjat

@@ -44,6 +44,20 @@ class HujjatCreate(BaseModel):
     yuk_oluvchi: Optional[str] = None
     shartnoma: Optional[str] = None
 
+class HujjatUpdate(BaseModel):
+    aravalar_soni: Optional[int] = None
+    tuda_raqam: Optional[str] = None
+    texnik_chiqit: Optional[str] = None
+    sanoat_turi: Optional[str] = None
+    klassifikatsiya: Optional[str] = None
+    davomlilik_raqam: Optional[str] = None
+    davomlilik_dan: Optional[str] = None
+    davomlilik_gacha: Optional[str] = None
+    yuk_oluvchi: Optional[str] = None
+    shartnoma: Optional[str] = None
+    holat: Optional[str] = None
+    bekor_sabab: Optional[str] = None
+
 class OlchovCreate(BaseModel):
     hujjat_id: int
     arava_raqam: int

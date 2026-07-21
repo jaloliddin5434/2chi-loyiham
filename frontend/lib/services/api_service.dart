@@ -206,15 +206,29 @@ static const String baseUrl = "http://10.112.30.77:8001";
     } catch (e) {}
   }
 
-  static Future<List<dynamic>> getHujjatlar() async {
+  static Future<Map<String, dynamic>> getHujjatlar({
+    int sahifa = 1,
+    int sahifaHajmi = 50,
+    int? mahsulotId,
+    String? sanaDan,
+    String? sanaGacha,
+  }) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/hujjatlar'), headers: _headers());
+      final params = {
+        'sahifa': sahifa.toString(),
+        'sahifa_hajmi': sahifaHajmi.toString(),
+        if (mahsulotId != null) 'mahsulot_id': mahsulotId.toString(),
+        if (sanaDan != null) 'sana_dan': sanaDan,
+        if (sanaGacha != null) 'sana_gacha': sanaGacha,
+      };
+      final uri = Uri.parse('$baseUrl/hujjatlar').replace(queryParameters: params);
+      final response = await http.get(uri, headers: _headers());
       _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
     } catch (e) {}
-    return [];
+    return {"natijalar": [], "jami": 0, "sahifa": sahifa, "sahifa_hajmi": sahifaHajmi};
   }
 
   static Future<void> rasmOl({

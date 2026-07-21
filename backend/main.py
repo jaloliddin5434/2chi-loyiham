@@ -103,7 +103,9 @@ def mashina_qidiruv(raqam: str, db: Session = Depends(get_db), current_user: dic
 # ============ MAHSULOTLAR ============
 
 @app.get("/mahsulotlar")
-def mahsulotlar_royxati(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def mahsulotlar_royxati(db: Session = Depends(get_db)):
+    # Login'dan OLDINGI mahsulot-tanlash ekrani shu endpointni tokensiz chaqiradi,
+    # shuning uchun bu yerda autentifikatsiya talab qilinmaydi.
     return db.query(Mahsulot).filter(Mahsulot.is_active == True).all()
 
 # ============ HUJJATLAR ============
@@ -136,13 +138,33 @@ def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db), current
     return yangi
 
 @app.get("/hujjatlar")
-def hujjatlar_royxati(mahsulot_id: int = None, bekor_qilinganlarni_korsat: bool = False, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def hujjatlar_royxati(
+    mahsulot_id: int = None,
+    bekor_qilinganlarni_korsat: bool = False,
+    sana_dan: str = None,
+    sana_gacha: str = None,
+    sahifa: int = 1,
+    sahifa_hajmi: int = 50,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     so_rov = db.query(Hujjat)
     if mahsulot_id:
         so_rov = so_rov.filter(Hujjat.mahsulot_id == mahsulot_id)
     if not bekor_qilinganlarni_korsat:
         so_rov = so_rov.filter(Hujjat.holat != HujjatHolati.BEKOR_QILINDI)
-    hujjatlar = so_rov.all()
+    if sana_dan:
+        so_rov = so_rov.filter(Hujjat.created_at >= sana_dan)
+    if sana_gacha:
+        so_rov = so_rov.filter(Hujjat.created_at < sana_gacha)
+
+    jami_soni = so_rov.count()
+
+    hujjatlar = so_rov.order_by(Hujjat.id.desc()) \
+        .offset((sahifa - 1) * sahifa_hajmi) \
+        .limit(sahifa_hajmi) \
+        .all()
+
     natija = []
     for h in hujjatlar:
         mashina = db.query(Mashina).filter(Mashina.id == h.mashina_id).first()
@@ -167,7 +189,12 @@ def hujjatlar_royxati(mahsulot_id: int = None, bekor_qilinganlarni_korsat: bool 
             "konditsion": jami_konditsion,
             "created_at": str(h.created_at) if h.created_at else None,
         })
-    return natija
+    return {
+        "natijalar": natija,
+        "jami": jami_soni,
+        "sahifa": sahifa,
+        "sahifa_hajmi": sahifa_hajmi,
+    }
 
 @app.get("/hujjatlar/{hujjat_id}")
 def hujjat_detail(hujjat_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):

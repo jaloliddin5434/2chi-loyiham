@@ -45,6 +45,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   bool ekranQulflangan = false;
   final qulfParolCtrl = TextEditingController();
   List<dynamic> hujjatlar = [];
+  int _joriySahifa = 1;
+  int jamiHujjatlar = 0;
+  bool koproqYuklanmoqda = false;
   bool yuklanmoqda = true;
   String qidiruv = '';
   String holatFilter = 'hammasi';
@@ -217,22 +220,47 @@ Future<void> _sozlamalarYukla() async {
 
 Future<void> hujjatlarniYukla() async {
     try {
-      final url = tanlanganMahsulotId == 0
-          ? '${ApiService.baseUrl}/hujjatlar'
-          : '${ApiService.baseUrl}/hujjatlar?mahsulot_id=$tanlanganMahsulotId';
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        setState(() {
-          hujjatlar = jsonDecode(utf8.decode(response.bodyBytes));
-          yuklanmoqda = false;
-          serverUlangan = true;
-        });
-      }
+      // Davriy avtomatik yangilanish (har 3s) allaqachon "Ko'proq yuklash"
+      // orqali ochilgan sahifalarni yo'qotmasligi uchun, hozirgача yuklangan
+      // chuqurlikni bitta so'rovda qayta olamiz.
+      final natija = await ApiService.getHujjatlar(
+        mahsulotId: tanlanganMahsulotId == 0 ? null : tanlanganMahsulotId,
+        sahifa: 1,
+        sahifaHajmi: 50 * _joriySahifa,
+      );
+      setState(() {
+        hujjatlar = natija['natijalar'] ?? [];
+        jamiHujjatlar = natija['jami'] ?? 0;
+        yuklanmoqda = false;
+        serverUlangan = true;
+      });
     } catch (e) {
       setState(() {
         yuklanmoqda = false;
         serverUlangan = false;
       });
+    }
+  }
+
+  Future<void> koproqYukla() async {
+    if (koproqYuklanmoqda || hujjatlar.length >= jamiHujjatlar) return;
+    setState(() => koproqYuklanmoqda = true);
+    final keyingiSahifa = _joriySahifa + 1;
+    try {
+      final natija = await ApiService.getHujjatlar(
+        mahsulotId: tanlanganMahsulotId == 0 ? null : tanlanganMahsulotId,
+        sahifa: keyingiSahifa,
+        sahifaHajmi: 50,
+      );
+      final yangilar = (natija['natijalar'] ?? []) as List<dynamic>;
+      setState(() {
+        hujjatlar.addAll(yangilar);
+        jamiHujjatlar = natija['jami'] ?? jamiHujjatlar;
+        _joriySahifa = keyingiSahifa;
+        koproqYuklanmoqda = false;
+      });
+    } catch (e) {
+      setState(() => koproqYuklanmoqda = false);
     }
   }
 
@@ -1526,7 +1554,10 @@ Widget _mashinaGrafik() {
     return Expanded(
       child: GestureDetector(
         onTap: () {
-          setState(() => tanlanganMahsulotId = id);
+          setState(() {
+            tanlanganMahsulotId = id;
+            _joriySahifa = 1;
+          });
           hujjatlarniYukla();
         },
         child: Container(
@@ -1834,6 +1865,39 @@ Widget _mashinaGrafik() {
                                 )),
                           ],
                         ),
+              const SizedBox(height: 14),
+              if (hujjatlar.length < jamiHujjatlar)
+                Center(
+                  child: koproqYuklanmoqda
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 10),
+                          child: SizedBox(
+                              width: 22, height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2.5)),
+                        )
+                      : ElevatedButton.icon(
+                          onPressed: koproqYukla,
+                          icon: const Icon(Icons.expand_more, size: 16),
+                          label: Text(
+                              "Ko'proq yuklash (${hujjatlar.length}/$jamiHujjatlar)",
+                              style: const TextStyle(fontSize: 12)),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: greenLight,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8))),
+                        ),
+                )
+              else if (hujjatlar.isNotEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Text("Barchasi yuklandi (${hujjatlar.length}/$jamiHujjatlar)",
+                        style: TextStyle(color: muted, fontSize: 11)),
+                  ),
+                ),
             ]),
           ),
         ),

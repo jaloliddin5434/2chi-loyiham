@@ -6,7 +6,6 @@ from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, Hujjat
 from schemas import UserLogin, Token, UserCreate, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
 import models
-from typing import List
 from datetime import datetime
 
 Base.metadata.create_all(bind=engine)
@@ -20,10 +19,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ============ XOTIRADA NAVBAT ============
-navbat_royxati: List[dict] = []
-tugallangan_royxati: List[dict] = []
 
 # ============ ASOSIY ============
 

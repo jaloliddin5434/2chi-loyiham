@@ -760,24 +760,26 @@ TELEGRAM_SOZLAMA_KALIT = "oxirgi_telegram_hisobot_sanasi"
 
 def avtomatik_telegram_hisobot():
     import time
-    from datetime import date
+    from datetime import date, timedelta
     from models import Sozlama
     while True:
         now = datetime.now()
-        if (now.hour, now.minute) >= (15, 58):
+        if (now.hour, now.minute) >= (8, 30):
             db = SessionLocal()
             try:
                 bugun = date.today()
+                kecha = bugun - timedelta(days=1)
                 sozlama = db.query(Sozlama).filter(
                     Sozlama.kalit == TELEGRAM_SOZLAMA_KALIT).first()
                 bugun_yuborilgan = sozlama is not None and sozlama.qiymat == str(bugun)
                 if not bugun_yuborilgan:
-                    mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= bugun).count()
+                    mashinalar_soni = db.query(Hujjat).filter(
+                        Hujjat.created_at >= kecha, Hujjat.created_at < bugun).count()
 
-                    if bugun.month >= 8:
-                        mavsum_boshi = datetime(bugun.year, 8, 1)
+                    if kecha.month >= 8:
+                        mavsum_boshi = datetime(kecha.year, 8, 1)
                     else:
-                        mavsum_boshi = datetime(bugun.year - 1, 8, 1)
+                        mavsum_boshi = datetime(kecha.year - 1, 8, 1)
 
                     bosh3 = (0, 0.0, 0.0)
 
@@ -787,7 +789,7 @@ def avtomatik_telegram_hisobot():
                         func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
                         func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
                     ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
-                        Hujjat.created_at >= bugun
+                        Hujjat.created_at >= kecha, Hujjat.created_at < bugun
                     ).group_by(Hujjat.mahsulot_id).all()
                     yb = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in bugun_natijalar}
                     chigit_son, chigit_netto, chigit_kond = yb.get(1, bosh3)
@@ -801,7 +803,7 @@ def avtomatik_telegram_hisobot():
                         func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
                         func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
                     ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
-                        Hujjat.created_at >= mavsum_boshi
+                        Hujjat.created_at >= mavsum_boshi, Hujjat.created_at < bugun
                     ).group_by(Hujjat.mahsulot_id).all()
                     ym = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in mavsum_natijalar}
                     mchigit_son, mchigit_netto, mchigit_kond = ym.get(1, bosh3)
@@ -810,7 +812,7 @@ def avtomatik_telegram_hisobot():
                     mpatoz_son, mpatoz_netto, _ = ym.get(4, bosh3)
 
                     matn = f"""📊 <b>KUNLIK HISOBOT</b>
-📅 Sana: {bugun}
+📅 Sana: {kecha}
 
 🚛 Jami: <b>{mashinalar_soni} ta</b>
 
@@ -835,7 +837,7 @@ def avtomatik_telegram_hisobot():
                         else:
                             db.add(Sozlama(kalit=TELEGRAM_SOZLAMA_KALIT, qiymat=str(bugun)))
                         db.commit()
-                        print(f"Avtomatik hisobot yuborildi: {bugun}")
+                        print(f"Avtomatik hisobot yuborildi (kechagi kun: {kecha})")
                     else:
                         print("Hisobot yuborilmadi, keyingi urinishda qayta sinaladi")
             except Exception as e:

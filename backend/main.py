@@ -215,7 +215,17 @@ def hujjat_detail(hujjat_id: int, db: Session = Depends(get_db), current_user: d
     hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
     if not hujjat:
         raise HTTPException(status_code=404, detail="Hujjat topilmadi!")
-    return hujjat
+    olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == hujjat.id).all()
+    jami_tara = sum(o.tara for o in olchovlar if o.tara) or None
+    jami_brutto = sum(o.brutto for o in olchovlar if o.brutto) or None
+    jami_netto = sum(o.netto for o in olchovlar if o.netto) or None
+    jami_konditsion = sum(o.konditsion for o in olchovlar if o.konditsion) or None
+    natija = {c.name: getattr(hujjat, c.name) for c in Hujjat.__table__.columns}
+    natija["tara"] = jami_tara
+    natija["brutto"] = jami_brutto
+    natija["netto"] = jami_netto
+    natija["konditsion"] = jami_konditsion
+    return natija
 
 RUXSAT_ETILGAN_OTISHLAR = {
     HujjatHolati.JARAYON: {HujjatHolati.TUGALLANDI, HujjatHolati.BEKOR_QILINDI},

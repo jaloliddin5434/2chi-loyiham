@@ -236,6 +236,20 @@ static const String baseUrl = "http://10.112.30.77:8001";
     return {"natijalar": [], "jami": 0, "sahifa": sahifa, "sahifa_hajmi": sahifaHajmi};
   }
 
+  static Future<Map<String, dynamic>?> getHujjat(int hujjatId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/hujjatlar/$hujjatId'),
+        headers: _headers(),
+      );
+      _check401(response);
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+    } catch (e) {}
+    return null;
+  }
+
   static Future<List<dynamic>> getTahrirTarixi(int hujjatId) async {
     try {
       final response = await http.get(

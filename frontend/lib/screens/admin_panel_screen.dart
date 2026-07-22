@@ -686,108 +686,27 @@ Future<void> hujjatlarniYukla() async {
     );
   }
 
-void _jsonNavbatTuzat(Map<String, dynamic> m) {
-    final raqamCtrl = TextEditingController(text: m['raqam'] ?? '');
-    final firmaCtrl = TextEditingController(text: m['firma'] ?? '');
-    final shofyorCtrl = TextEditingController(text: m['shofyor'] ?? '');
-    final tiketCtrl = TextEditingController(text: m['tiketRaqam'] ?? '');
-    final tudaCtrl = TextEditingController(text: m['tudaRaqam'] ?? '');
-    final klassCtrl = TextEditingController(text: m['klass'] ?? '');
-    final sinfCtrl = TextEditingController(text: m['sinf'] ?? '');
-    final terimCtrl = TextEditingController(text: m['terimTuri'] ?? '');
-    final seleksiyaCtrl = TextEditingController(text: m['seleksiyaNavi'] ?? '');
-    final namlikCtrl = TextEditingController(text: m['namlik']?.toString() ?? '');
-    final ifloslikCtrl = TextEditingController(text: m['ifloslik']?.toString() ?? '');
-    final qabulCtrl = TextEditingController(text: m['qabulQildi'] ?? '');
-    final yukCtrl = TextEditingController(text: m['yukOlindi'] ?? '');
-    final sababCtrl = TextEditingController();
-
-    Widget field(String label, TextEditingController ctrl, {bool red = false}) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: TextField(
-          controller: ctrl,
-          style: const TextStyle(fontSize: 12),
-          decoration: InputDecoration(
-            labelText: label,
-            labelStyle: TextStyle(fontSize: 11, color: red ? Colors.red : Colors.grey),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          ),
-        ),
+Future<void> _navbatOrqaliHujjatTuzat(Map<String, dynamic> m) async {
+    final hujjatId = m['hujjatId'];
+    if (hujjatId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text("Bu mashina uchun hali hujjat yaratilmagan"),
+            backgroundColor: Colors.red),
       );
+      return;
     }
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("Mashinani tuzatish",
-            style: TextStyle(color: blueColor, fontSize: 14)),
-        content: SizedBox(
-          width: 520,
-          child: SingleChildScrollView(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text("MASHINA MA'LUMOTLARI",
-                  style: TextStyle(fontSize: 9, color: Color(0xFF7AAA5A), letterSpacing: 1)),
-              const SizedBox(height: 6),
-              field("Mashina raqami", raqamCtrl),
-              field("Firma", firmaCtrl),
-              field("Shofyor", shofyorCtrl),
-              const SizedBox(height: 8),
-              const Text("HUJJAT MA'LUMOTLARI",
-                  style: TextStyle(fontSize: 9, color: Color(0xFF7AAA5A), letterSpacing: 1)),
-              const SizedBox(height: 6),
-              Row(children: [
-                Expanded(child: field("Tiket №", tiketCtrl)),
-                const SizedBox(width: 8),
-                Expanded(child: field("Tuda №", tudaCtrl)),
-              ]),
-              Row(children: [
-                Expanded(child: field("Klass", klassCtrl)),
-                const SizedBox(width: 8),
-                Expanded(child: field("Sinf", sinfCtrl)),
-              ]),
-              field("Terim turi", terimCtrl),
-              field("Seleksiya navi", seleksiyaCtrl),
-              Row(children: [
-                Expanded(child: field("Namlik %", namlikCtrl)),
-                const SizedBox(width: 8),
-                Expanded(child: field("Ifloslik %", ifloslikCtrl)),
-              ]),
-              const SizedBox(height: 8),
-              const Text("DOSTAVERNA",
-                  style: TextStyle(fontSize: 9, color: Color(0xFF7AAA5A), letterSpacing: 1)),
-              const SizedBox(height: 6),
-              Row(children: [
-                Expanded(child: field("Qabul qildi", qabulCtrl)),
-                const SizedBox(width: 8),
-                Expanded(child: field("Yuk olindi", yukCtrl)),
-              ]),
-              const SizedBox(height: 8),
-              field("O'zgartirish sababi *", sababCtrl, red: true),
-            ]),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Bekor")),
-          ElevatedButton(
-            onPressed: () async {
-              if (sababCtrl.text.trim().isEmpty) return;
-              Navigator.pop(ctx);
-              await _navbatYangilash();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Yangilandi!"), backgroundColor: Colors.green),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-                backgroundColor: greenLight, foregroundColor: Colors.white),
-            child: const Text("Saqlash"),
-          ),
-        ],
-      ),
-    );
+    final hujjat = await ApiService.getHujjat(hujjatId as int);
+    if (!mounted) return;
+    if (hujjat == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text("Hujjat ma'lumotini yuklab bo'lmadi"),
+            backgroundColor: Colors.red),
+      );
+      return;
+    }
+    await hujjatTuzat(hujjat);
   }
 
 void _jsonNavbatOchir(Map<String, dynamic> m) {
@@ -859,7 +778,7 @@ void _jsonNavbatOchir(Map<String, dynamic> m) {
               style: const TextStyle(fontSize: 10, color: muted)),
         ])),
         GestureDetector(
-          onTap: () => _jsonNavbatTuzat(m),
+          onTap: () => _navbatOrqaliHujjatTuzat(m),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             margin: const EdgeInsets.only(right: 6),
@@ -918,7 +837,7 @@ void _jsonNavbatOchir(Map<String, dynamic> m) {
                 style: const TextStyle(fontSize: 10, color: muted)),
           ])),
           GestureDetector(
-            onTap: () => _jsonNavbatTuzat(m),
+            onTap: () => _navbatOrqaliHujjatTuzat(m),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               margin: const EdgeInsets.only(right: 6),

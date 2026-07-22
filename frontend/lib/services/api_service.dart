@@ -236,6 +236,33 @@ static const String baseUrl = "http://10.112.30.77:8001";
     return {"natijalar": [], "jami": 0, "sahifa": sahifa, "sahifa_hajmi": sahifaHajmi};
   }
 
+  static Future<List<dynamic>> getTahrirTarixi(int hujjatId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/tahrirlar-tarixi/$hujjatId'),
+        headers: _headers(),
+      );
+      _check401(response);
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+    } catch (e) {}
+    return [];
+  }
+
+  static Future<List<dynamic>> getBarchaTahrirTarixi({int limit = 100}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/tahrirlar-tarixi')
+          .replace(queryParameters: {'limit': limit.toString()});
+      final response = await http.get(uri, headers: _headers());
+      _check401(response);
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+    } catch (e) {}
+    return [];
+  }
+
   static Future<void> rasmOl({
     required String mashinaRaqami,
     required String mahsulotNomi,

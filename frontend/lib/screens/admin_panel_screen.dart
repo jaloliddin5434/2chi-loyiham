@@ -48,6 +48,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   int _joriySahifa = 1;
   int jamiHujjatlar = 0;
   bool koproqYuklanmoqda = false;
+  List<dynamic> tahrirTarixiRoyxati = [];
+  bool tahrirTarixiYuklanmoqda = false;
   bool yuklanmoqda = true;
   String qidiruv = '';
   String holatFilter = 'hammasi';
@@ -1859,6 +1861,22 @@ Widget _mashinaGrafik() {
                                             ]),
                                           ),
                                         ),
+                                        const SizedBox(width: 4),
+                                        GestureDetector(
+                                          onTap: () => hujjatTarixi(
+                                              h['id'], h['raqam']?.toString() ?? ''),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                            decoration: BoxDecoration(color: const Color(0xFFF0F0F0),
+                                                border: Border.all(color: const Color(0xFFC8C8C8)),
+                                                borderRadius: BorderRadius.circular(6)),
+                                            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                                              Icon(Icons.history, size: 11, color: Color(0xFF606060)),
+                                              SizedBox(width: 3),
+                                              Text("Tarix", style: TextStyle(fontSize: 9, color: Color(0xFF606060))),
+                                            ]),
+                                          ),
+                                        ),
                                       ]),
                                     ),
                                   ],
@@ -1905,8 +1923,30 @@ Widget _mashinaGrafik() {
     ]);
   }
   Future<void> hujjatTuzat(Map<String, dynamic> hujjat) async {
+    final mashinaRaqamiCtrl =
+        TextEditingController(text: hujjat['mashina_raqami'] ?? '');
+    final shofyorCtrl =
+        TextEditingController(text: hujjat['shofyor'] ?? '');
+    final firmaCtrl =
+        TextEditingController(text: hujjat['firma'] ?? '');
+    final tiketCtrl =
+        TextEditingController(text: hujjat['tiket_raqam'] ?? '');
     final tudaCtrl =
         TextEditingController(text: hujjat['tuda_raqam'] ?? '');
+    final klassCtrl =
+        TextEditingController(text: hujjat['klass'] ?? '');
+    final sinfCtrl =
+        TextEditingController(text: hujjat['sinf'] ?? '');
+    final seleksiyaCtrl =
+        TextEditingController(text: hujjat['seleksiya_navi'] ?? '');
+    final terimCtrl =
+        TextEditingController(text: hujjat['terim_turi'] ?? '');
+    final qabulCtrl =
+        TextEditingController(text: hujjat['qabul_qildi'] ?? '');
+    final yukCtrl =
+        TextEditingController(text: hujjat['yuk_olindi'] ?? '');
+    final namlikCtrl = TextEditingController();
+    final ifloslikCtrl = TextEditingController();
     final sababCtrl = TextEditingController();
     String yangiHolat = hujjat['holat'] ?? 'jarayon';
 
@@ -2024,24 +2064,55 @@ Widget _mashinaGrafik() {
                         color: Color(0xFF7AAA5A), letterSpacing: 1)),
                 const SizedBox(height: 6),
                 Row(children: [
-                  Expanded(child: readOnly("Mashina raqami",
-                      hujjat['mashina_raqami']?.toString() ?? '—',
-                      const Color(0xFF0D1B2A))),
+                  Expanded(child: field("Mashina raqami",
+                      mashinaRaqamiCtrl)),
                   const SizedBox(width: 8),
-                  Expanded(child: readOnly("Shofyor",
-                      hujjat['shofyor']?.toString() ?? '—',
-                      const Color(0xFF0D1B2A))),
+                  Expanded(child: field("Shofyor", shofyorCtrl)),
                 ]),
-                readOnly("Firma nomi",
-                    hujjat['firma']?.toString() ?? '—',
-                    const Color(0xFF0D1B2A)),
+                field("Firma nomi", firmaCtrl),
                 const SizedBox(height: 4),
                 const Text("HUJJAT MA'LUMOTLARI",
                     style: TextStyle(fontSize: 9,
                         color: Color(0xFF7AAA5A), letterSpacing: 1)),
                 const SizedBox(height: 6),
-                field("Tuda №", tudaCtrl),
+                Row(children: [
+                  Expanded(child: field("Tiket raqami", tiketCtrl)),
+                  const SizedBox(width: 8),
+                  Expanded(child: field("Tuda №", tudaCtrl)),
+                ]),
+                Row(children: [
+                  Expanded(child: field("Klass", klassCtrl)),
+                  const SizedBox(width: 8),
+                  Expanded(child: field("Sinf", sinfCtrl)),
+                ]),
+                Row(children: [
+                  Expanded(child: field("Seleksiya navi",
+                      seleksiyaCtrl)),
+                  const SizedBox(width: 8),
+                  Expanded(child: field("Terim turi", terimCtrl)),
+                ]),
+                Row(children: [
+                  Expanded(child: field("Qabul qildi", qabulCtrl)),
+                  const SizedBox(width: 8),
+                  Expanded(child: field("Yuk olindi", yukCtrl)),
+                ]),
                 const SizedBox(height: 4),
+                const Text("SIFAT KO'RSATKICHLARI",
+                    style: TextStyle(fontSize: 9,
+                        color: Color(0xFF7AAA5A), letterSpacing: 1)),
+                const SizedBox(height: 6),
+                Row(children: [
+                  Expanded(child: field("Namlik %", namlikCtrl,
+                      type: TextInputType.number)),
+                  const SizedBox(width: 8),
+                  Expanded(child: field("Ifloslik %", ifloslikCtrl,
+                      type: TextInputType.number)),
+                ]),
+                const Text(
+                    "Bo'sh qoldirilsa o'zgartirilmaydi. To'ldirilsa, "
+                    "bu qiymat hujjatdagi BARCHA aravalarga qo'llanadi.",
+                    style: TextStyle(fontSize: 10, color: Colors.grey)),
+                const SizedBox(height: 8),
                 const Text("HOLAT",
                     style: TextStyle(fontSize: 9,
                         color: Color(0xFF7AAA5A), letterSpacing: 1)),
@@ -2091,32 +2162,68 @@ Widget _mashinaGrafik() {
                 child: const Text("Bekor qilish")),
             ElevatedButton.icon(
               onPressed: () async {
-                if (sababCtrl.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(
-                        content: Text("Sabab kiritish majburiy!"),
-                        backgroundColor: Colors.red),
-                  );
-                  return;
+                final payload = <String, dynamic>{
+                  'holat': yangiHolat,
+                  'mashina_raqami': mashinaRaqamiCtrl.text,
+                  'shofyor': shofyorCtrl.text,
+                  'firma': firmaCtrl.text,
+                  'tiket_raqam': tiketCtrl.text,
+                  'tuda_raqam': tudaCtrl.text,
+                  'klass': klassCtrl.text,
+                  'sinf': sinfCtrl.text,
+                  'seleksiya_navi': seleksiyaCtrl.text,
+                  'terim_turi': terimCtrl.text,
+                  'qabul_qildi': qabulCtrl.text,
+                  'yuk_olindi': yukCtrl.text,
+                  'sabab': sababCtrl.text.trim(),
+                };
+                final namlikQiymat =
+                    double.tryParse(namlikCtrl.text.trim());
+                if (namlikQiymat != null) {
+                  payload['namlik'] = namlikQiymat;
                 }
+                final ifloslikQiymat =
+                    double.tryParse(ifloslikCtrl.text.trim());
+                if (ifloslikQiymat != null) {
+                  payload['ifloslik'] = ifloslikQiymat;
+                }
+                if (yangiHolat == 'bekor') {
+                  payload['bekor_sabab'] = sababCtrl.text.trim();
+                }
+
                 bool muvaffaqiyatli = false;
+                String? xatoMatni;
                 try {
                   final javob = await http.put(
                     Uri.parse(
                         '${ApiService.baseUrl}/hujjatlar/${hujjat['id']}'),
                     headers: ApiService.authHeaders(),
-                    body: jsonEncode({
-                      'holat': yangiHolat,
-                      'tuda_raqam': tudaCtrl.text,
-                      'bekor_sabab': sababCtrl.text.trim(),
-                    }),
+                    body: jsonEncode(payload),
                   );
                   muvaffaqiyatli = javob.statusCode == 200;
+                  if (!muvaffaqiyatli) {
+                    try {
+                      final govda = jsonDecode(
+                          utf8.decode(javob.bodyBytes));
+                      final detail = govda['detail'];
+                      if (detail is String) {
+                        xatoMatni = detail;
+                      } else if (detail is List &&
+                          detail.isNotEmpty) {
+                        xatoMatni = detail
+                            .map((d) => d is Map
+                                ? (d['msg'] ?? d.toString())
+                                : d.toString())
+                            .join(', ');
+                      }
+                    } catch (_) {}
+                  }
                 } catch (e) {}
                 if (!muvaffaqiyatli) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(
-                        content: Text("Saqlashda xatolik yuz berdi!"),
+                    SnackBar(
+                        content: Text(xatoMatni ??
+                            "Saqlashda xatolik yuz berdi!"),
                         backgroundColor: Colors.red),
                   );
                   return;
@@ -2126,7 +2233,19 @@ Widget _mashinaGrafik() {
                       .indexWhere((h) => h['id'] == hujjat['id']);
                   if (index != -1) {
                     hujjatlar[index]['holat'] = yangiHolat;
+                    hujjatlar[index]['mashina_raqami'] =
+                        mashinaRaqamiCtrl.text;
+                    hujjatlar[index]['shofyor'] = shofyorCtrl.text;
+                    hujjatlar[index]['firma'] = firmaCtrl.text;
+                    hujjatlar[index]['tiket_raqam'] = tiketCtrl.text;
                     hujjatlar[index]['tuda_raqam'] = tudaCtrl.text;
+                    hujjatlar[index]['klass'] = klassCtrl.text;
+                    hujjatlar[index]['sinf'] = sinfCtrl.text;
+                    hujjatlar[index]['seleksiya_navi'] =
+                        seleksiyaCtrl.text;
+                    hujjatlar[index]['terim_turi'] = terimCtrl.text;
+                    hujjatlar[index]['qabul_qildi'] = qabulCtrl.text;
+                    hujjatlar[index]['yuk_olindi'] = yukCtrl.text;
                   }
                 });
                 Navigator.pop(ctx);
@@ -2222,7 +2341,245 @@ Widget _mashinaGrafik() {
       }
     }
   }
-  
+
+  Future<void> hujjatTarixi(int hujjatId, String hujjatRaqam) async {
+    final yozuvlar = await ApiService.getTahrirTarixi(hujjatId);
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          const Icon(Icons.history, color: Color(0xFF606060), size: 18),
+          const SizedBox(width: 8),
+          Text("Hujjat $hujjatRaqam tarixi",
+              style: const TextStyle(
+                  color: Color(0xFF0D1B2A), fontSize: 14)),
+        ]),
+        content: SizedBox(
+          width: 480,
+          height: 400,
+          child: yozuvlar.isEmpty
+              ? const Center(
+                  child: Text("Hali hech qanday o'zgarish yo'q",
+                      style: TextStyle(
+                          color: Colors.grey, fontSize: 12)))
+              : ListView.separated(
+                  itemCount: yozuvlar.length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(height: 16),
+                  itemBuilder: (_, i) {
+                    final y = yozuvlar[i] as Map<String, dynamic>;
+                    final vaqtStr = y['vaqt']?.toString() ?? '';
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Text(y['maydon']?.toString() ?? '',
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0D1B2A))),
+                          const Spacer(),
+                          Text(
+                              vaqtStr.length >= 16
+                                  ? vaqtStr.substring(0, 16)
+                                  : vaqtStr,
+                              style: const TextStyle(
+                                  fontSize: 10, color: Colors.grey)),
+                        ]),
+                        const SizedBox(height: 3),
+                        Row(children: [
+                          Expanded(
+                              child: Text(
+                                  "${y['eski_qiymat'] ?? '—'}",
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.red,
+                                      decoration:
+                                          TextDecoration.lineThrough))),
+                          const Padding(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 6),
+                              child: Icon(Icons.arrow_forward,
+                                  size: 12, color: Colors.grey)),
+                          Expanded(
+                              child: Text(
+                                  "${y['yangi_qiymat'] ?? '—'}",
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFF1976D2),
+                                      fontWeight: FontWeight.w600))),
+                        ]),
+                        if ((y['sabab'] ?? '')
+                            .toString()
+                            .isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Text("Sabab: ${y['sabab']}",
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF444444))),
+                        ],
+                        const SizedBox(height: 3),
+                        Text(
+                            "${y['ozgartirgan_username'] ?? '—'} tomonidan",
+                            style: const TextStyle(
+                                fontSize: 10, color: Colors.grey)),
+                      ],
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("Yopish")),
+        ],
+      ),
+    );
+  }
+
+  Future<void> tahrirTarixiniYukla() async {
+    setState(() => tahrirTarixiYuklanmoqda = true);
+    final natija = await ApiService.getBarchaTahrirTarixi(limit: 100);
+    if (!mounted) return;
+    setState(() {
+      tahrirTarixiRoyxati = natija;
+      tahrirTarixiYuklanmoqda = false;
+    });
+  }
+
+// ============ TAHRIRLAR TARIXI ============
+  Widget _tahrirlarTarixi() {
+    final cardColor = kechagiRejim ? const Color(0xFF0F2A0F) : Colors.white;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.history, size: 16, color: Color(0xFF606060)),
+            const SizedBox(width: 6),
+            const Text("Tahrirlar tarixi (oxirgi 100 ta)",
+                style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w700)),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 18),
+              onPressed: tahrirTarixiniYukla,
+              tooltip: "Yangilash",
+            ),
+          ]),
+          const SizedBox(height: 10),
+          if (tahrirTarixiYuklanmoqda)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (tahrirTarixiRoyxati.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(
+                  child: Text("Hali hech qanday o'zgarish yo'q",
+                      style: TextStyle(
+                          color: Colors.grey, fontSize: 13))),
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: cardBorder),
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(12),
+                itemCount: tahrirTarixiRoyxati.length,
+                separatorBuilder: (_, __) => const Divider(height: 18),
+                itemBuilder: (_, i) {
+                  final y = tahrirTarixiRoyxati[i]
+                      as Map<String, dynamic>;
+                  final vaqtStr = y['vaqt']?.toString() ?? '';
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                              color: blueBg,
+                              borderRadius:
+                                  BorderRadius.circular(4)),
+                          child: Text(
+                              y['hujjat_raqam']?.toString() ?? '—',
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  color: blueColor,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(y['maydon']?.toString() ?? '',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700)),
+                        const Spacer(),
+                        Text(
+                            vaqtStr.length >= 16
+                                ? vaqtStr.substring(0, 16)
+                                : vaqtStr,
+                            style: const TextStyle(
+                                fontSize: 10, color: Colors.grey)),
+                      ]),
+                      const SizedBox(height: 3),
+                      Row(children: [
+                        Expanded(
+                            child: Text(
+                                "${y['eski_qiymat'] ?? '—'}",
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.red,
+                                    decoration: TextDecoration
+                                        .lineThrough))),
+                        const Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 6),
+                            child: Icon(Icons.arrow_forward,
+                                size: 12, color: Colors.grey)),
+                        Expanded(
+                            child: Text(
+                                "${y['yangi_qiymat'] ?? '—'}",
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF1976D2),
+                                    fontWeight: FontWeight.w600))),
+                      ]),
+                      if ((y['sabab'] ?? '')
+                          .toString()
+                          .isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text("Sabab: ${y['sabab']}",
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF444444))),
+                      ],
+                      const SizedBox(height: 3),
+                      Text(
+                          "${y['ozgartirgan_username'] ?? '—'} tomonidan",
+                          style: const TextStyle(
+                              fontSize: 10, color: Colors.grey)),
+                    ],
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
 // ============ STATISTIKA ============
   Widget _statistika() {
     final cardColor = kechagiRejim ? const Color(0xFF0F2A0F) : Colors.white;
@@ -3178,7 +3535,8 @@ Widget _mashinaGrafik() {
   }
 
   // ============ SIDEBAR ICON ============
-  Widget _sidebarIcon(IconData icon, int index, String label) {
+  Widget _sidebarIcon(IconData icon, int index, String label,
+      {VoidCallback? onExtraTap}) {
     final active = tanlanganSidebar == index;
     return Tooltip(
       message: label,
@@ -3186,6 +3544,7 @@ Widget _mashinaGrafik() {
         onTap: () {
           setState(() => tanlanganSidebar = index);
           _faolatBildirildi();
+          onExtraTap?.call();
         },
         child: Container(
           width: 42,
@@ -3419,6 +3778,8 @@ Widget _mashinaGrafik() {
                     Icons.people_outline, 3, "Foydalanuvchilar"),
                 _sidebarIcon(Icons.settings, 4, "Sozlamalar"),
                 _sidebarIcon(Icons.scale, 5, "Tarozi"),
+                _sidebarIcon(Icons.history, 6, "Tahrirlar tarixi",
+                    onExtraTap: tahrirTarixiniYukla),
               ]),
             ),
 
@@ -3445,7 +3806,9 @@ Widget _mashinaGrafik() {
                                             mahsulotRang: greenLight,
                                             adminRejim: true,
                                           )
-                                        : _dashboard(),
+                                        : tanlanganSidebar == 6
+                                            ? _tahrirlarTarixi()
+                                            : _dashboard(),
               ),
             ),
           ]),

@@ -16,6 +16,11 @@ static const String baseUrl = "http://10.112.30.77:8001";
     return headers;
   }
 
+  // Boshqa fayllardagi to'g'ridan-to'g'ri http.get()/http.post() chaqiruvlari
+  // uchun (masalan admin_panel_screen.dart), autentifikatsiya headerini
+  // qo'shish uchun ochiq yordamchi.
+  static Map<String, String> authHeaders() => _headers();
+
   static void _tokenTugadi() {
     _token = null;
     navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);

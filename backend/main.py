@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
 from database import engine, get_db, Base, SessionLocal
-from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi
+from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi
 from schemas import UserLogin, Token, UserCreate, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
 from config import PG_DUMP_YOL, WKHTMLTOPDF_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL
@@ -131,7 +131,14 @@ def keyingi_hujjat_raqami(db: Session, yil: int) -> str:
 def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     yil = datetime.now().year
     yangi_raqam = keyingi_hujjat_raqami(db, yil)
-    yangi = Hujjat(raqam=yangi_raqam, **hujjat.dict())
+    mashina = db.query(Mashina).filter(Mashina.id == hujjat.mashina_id).first()
+    yangi = Hujjat(
+        raqam=yangi_raqam,
+        mashina_raqami=mashina.davlat_raqami if mashina else None,
+        shofyor=mashina.shofyor if mashina else None,
+        firma=mashina.firma if mashina else None,
+        **hujjat.dict(),
+    )
     db.add(yangi)
     db.commit()
     db.refresh(yangi)
@@ -167,7 +174,6 @@ def hujjatlar_royxati(
 
     natija = []
     for h in hujjatlar:
-        mashina = db.query(Mashina).filter(Mashina.id == h.mashina_id).first()
         olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
         jami_tara = sum(o.tara for o in olchovlar if o.tara) or None
         jami_brutto = sum(o.brutto for o in olchovlar if o.brutto) or None
@@ -177,11 +183,19 @@ def hujjatlar_royxati(
             "id": h.id,
             "raqam": h.raqam,
             "mashina_id": h.mashina_id,
-            "mashina_raqami": mashina.davlat_raqami if mashina else "—",
-            "shofyor": mashina.shofyor if mashina else "—",
-            "firma": mashina.firma if mashina else "—",
+            "mashina_raqami": h.mashina_raqami or "—",
+            "shofyor": h.shofyor or "—",
+            "firma": h.firma or "—",
             "mahsulot_id": h.mahsulot_id,
             "aravalar_soni": h.aravalar_soni,
+            "tuda_raqam": h.tuda_raqam,
+            "tiket_raqam": h.tiket_raqam,
+            "klass": h.klass,
+            "sinf": h.sinf,
+            "seleksiya_navi": h.seleksiya_navi,
+            "terim_turi": h.terim_turi,
+            "qabul_qildi": h.qabul_qildi,
+            "yuk_olindi": h.yuk_olindi,
             "holat": h.holat,
             "tara": jami_tara,
             "brutto": jami_brutto,
@@ -214,6 +228,33 @@ def holat_otishi_ruxsatmi(eski: HujjatHolati, yangi: HujjatHolati) -> bool:
         return True
     return yangi in RUXSAT_ETILGAN_OTISHLAR.get(eski, set())
 
+# hujjat_yangilash orqali tahrirlanishi mumkin bo'lgan va TahrirTarixi'ga
+# yoziladigan barcha maydonlar (bekor_sabab bundan mustasno emas - u ham
+# kuzatiladi, faqat maxsus talab qilinish qoidasi bekor_sabab_talab_qilinadi
+# bilan alohida tekshiriladi).
+AUDIT_MAYDONLAR = [
+    'aravalar_soni', 'tuda_raqam', 'texnik_chiqit', 'sanoat_turi', 'klassifikatsiya',
+    'davomlilik_raqam', 'davomlilik_dan', 'davomlilik_gacha', 'yuk_oluvchi', 'shartnoma',
+    'mashina_raqami', 'shofyor', 'firma', 'tiket_raqam', 'klass', 'sinf',
+    'seleksiya_navi', 'terim_turi', 'qabul_qildi', 'yuk_olindi',
+    'holat', 'bekor_sabab',
+]
+
+def _qiymat_normal(qiymat):
+    """None va bo'sh satrni bitta 'qiymat yo'q' holatiga tenglashtiradi,
+    shunda frontend har doim to'liq forma yuborsa ham yolg'on o'zgarish
+    aniqlanmaydi."""
+    if qiymat is None:
+        return None
+    if isinstance(qiymat, str) and qiymat.strip() == "":
+        return None
+    return qiymat
+
+def _qiymat_matn(qiymat):
+    if qiymat is None:
+        return None
+    return qiymat.value if hasattr(qiymat, "value") else str(qiymat)
+
 @app.put("/hujjatlar/{hujjat_id}")
 def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
@@ -225,17 +266,132 @@ def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, db: Session = Depends(g
                 status_code=400,
                 detail=f"'{hujjat.holat.value}' holatidan '{data.holat.value}' holatiga o'tish mumkin emas!"
             )
+
+    sabab_umumiy = (data.sabab or "").strip() or None
+    sabab_bekor = (data.bekor_sabab or "").strip() or None
+
     if data.holat == HujjatHolati.BEKOR_QILINDI:
-        if not data.bekor_sabab or not data.bekor_sabab.strip():
+        if not sabab_bekor:
             raise HTTPException(
                 status_code=400,
                 detail="Hujjatni bekor qilish uchun sabab ko'rsatilishi shart!"
             )
-    for key, value in data.dict(exclude_unset=True).items():
+
+    payload = data.dict(exclude_unset=True)
+
+    # namlik/ifloslik Hujjatda emas, shu hujjatga tegishli barcha Olchov
+    # qatorlarida - shuning uchun AUDIT_MAYDONLAR umumiy tsiklidan tashqarida,
+    # alohida ishlanadi.
+    olchovlar = None
+    if "namlik" in payload or "ifloslik" in payload:
+        olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == hujjat_id).all()
+        if not olchovlar:
+            raise HTTPException(
+                status_code=400,
+                detail="Bu hujjatda hali birorta o'lchov (arava) yo'q, namlik/ifloslik saqlab bo'lmaydi!"
+            )
+
+    ozgarishlar = []
+    for maydon in AUDIT_MAYDONLAR:
+        if maydon not in payload:
+            continue
+        eski = getattr(hujjat, maydon)
+        yangi = payload[maydon]
+        if _qiymat_normal(eski) == _qiymat_normal(yangi):
+            continue
+        ozgarishlar.append((maydon, _qiymat_matn(eski), _qiymat_matn(yangi)))
+
+    olchov_ozgargan_maydonlar = []
+    for maydon in ("namlik", "ifloslik"):
+        if maydon not in payload:
+            continue
+        yangi_qiymat = payload[maydon]
+        agar_ozgargan = any(
+            _qiymat_normal(getattr(o, maydon)) != _qiymat_normal(yangi_qiymat)
+            for o in olchovlar
+        )
+        if not agar_ozgargan:
+            continue
+        eski_matn = ", ".join(_qiymat_matn(getattr(o, maydon)) or "—" for o in olchovlar)
+        ozgarishlar.append((maydon, eski_matn, _qiymat_matn(yangi_qiymat)))
+        olchov_ozgargan_maydonlar.append(maydon)
+
+    if ozgarishlar and not (sabab_umumiy or sabab_bekor):
+        raise HTTPException(
+            status_code=400,
+            detail="O'zgartirish sababi ko'rsatilishi shart!"
+        )
+
+    for key, value in payload.items():
+        if key in ("sabab", "namlik", "ifloslik"):
+            continue
         setattr(hujjat, key, value)
+
+    if olchov_ozgargan_maydonlar:
+        for maydon in olchov_ozgargan_maydonlar:
+            yangi_qiymat = payload[maydon]
+            for o in olchovlar:
+                setattr(o, maydon, yangi_qiymat)
+        for o in olchovlar:
+            if o.netto and o.namlik and o.ifloslik:
+                o.konditsion = konditsion_hisobla(o.netto, o.namlik, o.ifloslik)
+
+    for maydon, eski_matn, yangi_matn in ozgarishlar:
+        qator_sababi = (sabab_bekor or sabab_umumiy) if maydon in ("holat", "bekor_sabab") \
+            else (sabab_umumiy or sabab_bekor)
+        db.add(TahrirTarixi(
+            hujjat_id=hujjat_id,
+            maydon=maydon,
+            eski_qiymat=eski_matn,
+            yangi_qiymat=yangi_matn,
+            sabab=qator_sababi,
+            ozgartirgan_user_id=current_user.get("id"),
+            ozgartirgan_username=current_user.get("sub"),
+        ))
+
     db.commit()
     db.refresh(hujjat)
     return hujjat
+
+# ============ TAHRIR TARIXI ============
+
+def _tahrir_yozuv_dict(y: TahrirTarixi, hujjat_raqam: str = None):
+    natija = {
+        "id": y.id,
+        "hujjat_id": y.hujjat_id,
+        "maydon": y.maydon,
+        "eski_qiymat": y.eski_qiymat,
+        "yangi_qiymat": y.yangi_qiymat,
+        "sabab": y.sabab,
+        "ozgartirgan_user_id": y.ozgartirgan_user_id,
+        "ozgartirgan_username": y.ozgartirgan_username,
+        "vaqt": str(y.created_at) if y.created_at else None,
+    }
+    if hujjat_raqam is not None:
+        natija["hujjat_raqam"] = hujjat_raqam
+    return natija
+
+@app.get("/tahrirlar-tarixi")
+def barcha_tahrirlar_tarixi(limit: int = 100, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") not in ("admin", "hisobchi"):
+        raise HTTPException(status_code=403, detail="Bu amal uchun sizda ruxsat yo'q!")
+    limit = min(max(limit, 1), 500)
+    yozuvlar = db.query(TahrirTarixi, Hujjat.raqam).join(
+        Hujjat, TahrirTarixi.hujjat_id == Hujjat.id
+    ).order_by(TahrirTarixi.created_at.desc()).limit(limit).all()
+    return [_tahrir_yozuv_dict(y, raqam) for y, raqam in yozuvlar]
+
+@app.get("/tahrirlar-tarixi/{hujjat_id}")
+def hujjat_tahrir_tarixi(hujjat_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") not in ("admin", "hisobchi"):
+        raise HTTPException(status_code=403, detail="Bu amal uchun sizda ruxsat yo'q!")
+    hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
+    if not hujjat:
+        raise HTTPException(status_code=404, detail="Hujjat topilmadi!")
+    yozuvlar = db.query(TahrirTarixi).filter(
+        TahrirTarixi.hujjat_id == hujjat_id
+    ).order_by(TahrirTarixi.created_at.desc()).all()
+    return [_tahrir_yozuv_dict(y) for y in yozuvlar]
 
 # ============ OLCHOVLAR ============
 

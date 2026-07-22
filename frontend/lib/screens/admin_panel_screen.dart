@@ -166,9 +166,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     try {
       final navbatData = await ApiService.navbatOl();
       final tugallanganData = await ApiService.tugallanganlarOl();
-      final kunlik = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/kunlik'));
-      final haftalik = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/haftalik'));
-      final oylik = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/oylik'));
+      final kunlik = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/kunlik'), headers: ApiService.authHeaders());
+      final haftalik = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/haftalik'), headers: ApiService.authHeaders());
+      final oylik = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/oylik'), headers: ApiService.authHeaders());
       if (mounted) {
         setState(() {
           backendNavbat = navbatData;
@@ -180,22 +180,22 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
          if (oylik.statusCode == 200)
             oylikStat = jsonDecode(utf8.decode(oylik.bodyBytes));
         });
-        final mavsum = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/mavsum'));
+        final mavsum = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/mavsum'), headers: ApiService.authHeaders());
        if (mavsum.statusCode == 200)
           setState(() => mavsumStat = jsonDecode(utf8.decode(mavsum.bodyBytes)));
         
-        final kunlikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/kunlik'));
+        final kunlikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/kunlik'), headers: ApiService.authHeaders());
         if (kunlikG.statusCode == 200)
           setState(() => kunlikGrafik = jsonDecode(utf8.decode(kunlikG.bodyBytes)));
-        
-        final oylikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/oylik'));
+
+        final oylikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/oylik'), headers: ApiService.authHeaders());
         if (oylikG.statusCode == 200)
           setState(() => oylikGrafik = jsonDecode(utf8.decode(oylikG.bodyBytes)));
-        final mavsumG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/mavsum'));
+        final mavsumG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/mavsum'), headers: ApiService.authHeaders());
         if (mavsumG.statusCode == 200)
           setState(() => mavsumGrafik = jsonDecode(utf8.decode(mavsumG.bodyBytes)));
 
-        final serverH = await http.get(Uri.parse('${ApiService.baseUrl}/server/holat'));
+        final serverH = await http.get(Uri.parse('${ApiService.baseUrl}/server/holat'), headers: ApiService.authHeaders());
         if (serverH.statusCode == 200)
           setState(() => serverHolati = jsonDecode(utf8.decode(serverH.bodyBytes)));
       }
@@ -1905,32 +1905,8 @@ Widget _mashinaGrafik() {
     ]);
   }
   Future<void> hujjatTuzat(Map<String, dynamic> hujjat) async {
-    final mashinaRaqamiCtrl2 =
-        TextEditingController(text: hujjat['mashina_raqami'] ?? '');
-    final shofyorCtrl2 =
-        TextEditingController(text: hujjat['shofyor'] ?? '');
-    final firmaCtrl2 =
-        TextEditingController(text: hujjat['firma'] ?? '');
     final tudaCtrl =
         TextEditingController(text: hujjat['tuda_raqam'] ?? '');
-    final tiketCtrl =
-        TextEditingController(text: hujjat['raqam'] ?? '');
-    final seleksiyaCtrl = TextEditingController(
-        text: hujjat['seleksiya_navi'] ?? 'Xorazm-150');
-    final klassCtrl2 =
-        TextEditingController(text: hujjat['klass'] ?? '1');
-    final sinfCtrl2 =
-        TextEditingController(text: hujjat['sinf'] ?? '');
-    final terimCtrl = TextEditingController(
-        text: hujjat['terim_turi'] ?? 'Kul terim');
-    final namlikCtrl2 = TextEditingController(
-        text: hujjat['namlik']?.toString() ?? '');
-    final ifloslikCtrl2 = TextEditingController(
-        text: hujjat['ifloslik']?.toString() ?? '');
-    final qabulCtrl =
-        TextEditingController(text: hujjat['qabul_qildi'] ?? '');
-    final yukCtrl =
-        TextEditingController(text: hujjat['yuk_olindi'] ?? '');
     final sababCtrl = TextEditingController();
     String yangiHolat = hujjat['holat'] ?? 'jarayon';
 
@@ -2048,45 +2024,23 @@ Widget _mashinaGrafik() {
                         color: Color(0xFF7AAA5A), letterSpacing: 1)),
                 const SizedBox(height: 6),
                 Row(children: [
-                  Expanded(child: field("Mashina raqami",
-                      mashinaRaqamiCtrl2)),
+                  Expanded(child: readOnly("Mashina raqami",
+                      hujjat['mashina_raqami']?.toString() ?? '—',
+                      const Color(0xFF0D1B2A))),
                   const SizedBox(width: 8),
-                  Expanded(child: field("Shofyor", shofyorCtrl2)),
+                  Expanded(child: readOnly("Shofyor",
+                      hujjat['shofyor']?.toString() ?? '—',
+                      const Color(0xFF0D1B2A))),
                 ]),
-                field("Firma nomi", firmaCtrl2),
+                readOnly("Firma nomi",
+                    hujjat['firma']?.toString() ?? '—',
+                    const Color(0xFF0D1B2A)),
                 const SizedBox(height: 4),
                 const Text("HUJJAT MA'LUMOTLARI",
                     style: TextStyle(fontSize: 9,
                         color: Color(0xFF7AAA5A), letterSpacing: 1)),
                 const SizedBox(height: 6),
-                Row(children: [
-                  Expanded(child: field("Tiket №", tiketCtrl)),
-                  const SizedBox(width: 8),
-                  Expanded(child: field("Tuda №", tudaCtrl)),
-                ]),
-                Row(children: [
-                  Expanded(child: field("Klass", klassCtrl2)),
-                  const SizedBox(width: 8),
-                  Expanded(child: field("Sinf", sinfCtrl2)),
-                ]),
-                Row(children: [
-                  Expanded(child: field("Seleksiya navi",
-                      seleksiyaCtrl)),
-                  const SizedBox(width: 8),
-                  Expanded(child: field("Terim turi", terimCtrl)),
-                ]),
-                Row(children: [
-                  Expanded(child: field("Namlik %", namlikCtrl2,
-                      type: TextInputType.number)),
-                  const SizedBox(width: 8),
-                  Expanded(child: field("Ifloslik %", ifloslikCtrl2,
-                      type: TextInputType.number)),
-                ]),
-                Row(children: [
-                  Expanded(child: field("Qabul qildi", qabulCtrl)),
-                  const SizedBox(width: 8),
-                  Expanded(child: field("Yuk olindi", yukCtrl)),
-                ]),
+                field("Tuda №", tudaCtrl),
                 const SizedBox(height: 4),
                 const Text("HOLAT",
                     style: TextStyle(fontSize: 9,
@@ -2145,38 +2099,34 @@ Widget _mashinaGrafik() {
                   );
                   return;
                 }
+                bool muvaffaqiyatli = false;
                 try {
-                  await http.put(
+                  final javob = await http.put(
                     Uri.parse(
-                        'http://127.0.0.1:8001/hujjatlar/${hujjat['id']}'),
-                    headers: {'Content-Type': 'application/json'},
+                        '${ApiService.baseUrl}/hujjatlar/${hujjat['id']}'),
+                    headers: ApiService.authHeaders(),
                     body: jsonEncode({
                       'holat': yangiHolat,
-                      'mashina_raqami': mashinaRaqamiCtrl2.text,
-                      'shofyor': shofyorCtrl2.text,
-                      'firma': firmaCtrl2.text,
                       'tuda_raqam': tudaCtrl.text,
-                      'seleksiya_navi': seleksiyaCtrl.text,
-                      'klass': klassCtrl2.text,
-                      'sinf': sinfCtrl2.text,
-                      'terim_turi': terimCtrl.text,
-                      'namlik': double.tryParse(namlikCtrl2.text),
-                      'ifloslik':
-                          double.tryParse(ifloslikCtrl2.text),
-                      'qabul_qildi': qabulCtrl.text,
-                      'yuk_olindi': yukCtrl.text,
+                      'bekor_sabab': sababCtrl.text.trim(),
                     }),
                   );
+                  muvaffaqiyatli = javob.statusCode == 200;
                 } catch (e) {}
+                if (!muvaffaqiyatli) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                        content: Text("Saqlashda xatolik yuz berdi!"),
+                        backgroundColor: Colors.red),
+                  );
+                  return;
+                }
                 setState(() {
                   final index = hujjatlar
                       .indexWhere((h) => h['id'] == hujjat['id']);
                   if (index != -1) {
                     hujjatlar[index]['holat'] = yangiHolat;
-                    hujjatlar[index]['mashina_raqami'] =
-                        mashinaRaqamiCtrl2.text;
-                    hujjatlar[index]['shofyor'] = shofyorCtrl2.text;
-                    hujjatlar[index]['firma'] = firmaCtrl2.text;
+                    hujjatlar[index]['tuda_raqam'] = tudaCtrl.text;
                   }
                 });
                 Navigator.pop(ctx);
@@ -2242,16 +2192,31 @@ Widget _mashinaGrafik() {
       ),
     );
     if (tasdiqlandi == true) {
+      bool muvaffaqiyatli = false;
       try {
-        await http.delete(
-            Uri.parse('http://127.0.0.1:8001/hujjatlar/$id'));
+        final javob = await http.put(
+          Uri.parse('${ApiService.baseUrl}/hujjatlar/$id'),
+          headers: ApiService.authHeaders(),
+          body: jsonEncode({
+            'holat': 'bekor',
+            'bekor_sabab': sababCtrl2.text.trim(),
+          }),
+        );
+        muvaffaqiyatli = javob.statusCode == 200;
       } catch (e) {}
-      setState(
-          () => hujjatlar.removeWhere((h) => h['id'] == id));
-      if (mounted) {
+      if (!mounted) return;
+      if (muvaffaqiyatli) {
+        setState(
+            () => hujjatlar.removeWhere((h) => h['id'] == id));
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content: Text("Hujjat o'chirildi!"),
+              backgroundColor: Colors.red),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text("O'chirishda xatolik yuz berdi!"),
               backgroundColor: Colors.red),
         );
       }

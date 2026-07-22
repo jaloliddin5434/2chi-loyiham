@@ -56,8 +56,35 @@ class HujjatUpdate(BaseModel):
     davomlilik_gacha: Optional[str] = None
     yuk_oluvchi: Optional[str] = None
     shartnoma: Optional[str] = None
+    mashina_raqami: Optional[str] = None
+    shofyor: Optional[str] = None
+    firma: Optional[str] = None
+    tiket_raqam: Optional[str] = None
+    klass: Optional[str] = None
+    sinf: Optional[str] = None
+    seleksiya_navi: Optional[str] = None
+    terim_turi: Optional[str] = None
+    qabul_qildi: Optional[str] = None
+    yuk_olindi: Optional[str] = None
+    namlik: Optional[float] = None
+    ifloslik: Optional[float] = None
     holat: Optional[HujjatHolati] = None
     bekor_sabab: Optional[str] = None
+    sabab: Optional[str] = None
+
+    @field_validator('namlik')
+    @classmethod
+    def namlik_tekshiruv(cls, qiymat):
+        if qiymat is not None and not (0 <= qiymat <= 100):
+            raise ValueError('Namlik foizi 0 dan 100 gacha bo\'lishi kerak!')
+        return qiymat
+
+    @field_validator('ifloslik')
+    @classmethod
+    def ifloslik_tekshiruv(cls, qiymat):
+        if qiymat is not None and not (0 <= qiymat <= 100):
+            raise ValueError('Ifloslik foizi 0 dan 100 gacha bo\'lishi kerak!')
+        return qiymat
 
 class OlchovCreate(BaseModel):
     hujjat_id: int

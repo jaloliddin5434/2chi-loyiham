@@ -51,6 +51,16 @@ class Hujjat(Base):
     davomlilik_gacha = Column(String, nullable=True)
     yuk_oluvchi = Column(String, nullable=True)
     shartnoma = Column(String, nullable=True)
+    mashina_raqami = Column(String, nullable=True)
+    shofyor = Column(String, nullable=True)
+    firma = Column(String, nullable=True)
+    tiket_raqam = Column(String, nullable=True)
+    klass = Column(String, nullable=True)
+    sinf = Column(String, nullable=True)
+    seleksiya_navi = Column(String, nullable=True)
+    terim_turi = Column(String, nullable=True)
+    qabul_qildi = Column(String, nullable=True)
+    yuk_olindi = Column(String, nullable=True)
     holat = Column(
         SQLEnum(
             HujjatHolati,
@@ -116,6 +126,18 @@ class TizimXatosi(Base):
     turi = Column(String)
     xabar = Column(Text)
     korilgan = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=func.now())
+
+class TahrirTarixi(Base):
+    __tablename__ = "tahrir_tarixi"
+    id = Column(Integer, primary_key=True, index=True)
+    hujjat_id = Column(Integer, ForeignKey("hujjatlar.id", ondelete="CASCADE"), index=True)
+    maydon = Column(String)
+    eski_qiymat = Column(Text, nullable=True)
+    yangi_qiymat = Column(Text, nullable=True)
+    sabab = Column(Text)
+    ozgartirgan_user_id = Column(Integer, nullable=True)
+    ozgartirgan_username = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
 
 class Sozlama(Base):

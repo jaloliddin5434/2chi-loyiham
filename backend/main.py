@@ -551,10 +551,15 @@ def kunlik_statistika(db: Session = Depends(get_db), current_user: dict = Depend
     bugun = date.today()
 
     mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= bugun).count()
+    tugallangan_soni = db.query(Hujjat).filter(
+        Hujjat.holat == HujjatHolati.TUGALLANDI, Hujjat.created_at >= bugun
+    ).count()
+    bekor_soni = db.query(Hujjat).filter(
+        Hujjat.holat == HujjatHolati.BEKOR_QILINDI, Hujjat.created_at >= bugun
+    ).count()
 
     from models import Navbat as NavbatModel
     navbat_soni = db.query(NavbatModel).filter(NavbatModel.tugallandi == False).count()
-    tugallangan_soni = db.query(NavbatModel).filter(NavbatModel.tugallandi == True).count()
 
     natijalar = db.query(
         Hujjat.mahsulot_id,
@@ -582,6 +587,7 @@ def kunlik_statistika(db: Session = Depends(get_db), current_user: dict = Depend
         "sana": str(bugun),
         "mashinalar_soni": mashinalar_soni,
         "tugallanganlar_soni": tugallangan_soni,
+        "bekor_soni": bekor_soni,
         "navbat_soni": navbat_soni,
         "chigit": natija.get(1, bosh),
         "chiganoq": {"soni": natija.get(2, bosh)["soni"], "tonnaj": natija.get(2, bosh)["tonnaj"]},
@@ -597,6 +603,12 @@ def haftalik_statistika(db: Session = Depends(get_db), current_user: dict = Depe
     hafta_boshi = bugun - timedelta(days=7)
 
     mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= hafta_boshi).count()
+    tugallangan_soni = db.query(Hujjat).filter(
+        Hujjat.holat == HujjatHolati.TUGALLANDI, Hujjat.created_at >= hafta_boshi
+    ).count()
+    bekor_soni = db.query(Hujjat).filter(
+        Hujjat.holat == HujjatHolati.BEKOR_QILINDI, Hujjat.created_at >= hafta_boshi
+    ).count()
 
     natijalar = db.query(
         Hujjat.mahsulot_id,
@@ -622,6 +634,8 @@ def haftalik_statistika(db: Session = Depends(get_db), current_user: dict = Depe
         "dan": str(hafta_boshi),
         "gacha": str(bugun),
         "mashinalar_soni": mashinalar_soni,
+        "tugallanganlar_soni": tugallangan_soni,
+        "bekor_soni": bekor_soni,
         "chigit": natija.get(1, bosh),
         "chiganoq": natija.get(2, bosh),
         "pochog": natija.get(3, bosh),
@@ -635,6 +649,12 @@ def oylik_statistika(db: Session = Depends(get_db), current_user: dict = Depends
     oy_boshi = bugun.replace(day=1)
 
     mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= oy_boshi).count()
+    tugallangan_soni = db.query(Hujjat).filter(
+        Hujjat.holat == HujjatHolati.TUGALLANDI, Hujjat.created_at >= oy_boshi
+    ).count()
+    bekor_soni = db.query(Hujjat).filter(
+        Hujjat.holat == HujjatHolati.BEKOR_QILINDI, Hujjat.created_at >= oy_boshi
+    ).count()
 
     natijalar = db.query(
         Hujjat.mahsulot_id,
@@ -661,6 +681,8 @@ def oylik_statistika(db: Session = Depends(get_db), current_user: dict = Depends
     return {
         "oy": str(oy_boshi),
         "mashinalar_soni": mashinalar_soni,
+        "tugallanganlar_soni": tugallangan_soni,
+        "bekor_soni": bekor_soni,
         "chigit": natija.get(1, bosh),
         "chiganoq": {"soni": natija.get(2, bosh)["soni"], "tonnaj": natija.get(2, bosh)["tonnaj"]},
         "pochog": {"soni": natija.get(3, bosh)["soni"], "tonnaj": natija.get(3, bosh)["tonnaj"]},
@@ -679,6 +701,12 @@ def mavsum_statistika(db: Session = Depends(get_db), current_user: dict = Depend
         mavsum_boshi = date(bugun.year - 1, 8, 1)
 
     mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= mavsum_boshi).count()
+    tugallangan_soni = db.query(Hujjat).filter(
+        Hujjat.holat == HujjatHolati.TUGALLANDI, Hujjat.created_at >= mavsum_boshi
+    ).count()
+    bekor_soni = db.query(Hujjat).filter(
+        Hujjat.holat == HujjatHolati.BEKOR_QILINDI, Hujjat.created_at >= mavsum_boshi
+    ).count()
 
     natijalar = db.query(
         Hujjat.mahsulot_id,
@@ -705,6 +733,8 @@ def mavsum_statistika(db: Session = Depends(get_db), current_user: dict = Depend
     return {
         "mavsum_boshi": str(mavsum_boshi),
         "mashinalar_soni": mashinalar_soni,
+        "tugallanganlar_soni": tugallangan_soni,
+        "bekor_soni": bekor_soni,
         "chigit": natija.get(1, bosh),
         "chiganoq": {"soni": natija.get(2, bosh)["soni"], "tonnaj": natija.get(2, bosh)["tonnaj"]},
         "pochog": {"soni": natija.get(3, bosh)["soni"], "tonnaj": natija.get(3, bosh)["tonnaj"]},

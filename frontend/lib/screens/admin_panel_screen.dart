@@ -35,6 +35,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Map<String, dynamic> kunlikStat = {};
   Map<String, dynamic> haftalikStat = {};
   Map<String, dynamic> oylikStat = {};
+  Map<String, dynamic> mavsumStat = {};
   List<dynamic> kunlikGrafik = [];
   List<dynamic> oylikGrafik = [];
   List<dynamic> mavsumGrafik = [];
@@ -178,6 +179,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       final kunlik = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/kunlik'), headers: ApiService.authHeaders());
       final haftalik = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/haftalik'), headers: ApiService.authHeaders());
       final oylik = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/oylik'), headers: ApiService.authHeaders());
+      final mavsum = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/mavsum'), headers: ApiService.authHeaders());
       if (mounted) {
         setState(() {
           backendNavbat = navbatData;
@@ -188,6 +190,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             haftalikStat = jsonDecode(utf8.decode(haftalik.bodyBytes));
          if (oylik.statusCode == 200)
             oylikStat = jsonDecode(utf8.decode(oylik.bodyBytes));
+          if (mavsum.statusCode == 200)
+            mavsumStat = jsonDecode(utf8.decode(mavsum.bodyBytes));
         });
         final kunlikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/kunlik'), headers: ApiService.authHeaders());
         if (kunlikG.statusCode == 200)
@@ -512,6 +516,8 @@ Future<void> hujjatlarniYukla() async {
     final cardColor = kechagiRejim ? const Color(0xFF0F2A0F) : Colors.white;
     final navbat = backendNavbat;
     final tugallanganlar = backendTugallangan;
+    final joriyStat = [kunlikStat, haftalikStat, oylikStat, mavsumStat][tanlanganTab];
+    final davrSuffix = ['ta bugun', 'ta shu hafta', 'ta shu oy', 'ta shu mavsum'][tanlanganTab];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(14),
@@ -562,13 +568,13 @@ Future<void> hujjatlarniYukla() async {
           mainAxisSpacing: 10,
           childAspectRatio: 1.6,
           children: [
-           _statCard("Mashinalar", "${kunlikStat['mashinalar_soni'] ?? 0}",
-                "ta bugun", Icons.local_shipping, greenLight),
-            _statCard("Navbatda", "${kunlikStat['navbat_soni'] ?? 0}",
+           _statCard("Mashinalar", "${joriyStat['mashinalar_soni'] ?? 0}",
+                davrSuffix, Icons.local_shipping, greenLight),
+            _statCard("Navbatda", "${navbat.length}",
                 "ta kutmoqda", Icons.hourglass_top, goldColor),
-            _statCard("Tugallandi", "${kunlikStat['tugallanganlar_soni'] ?? 0}",
-                "ta bugun", Icons.check_circle, blueColor),
-            _statCard("Bekor", "${navbat.where((h) => h['holat'] == 'bekor').length}",
+            _statCard("Tugallandi", "${joriyStat['tugallanganlar_soni'] ?? 0}",
+                davrSuffix, Icons.check_circle, blueColor),
+            _statCard("Bekor", "${joriyStat['bekor_soni'] ?? 0}",
                 "ta yozuv", Icons.cancel, redColor),
           ],
         ),

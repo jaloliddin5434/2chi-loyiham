@@ -756,53 +756,60 @@ def backup_royxat(current_user: dict = Depends(require_role("admin"))):
   # ============ AVTOMATIK BACKUP ============
 import threading
 
+TELEGRAM_SOZLAMA_KALIT = "oxirgi_telegram_hisobot_sanasi"
+
 def avtomatik_telegram_hisobot():
     import time
+    from datetime import date
+    from models import Sozlama
     while True:
         now = datetime.now()
-        if now.hour == 15 and now.minute == 58:
+        if (now.hour, now.minute) >= (15, 58):
+            db = SessionLocal()
             try:
-                from datetime import date
-                db = next(get_db())
                 bugun = date.today()
-                mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= bugun).count()
+                sozlama = db.query(Sozlama).filter(
+                    Sozlama.kalit == TELEGRAM_SOZLAMA_KALIT).first()
+                bugun_yuborilgan = sozlama is not None and sozlama.qiymat == str(bugun)
+                if not bugun_yuborilgan:
+                    mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= bugun).count()
 
-                if bugun.month >= 8:
-                    mavsum_boshi = datetime(bugun.year, 8, 1)
-                else:
-                    mavsum_boshi = datetime(bugun.year - 1, 8, 1)
+                    if bugun.month >= 8:
+                        mavsum_boshi = datetime(bugun.year, 8, 1)
+                    else:
+                        mavsum_boshi = datetime(bugun.year - 1, 8, 1)
 
-                bosh3 = (0, 0.0, 0.0)
+                    bosh3 = (0, 0.0, 0.0)
 
-                bugun_natijalar = db.query(
-                    Hujjat.mahsulot_id,
-                    func.count(func.distinct(Hujjat.id)).label('soni'),
-                    func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-                    func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
-                ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
-                    Hujjat.created_at >= bugun
-                ).group_by(Hujjat.mahsulot_id).all()
-                yb = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in bugun_natijalar}
-                chigit_son, chigit_netto, chigit_kond = yb.get(1, bosh3)
-                chiganoq_son, chiganoq_netto, _ = yb.get(2, bosh3)
-                pochog_son, pochog_netto, _ = yb.get(3, bosh3)
-                patoz_son, patoz_netto, _ = yb.get(4, bosh3)
+                    bugun_natijalar = db.query(
+                        Hujjat.mahsulot_id,
+                        func.count(func.distinct(Hujjat.id)).label('soni'),
+                        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+                        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
+                    ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
+                        Hujjat.created_at >= bugun
+                    ).group_by(Hujjat.mahsulot_id).all()
+                    yb = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in bugun_natijalar}
+                    chigit_son, chigit_netto, chigit_kond = yb.get(1, bosh3)
+                    chiganoq_son, chiganoq_netto, _ = yb.get(2, bosh3)
+                    pochog_son, pochog_netto, _ = yb.get(3, bosh3)
+                    patoz_son, patoz_netto, _ = yb.get(4, bosh3)
 
-                mavsum_natijalar = db.query(
-                    Hujjat.mahsulot_id,
-                    func.count(func.distinct(Hujjat.id)).label('soni'),
-                    func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-                    func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
-                ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
-                    Hujjat.created_at >= mavsum_boshi
-                ).group_by(Hujjat.mahsulot_id).all()
-                ym = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in mavsum_natijalar}
-                mchigit_son, mchigit_netto, mchigit_kond = ym.get(1, bosh3)
-                mchiganoq_son, mchiganoq_netto, _ = ym.get(2, bosh3)
-                mpochog_son, mpochog_netto, _ = ym.get(3, bosh3)
-                mpatoz_son, mpatoz_netto, _ = ym.get(4, bosh3)
+                    mavsum_natijalar = db.query(
+                        Hujjat.mahsulot_id,
+                        func.count(func.distinct(Hujjat.id)).label('soni'),
+                        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+                        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
+                    ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
+                        Hujjat.created_at >= mavsum_boshi
+                    ).group_by(Hujjat.mahsulot_id).all()
+                    ym = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in mavsum_natijalar}
+                    mchigit_son, mchigit_netto, mchigit_kond = ym.get(1, bosh3)
+                    mchiganoq_son, mchiganoq_netto, _ = ym.get(2, bosh3)
+                    mpochog_son, mpochog_netto, _ = ym.get(3, bosh3)
+                    mpatoz_son, mpatoz_netto, _ = ym.get(4, bosh3)
 
-                matn = f"""📊 <b>KUNLIK HISOBOT</b>
+                    matn = f"""📊 <b>KUNLIK HISOBOT</b>
 📅 Sana: {bugun}
 
 🚛 Jami: <b>{mashinalar_soni} ta</b>
@@ -820,36 +827,66 @@ def avtomatik_telegram_hisobot():
 🔴 Patoz: {mpatoz_son} ta | {mpatoz_netto} t
 
 🏭 Hazorasp Tekstil tarozi tizimi"""
-                telegram_xabar_yuborish(matn)
-                print(f"Avtomatik hisobot yuborildi: {bugun}")
+                    muvaffaqiyatli = telegram_xabar_yuborish(matn)
+                    if muvaffaqiyatli:
+                        if sozlama:
+                            sozlama.qiymat = str(bugun)
+                            sozlama.updated_at = datetime.now()
+                        else:
+                            db.add(Sozlama(kalit=TELEGRAM_SOZLAMA_KALIT, qiymat=str(bugun)))
+                        db.commit()
+                        print(f"Avtomatik hisobot yuborildi: {bugun}")
+                    else:
+                        print("Hisobot yuborilmadi, keyingi urinishda qayta sinaladi")
             except Exception as e:
                 print(f"Hisobot xato: {e}")
-            time.sleep(61)
+                tizim_xatosini_saqla("telegram_hisobot", str(e))
+            finally:
+                db.close()
         time.sleep(30)
 
 
+BACKUP_SOZLAMA_KALIT = "oxirgi_backup_sanasi"
+
 def avtomatik_backup():
     import time
+    import subprocess
+    from datetime import date
+    from models import Sozlama
     while True:
-        now = datetime.now()
-        # Har kuni soat 23:00 da
-        if now.hour == 23 and now.minute == 0:
-            try:
+        db = SessionLocal()
+        try:
+            bugun = date.today()
+            sozlama = db.query(Sozlama).filter(
+                Sozlama.kalit == BACKUP_SOZLAMA_KALIT).first()
+            bugun_bajarilgan = sozlama is not None and sozlama.qiymat == str(bugun)
+            if not bugun_bajarilgan:
                 backup_dir = r"C:\hazorasp_tarozi\backup"
                 os.makedirs(backup_dir, exist_ok=True)
-                sana = now.strftime("%Y-%m-%d_%H-%M-%S")
+                sana = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 backup_fayl = os.path.join(backup_dir, f"backup_{sana}.sql")
                 pg_dump = PG_DUMP_YOL
-                import subprocess
-                subprocess.run(
+                natija = subprocess.run(
                     [pg_dump, "-U", "postgres", "-p", "5433", "-d", "hazorasp_tarozi", "-f", backup_fayl],
                     env={**os.environ, "PGPASSWORD": "Xorazm2026"}
                 )
-                print(f"Avtomatik backup: {backup_fayl}")
-            except Exception as e:
-                print(f"Backup xato: {e}")
-                tizim_xatosini_saqla("backup", str(e))
-            time.sleep(61)
+                if natija.returncode == 0:
+                    if sozlama:
+                        sozlama.qiymat = str(bugun)
+                        sozlama.updated_at = datetime.now()
+                    else:
+                        db.add(Sozlama(kalit=BACKUP_SOZLAMA_KALIT, qiymat=str(bugun)))
+                    db.commit()
+                    print(f"Avtomatik backup: {backup_fayl}")
+                else:
+                    xato = f"pg_dump xato kod bilan tugadi: {natija.returncode}"
+                    print(f"Backup xato: {xato}")
+                    tizim_xatosini_saqla("backup", xato)
+        except Exception as e:
+            print(f"Backup xato: {e}")
+            tizim_xatosini_saqla("backup", str(e))
+        finally:
+            db.close()
         time.sleep(30)
 
 # Serverni ishga tushirganda backup thread boshlash
@@ -997,11 +1034,11 @@ def tizim_xatosini_saqla(turi: str, xabar: str):
 # ============ TELEGRAM BOT ============
 import requests as req
 
-def telegram_xabar_yuborish(matn: str):
+def telegram_xabar_yuborish(matn: str) -> bool:
     try:
         from config import TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
         if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-            return
+            return False
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         javob = req.post(url, json={
             "chat_id": TELEGRAM_CHAT_ID,
@@ -1009,9 +1046,11 @@ def telegram_xabar_yuborish(matn: str):
             "parse_mode": "HTML"
         })
         javob.raise_for_status()
+        return True
     except Exception as e:
         print(f"Telegram xato: {e}")
         tizim_xatosini_saqla("telegram", str(e))
+        return False
 
 hisobot_thread = threading.Thread(target=avtomatik_telegram_hisobot, daemon=True)
 hisobot_thread.start()

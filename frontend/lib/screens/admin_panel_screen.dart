@@ -22,6 +22,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
    int tanlanganTab = 0;
   int tanlanganStatTab = 0;
+  List<dynamic> dashTonnajChigit = [];
+  List<dynamic> dashTonnajChiganoq = [];
+  bool dashTonnajYuklanmoqda = false;
   int tanlanganSidebar = 0;
   int tanlanganMahsulotId = 1;
   String sanadan = '';
@@ -117,6 +120,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         const Duration(seconds: 1), (_) => _soatniYanila());
     hujjatlarniYukla();
     _sozlamalarYukla();
+    dashboardTonnajniYukla();
     yangilanishTimer = Timer.periodic(
         const Duration(seconds: 3), (_) {
       if (mounted) {
@@ -527,7 +531,10 @@ Future<void> hujjatlarniYukla() async {
               final active = tanlanganTab == e.key;
               return Expanded(
                 child: GestureDetector(
-                  onTap: () => setState(() => tanlanganTab = e.key),
+                  onTap: () {
+                    setState(() => tanlanganTab = e.key);
+                    dashboardTonnajniYukla();
+                  },
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
@@ -1373,6 +1380,21 @@ Widget _mashinaGrafik() {
                 getDrawingHorizontalLine: (v) => FlLine(
                     color: const Color(0xFFE8F4E0), strokeWidth: 1)),
             borderData: FlBorderData(show: false),
+            barTouchData: BarTouchData(
+              touchTooltipData: BarTouchTooltipData(
+                getTooltipColor: (group) => const Color(0xFF0D1B2A),
+                getTooltipItem: (group, groupIndex, rod, rodIndex) =>
+                    BarTooltipItem(
+                  rod.toY == rod.toY.roundToDouble()
+                      ? rod.toY.toInt().toString()
+                      : rod.toY.toStringAsFixed(2),
+                  const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12),
+                ),
+              ),
+            ),
             barGroups: chigitData.asMap().entries.map((e) =>
                 BarChartGroupData(x: e.key, barRods: [
                   BarChartRodData(
@@ -1404,6 +1426,51 @@ Widget _mashinaGrafik() {
 
   Widget _tonnajGrafik() {
     final cardColor = kechagiRejim ? const Color(0xFF0F2A0F) : Colors.white;
+    final davr = _dashDavrlar[tanlanganTab];
+
+    if (dashTonnajYuklanmoqda) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: cardColor,
+            border: Border.all(color: cardBorder),
+            borderRadius: BorderRadius.circular(16)),
+        child: const Center(
+            child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 50),
+                child: CircularProgressIndicator())),
+      );
+    }
+    if (dashTonnajChigit.isEmpty && dashTonnajChiganoq.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: cardColor,
+            border: Border.all(color: cardBorder),
+            borderRadius: BorderRadius.circular(16)),
+        child: const Center(
+            child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 50),
+                child: Text("Ma'lumot yo'q",
+                    style: TextStyle(color: Colors.grey)))),
+      );
+    }
+
+    final chigitData =
+        dashTonnajChigit.map((e) => (e['tonnaj'] as num).toDouble()).toList();
+    final chiganoqData = dashTonnajChiganoq
+        .map((e) => (e['tonnaj'] as num).toDouble())
+        .toList();
+    final labellar = dashTonnajChigit
+        .map((e) => _grafikDetalLabel(e as Map<String, dynamic>, davr))
+        .toList();
+
+    final barchaQiymatlar = [...chigitData, ...chiganoqData];
+    final engKatta = barchaQiymatlar.fold(0.0, (a, b) => a > b ? a : b);
+    final engKichik = barchaQiymatlar.fold(0.0, (a, b) => a < b ? a : b);
+    final maxY = engKatta <= 0 ? 1.0 : engKatta * 1.2;
+    final minY = engKichik >= 0 ? 0.0 : engKichik * 1.2;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1414,7 +1481,7 @@ Widget _mashinaGrafik() {
           children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-          cardLabel(Icons.show_chart, "MAHSULOT TONNAJI",
+          cardLabel(Icons.show_chart, "MAHSULOT TONNAJI (t)",
               color: blueColor),
           Row(children: [
             _legend(goldColor, "Chigit"),
@@ -1426,37 +1493,64 @@ Widget _mashinaGrafik() {
         SizedBox(
           height: 150,
           child: LineChart(LineChartData(
+            minY: minY,
+            maxY: maxY,
             gridData: FlGridData(show: true,
                 getDrawingHorizontalLine: (v) => FlLine(
                     color: const Color(0xFFE8F4E0), strokeWidth: 1)),
             titlesData: FlTitlesData(
               leftTitles: AxisTitles(sideTitles: SideTitles(
                   showTitles: true, reservedSize: 36,
-                  getTitlesWidget: (v, m) => Text(v.toInt().toString(),
+                  getTitlesWidget: (v, m) => Text(
+                      v == v.roundToDouble()
+                          ? v.toInt().toString()
+                          : v.toStringAsFixed(1),
                       style: const TextStyle(
                           fontSize: 10, color: Colors.grey)))),
-              bottomTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false)),
+              bottomTitles: AxisTitles(sideTitles: SideTitles(
+                  showTitles: true, reservedSize: 22,
+                  getTitlesWidget: (v, m) {
+                    final i = v.toInt();
+                    if (i < 0 || i >= labellar.length) return const Text('');
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(labellar[i],
+                          style: const TextStyle(fontSize: 9, color: Colors.grey)),
+                    );
+                  })),
               topTitles: const AxisTitles(
                   sideTitles: SideTitles(showTitles: false)),
               rightTitles: const AxisTitles(
                   sideTitles: SideTitles(showTitles: false)),
             ),
             borderData: FlBorderData(show: false),
+            lineTouchData: LineTouchData(
+              touchTooltipData: LineTouchTooltipData(
+                getTooltipColor: (spot) => const Color(0xFF0D1B2A),
+                getTooltipItems: (touchedSpots) => touchedSpots.map((s) =>
+                    LineTooltipItem(
+                      s.y == s.y.roundToDouble()
+                          ? s.y.toInt().toString()
+                          : s.y.toStringAsFixed(2),
+                      const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12),
+                    )).toList(),
+              ),
+            ),
             lineBarsData: [
               LineChartBarData(
-                spots: const [FlSpot(0, 220), FlSpot(1, 240),
-                  FlSpot(2, 210), FlSpot(3, 260),
-                  FlSpot(4, 235), FlSpot(5, 275), FlSpot(6, 280)],
+                spots: chigitData.asMap().entries
+                    .map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
                 isCurved: true, color: goldColor, barWidth: 2,
                 dotData: const FlDotData(show: true),
                 belowBarData: BarAreaData(show: true,
                     color: goldColor.withValues(alpha: 0.1)),
               ),
               LineChartBarData(
-                spots: const [FlSpot(0, 120), FlSpot(1, 130),
-                  FlSpot(2, 115), FlSpot(3, 140),
-                  FlSpot(4, 128), FlSpot(5, 148), FlSpot(6, 150)],
+                spots: chiganoqData.asMap().entries
+                    .map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
                 isCurved: true, color: greenLight, barWidth: 2,
                 dotData: const FlDotData(show: true),
                 belowBarData: BarAreaData(show: true,
@@ -2509,22 +2603,24 @@ Widget _mashinaGrafik() {
     ['mavsum', 'Mavsum'],
   ];
 
+  static const List<String> _dashDavrlar = ['kunlik', 'haftalik', 'oylik', 'mavsum'];
+
+  Future<List<dynamic>> _grafikDetalChaqir(String davr, String mahsulot) {
+    switch (davr) {
+      case 'haftalik':
+        return ApiService.getGrafikDetalHaftalik(mahsulot);
+      case 'oylik':
+        return ApiService.getGrafikDetalOylik(mahsulot);
+      case 'mavsum':
+        return ApiService.getGrafikDetalMavsum(mahsulot);
+      default:
+        return ApiService.getGrafikDetalKunlik(mahsulot);
+    }
+  }
+
   Future<void> grafikDetalniYukla() async {
     setState(() => grafikDetalYuklanmoqda = true);
-    List<dynamic> natija;
-    switch (tanlanganStatDavr) {
-      case 'haftalik':
-        natija = await ApiService.getGrafikDetalHaftalik(tanlanganStatMahsulot);
-        break;
-      case 'oylik':
-        natija = await ApiService.getGrafikDetalOylik(tanlanganStatMahsulot);
-        break;
-      case 'mavsum':
-        natija = await ApiService.getGrafikDetalMavsum(tanlanganStatMahsulot);
-        break;
-      default:
-        natija = await ApiService.getGrafikDetalKunlik(tanlanganStatMahsulot);
-    }
+    final natija = await _grafikDetalChaqir(tanlanganStatDavr, tanlanganStatMahsulot);
     if (!mounted) return;
     setState(() {
       grafikDetalData = natija;
@@ -2532,8 +2628,23 @@ Widget _mashinaGrafik() {
     });
   }
 
-  String _grafikDetalLabel(Map<String, dynamic> bucket) {
-    switch (tanlanganStatDavr) {
+  Future<void> dashboardTonnajniYukla() async {
+    setState(() => dashTonnajYuklanmoqda = true);
+    final davr = _dashDavrlar[tanlanganTab];
+    final natijalar = await Future.wait([
+      _grafikDetalChaqir(davr, 'Chigit'),
+      _grafikDetalChaqir(davr, 'Chiganoq'),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      dashTonnajChigit = natijalar[0];
+      dashTonnajChiganoq = natijalar[1];
+      dashTonnajYuklanmoqda = false;
+    });
+  }
+
+  String _grafikDetalLabel(Map<String, dynamic> bucket, [String? davr]) {
+    switch (davr ?? tanlanganStatDavr) {
       case 'haftalik':
         const kunlar = ['', 'Dush', 'Sesh', 'Chor', 'Pay', 'Jum', 'Shan', 'Yak'];
         return kunlar[bucket['kun_raqami'] as int];
@@ -2600,6 +2711,21 @@ Widget _mashinaGrafik() {
                 getDrawingHorizontalLine: (v) => FlLine(
                     color: const Color(0xFFE8F4E0), strokeWidth: 1)),
             borderData: FlBorderData(show: false),
+            barTouchData: BarTouchData(
+              touchTooltipData: BarTouchTooltipData(
+                getTooltipColor: (group) => const Color(0xFF0D1B2A),
+                getTooltipItem: (group, groupIndex, rod, rodIndex) =>
+                    BarTooltipItem(
+                  rod.toY == rod.toY.roundToDouble()
+                      ? rod.toY.toInt().toString()
+                      : rod.toY.toStringAsFixed(2),
+                  const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13),
+                ),
+              ),
+            ),
             barGroups: qiymatlar.asMap().entries.map((e) =>
                 BarChartGroupData(x: e.key, barRods: [
                   BarChartRodData(
@@ -3722,7 +3848,8 @@ Widget _mashinaGrafik() {
               color: sidebarColor,
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Column(children: [
-                _sidebarIcon(Icons.dashboard, 0, "Dashboard"),
+                _sidebarIcon(Icons.dashboard, 0, "Dashboard",
+                    onExtraTap: dashboardTonnajniYukla),
                 _sidebarIcon(
                     Icons.description_outlined, 1, "Hujjatlar"),
                 _sidebarIcon(Icons.bar_chart, 2, "Statistika",

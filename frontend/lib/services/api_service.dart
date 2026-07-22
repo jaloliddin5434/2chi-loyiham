@@ -277,6 +277,31 @@ static const String baseUrl = "http://10.112.30.77:8001";
     return [];
   }
 
+  static Future<List<dynamic>> _grafikDetalOl(String davr, String mahsulot) async {
+    try {
+      final uri = Uri.parse('$baseUrl/statistika/grafik-detal/$davr')
+          .replace(queryParameters: {'mahsulot': mahsulot});
+      final response = await http.get(uri, headers: _headers());
+      _check401(response);
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+    } catch (e) {}
+    return [];
+  }
+
+  static Future<List<dynamic>> getGrafikDetalKunlik(String mahsulot) =>
+      _grafikDetalOl('kunlik', mahsulot);
+
+  static Future<List<dynamic>> getGrafikDetalHaftalik(String mahsulot) =>
+      _grafikDetalOl('haftalik', mahsulot);
+
+  static Future<List<dynamic>> getGrafikDetalOylik(String mahsulot) =>
+      _grafikDetalOl('oylik', mahsulot);
+
+  static Future<List<dynamic>> getGrafikDetalMavsum(String mahsulot) =>
+      _grafikDetalOl('mavsum', mahsulot);
+
   static Future<void> rasmOl({
     required String mashinaRaqami,
     required String mahsulotNomi,

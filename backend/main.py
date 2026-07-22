@@ -1495,3 +1495,159 @@ def grafik_mavsum(db: Session = Depends(get_db), current_user: dict = Depends(ge
         })
         oy = date(oy.year + (oy.month // 12), (oy.month % 12) + 1, 1)
     return natija
+
+# ============ GRAFIK-DETAL (mahsulot nomi + davr bo'yicha) ============
+
+def _mahsulot_id_topish(db: Session, nom: str) -> int:
+    mahsulot = db.query(Mahsulot).filter(func.lower(Mahsulot.nom) == nom.lower()).first()
+    if not mahsulot:
+        raise HTTPException(status_code=404, detail=f"'{nom}' nomli mahsulot topilmadi!")
+    return mahsulot.id
+
+@app.get("/statistika/grafik-detal/kunlik")
+def grafik_detal_kunlik(mahsulot: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    from datetime import date, timedelta
+    mahsulot_id = _mahsulot_id_topish(db, mahsulot)
+
+    bugun = date.today()
+    ertaga = bugun + timedelta(days=1)
+
+    soat_ustuni = func.date_part('hour', Hujjat.created_at)
+    qatorlar = db.query(
+        soat_ustuni.label('soat'),
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+    ).outerjoin(
+        Olchov, Olchov.hujjat_id == Hujjat.id
+    ).filter(
+        Hujjat.mahsulot_id == mahsulot_id,
+        Hujjat.created_at >= bugun,
+        Hujjat.created_at < ertaga,
+    ).group_by(soat_ustuni).all()
+
+    soat_dict = {int(row.soat): (row.soni, row.jami_netto) for row in qatorlar}
+
+    natija = []
+    for soat in range(24):
+        soni, jami_netto = soat_dict.get(soat, (0, 0))
+        natija.append({
+            "soat": soat,
+            "soni": soni,
+            "tonnaj": round(jami_netto / 1000, 2),
+        })
+    return natija
+
+@app.get("/statistika/grafik-detal/haftalik")
+def grafik_detal_haftalik(mahsulot: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    from datetime import date, timedelta
+    mahsulot_id = _mahsulot_id_topish(db, mahsulot)
+
+    bugun = date.today()
+    hafta_boshi = bugun - timedelta(days=bugun.weekday())
+    keyingi_hafta = hafta_boshi + timedelta(days=7)
+
+    kun_ustuni = func.date_part('isodow', Hujjat.created_at)
+    qatorlar = db.query(
+        kun_ustuni.label('kun'),
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+    ).outerjoin(
+        Olchov, Olchov.hujjat_id == Hujjat.id
+    ).filter(
+        Hujjat.mahsulot_id == mahsulot_id,
+        Hujjat.created_at >= hafta_boshi,
+        Hujjat.created_at < keyingi_hafta,
+    ).group_by(kun_ustuni).all()
+
+    kun_dict = {int(row.kun): (row.soni, row.jami_netto) for row in qatorlar}
+
+    natija = []
+    for kun_raqami in range(1, 8):
+        soni, jami_netto = kun_dict.get(kun_raqami, (0, 0))
+        natija.append({
+            "kun_raqami": kun_raqami,
+            "soni": soni,
+            "tonnaj": round(jami_netto / 1000, 2),
+        })
+    return natija
+
+@app.get("/statistika/grafik-detal/oylik")
+def grafik_detal_oylik(mahsulot: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    from datetime import date
+    mahsulot_id = _mahsulot_id_topish(db, mahsulot)
+
+    bugun = date.today()
+    oy_boshi = bugun.replace(day=1)
+    if oy_boshi.month == 12:
+        keyingi_oy = date(oy_boshi.year + 1, 1, 1)
+    else:
+        keyingi_oy = date(oy_boshi.year, oy_boshi.month + 1, 1)
+    kunlar_soni = (keyingi_oy - oy_boshi).days
+
+    kun_ustuni = func.date_part('day', Hujjat.created_at)
+    qatorlar = db.query(
+        kun_ustuni.label('kun'),
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+    ).outerjoin(
+        Olchov, Olchov.hujjat_id == Hujjat.id
+    ).filter(
+        Hujjat.mahsulot_id == mahsulot_id,
+        Hujjat.created_at >= oy_boshi,
+        Hujjat.created_at < keyingi_oy,
+    ).group_by(kun_ustuni).all()
+
+    kun_dict = {int(row.kun): (row.soni, row.jami_netto) for row in qatorlar}
+
+    natija = []
+    for kun in range(1, kunlar_soni + 1):
+        soni, jami_netto = kun_dict.get(kun, (0, 0))
+        natija.append({
+            "kun": kun,
+            "soni": soni,
+            "tonnaj": round(jami_netto / 1000, 2),
+        })
+    return natija
+
+@app.get("/statistika/grafik-detal/mavsum")
+def grafik_detal_mavsum(mahsulot: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    from datetime import date
+    mahsulot_id = _mahsulot_id_topish(db, mahsulot)
+
+    bugun = date.today()
+    if bugun.month >= 8:
+        mavsum_boshi = date(bugun.year, 8, 1)
+    else:
+        mavsum_boshi = date(bugun.year - 1, 8, 1)
+    mavsum_oxiri = date(mavsum_boshi.year + 1, 8, 1)
+
+    oy_ustuni = func.date_trunc('month', Hujjat.created_at)
+    qatorlar = db.query(
+        oy_ustuni.label('oy'),
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+    ).outerjoin(
+        Olchov, Olchov.hujjat_id == Hujjat.id
+    ).filter(
+        Hujjat.mahsulot_id == mahsulot_id,
+        Hujjat.created_at >= mavsum_boshi,
+        Hujjat.created_at < mavsum_oxiri,
+    ).group_by(oy_ustuni).all()
+
+    oy_dict = {(row.oy.year, row.oy.month): (row.soni, row.jami_netto) for row in qatorlar}
+
+    natija = []
+    oy = mavsum_boshi
+    for _ in range(12):
+        soni, jami_netto = oy_dict.get((oy.year, oy.month), (0, 0))
+        natija.append({
+            "oy": oy.month,
+            "yil": oy.year,
+            "soni": soni,
+            "tonnaj": round(jami_netto / 1000, 2),
+        })
+        if oy.month == 12:
+            oy = date(oy.year + 1, 1, 1)
+        else:
+            oy = date(oy.year, oy.month + 1, 1)
+    return natija

@@ -32,7 +32,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Map<String, dynamic> kunlikStat = {};
   Map<String, dynamic> haftalikStat = {};
   Map<String, dynamic> oylikStat = {};
- Map<String, dynamic> mavsumStat = {};
   List<dynamic> kunlikGrafik = [];
   List<dynamic> oylikGrafik = [];
   List<dynamic> mavsumGrafik = [];
@@ -50,6 +49,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   bool koproqYuklanmoqda = false;
   List<dynamic> tahrirTarixiRoyxati = [];
   bool tahrirTarixiYuklanmoqda = false;
+  String tanlanganStatMahsulot = 'Chigit';
+  String tanlanganStatDavr = 'kunlik';
+  List<dynamic> grafikDetalData = [];
+  bool grafikDetalYuklanmoqda = false;
   bool yuklanmoqda = true;
   String qidiruv = '';
   String holatFilter = 'hammasi';
@@ -182,10 +185,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
          if (oylik.statusCode == 200)
             oylikStat = jsonDecode(utf8.decode(oylik.bodyBytes));
         });
-        final mavsum = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/mavsum'), headers: ApiService.authHeaders());
-       if (mavsum.statusCode == 200)
-          setState(() => mavsumStat = jsonDecode(utf8.decode(mavsum.bodyBytes)));
-        
         final kunlikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/kunlik'), headers: ApiService.authHeaders());
         if (kunlikG.statusCode == 200)
           setState(() => kunlikGrafik = jsonDecode(utf8.decode(kunlikG.bodyBytes)));
@@ -2500,30 +2499,177 @@ Widget _mashinaGrafik() {
   }
 
 // ============ STATISTIKA ============
+  static const List<String> _statMahsulotlar = [
+    'Chigit', 'Chiganoq', "Chiganoq po'chog'i", 'Patoz'
+  ];
+  static const List<List<String>> _statDavrlar = [
+    ['kunlik', 'Kunlik'],
+    ['haftalik', 'Haftalik'],
+    ['oylik', 'Oylik'],
+    ['mavsum', 'Mavsum'],
+  ];
+
+  Future<void> grafikDetalniYukla() async {
+    setState(() => grafikDetalYuklanmoqda = true);
+    List<dynamic> natija;
+    switch (tanlanganStatDavr) {
+      case 'haftalik':
+        natija = await ApiService.getGrafikDetalHaftalik(tanlanganStatMahsulot);
+        break;
+      case 'oylik':
+        natija = await ApiService.getGrafikDetalOylik(tanlanganStatMahsulot);
+        break;
+      case 'mavsum':
+        natija = await ApiService.getGrafikDetalMavsum(tanlanganStatMahsulot);
+        break;
+      default:
+        natija = await ApiService.getGrafikDetalKunlik(tanlanganStatMahsulot);
+    }
+    if (!mounted) return;
+    setState(() {
+      grafikDetalData = natija;
+      grafikDetalYuklanmoqda = false;
+    });
+  }
+
+  String _grafikDetalLabel(Map<String, dynamic> bucket) {
+    switch (tanlanganStatDavr) {
+      case 'haftalik':
+        const kunlar = ['', 'Dush', 'Sesh', 'Chor', 'Pay', 'Jum', 'Shan', 'Yak'];
+        return kunlar[bucket['kun_raqami'] as int];
+      case 'oylik':
+        return bucket['kun'].toString();
+      case 'mavsum':
+        const oylar = ['', 'Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyun',
+          'Iyul', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek'];
+        return oylar[bucket['oy'] as int];
+      default:
+        return bucket['soat'].toString();
+    }
+  }
+
+  Widget _grafikDetalChart({
+    required String sarlavha,
+    required IconData ikonka,
+    required Color rang,
+    required List<double> qiymatlar,
+    required List<String> labellar,
+  }) {
+    final cardColor = kechagiRejim ? const Color(0xFF0F2A0F) : Colors.white;
+    final engKatta = qiymatlar.fold(0.0, (a, b) => a > b ? a : b);
+    final maxY = engKatta <= 0 ? 1.0 : engKatta * 1.2;
+    final tor = tanlanganStatDavr == 'kunlik' || tanlanganStatDavr == 'oylik';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: cardColor,
+          border: Border.all(color: cardBorder),
+          borderRadius: BorderRadius.circular(16)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        cardLabel(ikonka, sarlavha, color: rang),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 180,
+          child: BarChart(BarChartData(
+            alignment: BarChartAlignment.spaceAround,
+            maxY: maxY,
+            titlesData: FlTitlesData(
+              leftTitles: AxisTitles(sideTitles: SideTitles(
+                  showTitles: true, reservedSize: 34,
+                  getTitlesWidget: (v, m) => Text(
+                      v == v.roundToDouble()
+                          ? v.toInt().toString()
+                          : v.toStringAsFixed(1),
+                      style: const TextStyle(fontSize: 9, color: Colors.grey)))),
+              bottomTitles: AxisTitles(sideTitles: SideTitles(
+                  showTitles: true, reservedSize: 22,
+                  getTitlesWidget: (v, m) {
+                    final i = v.toInt();
+                    if (i < 0 || i >= labellar.length) return const Text('');
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(labellar[i],
+                          style: const TextStyle(fontSize: 9, color: Colors.grey)),
+                    );
+                  })),
+              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            ),
+            gridData: FlGridData(show: true,
+                getDrawingHorizontalLine: (v) => FlLine(
+                    color: const Color(0xFFE8F4E0), strokeWidth: 1)),
+            borderData: FlBorderData(show: false),
+            barGroups: qiymatlar.asMap().entries.map((e) =>
+                BarChartGroupData(x: e.key, barRods: [
+                  BarChartRodData(
+                      toY: e.value,
+                      color: rang,
+                      width: tor ? 6 : 16,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(3))),
+                ])).toList(),
+          )),
+        ),
+      ]),
+    );
+  }
+
   Widget _statistika() {
     final cardColor = kechagiRejim ? const Color(0xFF0F2A0F) : Colors.white;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(14),
       child: Column(children: [
-       // TAB TUGMALARI
+       // MAHSULOT TABLARI
         Row(children: [
-          ...['Kunlik', 'Oylik', 'Mavsum'].asMap().entries.map((e) {
-            final active = tanlanganStatTab == e.key;
+          ..._statMahsulotlar.map((nom) {
+            final active = tanlanganStatMahsulot == nom;
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
-                onTap: () => setState(() => tanlanganStatTab = e.key),
+                onTap: () {
+                  setState(() => tanlanganStatMahsulot = nom);
+                  grafikDetalniYukla();
+                },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: active ? blueColor : Colors.transparent,
+                    border: Border.all(color: active ? blueColor : cardBorder),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(nom,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                          color: active ? Colors.white : muted)),
+                ),
+              ),
+            );
+          }),
+        ]),
+        const SizedBox(height: 8),
+        // DAVR TABLARI
+        Row(children: [
+          ..._statDavrlar.map((d) {
+            final active = tanlanganStatDavr == d[0];
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() => tanlanganStatDavr = d[0]);
+                  grafikDetalniYukla();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                   decoration: BoxDecoration(
                     color: active ? greenLight : Colors.transparent,
                     border: Border.all(color: active ? greenLight : cardBorder),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Text(e.value,
+                  child: Text(d[1],
                       style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                           color: active ? Colors.white : muted)),
                 ),
@@ -2549,167 +2695,54 @@ Widget _mashinaGrafik() {
               "${haftalikStat['jami_tonnaj'] ?? 0}", "tonna",
               Icons.scale, redColor)),
         ]),
-       const SizedBox(height: 12),
-        if (tanlanganStatTab == 0)
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: cardColor,
-              border: Border.all(color: cardBorder),
-              borderRadius: BorderRadius.circular(16)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            cardLabel(Icons.today, "BUGUNGI STATISTIKA", color: blueColor),
-            const SizedBox(height: 16),
-            Row(children: [
-              Expanded(child: _mahsulotKarta("Chigit",
-                  kunlikStat['chigit']?['soni'] ?? 0,
-                  "${kunlikStat['chigit']?['tonnaj'] ?? 0} t",
-                  goldColor, goldBg, goldBorder,
-                  konditsion: "${kunlikStat['chigit']?['konditsion'] ?? 0} t")),
-              const SizedBox(width: 12),
-              Expanded(child: _mahsulotKarta("Chiganoq",
-                  kunlikStat['chiganoq']?['soni'] ?? 0,
-                  "${kunlikStat['chiganoq']?['tonnaj'] ?? 0} t",
-                  greenLight, greenBg, greenBorder)),
-            ]),
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: _mahsulotKarta("Chiganoq po'chog'i",
-                  kunlikStat['pochog']?['soni'] ?? 0,
-                  "${kunlikStat['pochog']?['tonnaj'] ?? 0} t",
-                  blueColor, blueBg, blueBorder)),
-              const SizedBox(width: 12),
-              Expanded(child: _mahsulotKarta("Patoz",
-                  kunlikStat['patoz']?['soni'] ?? 0,
-                  "${kunlikStat['patoz']?['tonnaj'] ?? 0} t",
-                  redColor, redBg, redBorder)),
-            ]),
-          ]),
-        ),
-       const SizedBox(height: 12),
-        if (tanlanganStatTab == 1)
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: cardColor,
-              border: Border.all(color: cardBorder),
-              borderRadius: BorderRadius.circular(16)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            cardLabel(Icons.calendar_month, "OYLIK STATISTIKA", color: greenLight),
-            const SizedBox(height: 16),
-           Row(children: [
-              Expanded(child: _mahsulotKarta("Chigit",
-                  oylikStat['chigit']?['soni'] ?? 0,
-                  "${oylikStat['chigit']?['tonnaj'] ?? 0} t",
-                  goldColor, goldBg, goldBorder,
-                  konditsion: "${oylikStat['chigit']?['konditsion'] ?? 0} t")),
-              const SizedBox(width: 12),
-              Expanded(child: _mahsulotKarta("Chiganoq",
-                  oylikStat['chiganoq']?['soni'] ?? 0,
-                  "${oylikStat['chiganoq']?['tonnaj'] ?? 0} t",
-                  greenLight, greenBg, greenBorder)),
-            ]),
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: _mahsulotKarta("Chiganoq po'chog'i",
-                  oylikStat['pochog']?['soni'] ?? 0,
-                  "${oylikStat['pochog']?['tonnaj'] ?? 0} t",
-                  blueColor, blueBg, blueBorder)),
-              const SizedBox(width: 12),
-              Expanded(child: _mahsulotKarta("Patoz",
-                  oylikStat['patoz']?['soni'] ?? 0,
-                  "${oylikStat['patoz']?['tonnaj'] ?? 0} t",
-                  redColor, redBg, redBorder)),
-            ]),
-          ]),
-        ),
-       const SizedBox(height: 12),
-        if (tanlanganStatTab == 2)
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: cardColor,
-              border: Border.all(color: cardBorder),
-              borderRadius: BorderRadius.circular(16)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            cardLabel(Icons.calendar_today, "MAVSUM STATISTIKASI", color: goldColor),
-            const SizedBox(height: 16),
-           Row(children: [
-              Expanded(child: _mahsulotKarta("Chigit",
-                  mavsumStat['chigit']?['soni'] ?? 0,
-                  "${mavsumStat['chigit']?['tonnaj'] ?? 0} t",
-                  goldColor, goldBg, goldBorder,
-                  konditsion: "${mavsumStat['chigit']?['konditsion'] ?? 0} t")),
-              const SizedBox(width: 12),
-              Expanded(child: _mahsulotKarta("Chiganoq",
-                  mavsumStat['chiganoq']?['soni'] ?? 0,
-                  "${mavsumStat['chiganoq']?['tonnaj'] ?? 0} t",
-                  greenLight, greenBg, greenBorder)),
-            ]),
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: _mahsulotKarta("Chiganoq po'chog'i",
-                  mavsumStat['pochog']?['soni'] ?? 0,
-                  "${mavsumStat['pochog']?['tonnaj'] ?? 0} t",
-                  blueColor, blueBg, blueBorder)),
-              const SizedBox(width: 12),
-              Expanded(child: _mahsulotKarta("Patoz",
-                  mavsumStat['patoz']?['soni'] ?? 0,
-                  "${mavsumStat['patoz']?['tonnaj'] ?? 0} t",
-                  redColor, redBg, redBorder)),
-            ]),
-          ]),
-        ),
         const SizedBox(height: 12),
-        if (tanlanganStatTab == 0)
-        Row(children: [
-          Expanded(child: _mashinaGrafik()),
-          const SizedBox(width: 12),
-          Expanded(child: _tonnajGrafik()),
-        ]),
-        if (tanlanganStatTab == 1)
-        Row(children: [
-          Expanded(child: _mashinaGrafik()),
-          const SizedBox(width: 12),
-          Expanded(child: _tonnajGrafik()),
-        ]),
-        if (tanlanganStatTab == 2)
-        Row(children: [
-          Expanded(child: _mashinaGrafik()),
-          const SizedBox(width: 12),
-          Expanded(child: _tonnajGrafik()),
-        ]),
-      ]),
-    );
-  }
-
-  Widget _mahsulotKarta(String nom, int soni, String tonnaj, Color color,
-      Color bg, Color border, {String? konditsion}) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-          color: bg,
-          border: Border.all(color: border),
-          borderRadius: BorderRadius.circular(12)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(nom, style: TextStyle(
-            fontSize: 12, fontWeight: FontWeight.w600, color: color)),
-        const Divider(height: 12),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Text("Birliklar:", style: TextStyle(fontSize: 11, color: muted)),
-          Text("$soni ta", style: TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w600, color: color)),
-        ]),
-        const SizedBox(height: 4),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Text("Netto:", style: TextStyle(fontSize: 11, color: muted)),
-          Text(tonnaj, style: TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w600, color: color)),
-        ]),
-        if (konditsion != null) ...[
-          const SizedBox(height: 4),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text("Konditsion:", style: TextStyle(fontSize: 11, color: muted)),
-            Text(konditsion, style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w600, color: color)),
-          ]),
+        if (grafikDetalYuklanmoqda)
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: cardColor,
+                border: Border.all(color: cardBorder),
+                borderRadius: BorderRadius.circular(16)),
+            child: const Center(
+                child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 50),
+                    child: CircularProgressIndicator())),
+          )
+        else if (grafikDetalData.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: cardColor,
+                border: Border.all(color: cardBorder),
+                borderRadius: BorderRadius.circular(16)),
+            child: const Center(
+                child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 50),
+                    child: Text("Ma'lumot yo'q",
+                        style: TextStyle(color: Colors.grey)))),
+          )
+        else ...[
+          _grafikDetalChart(
+            sarlavha: "MASHINALAR SONI",
+            ikonka: Icons.local_shipping,
+            rang: blueColor,
+            qiymatlar: grafikDetalData
+                .map((e) => (e['soni'] as num).toDouble())
+                .toList(),
+            labellar: grafikDetalData
+                .map((e) => _grafikDetalLabel(e as Map<String, dynamic>))
+                .toList(),
+          ),
+          const SizedBox(height: 12),
+          _grafikDetalChart(
+            sarlavha: "TONNAJ (t)",
+            ikonka: Icons.scale,
+            rang: goldColor,
+            qiymatlar: grafikDetalData
+                .map((e) => (e['tonnaj'] as num).toDouble())
+                .toList(),
+            labellar: grafikDetalData
+                .map((e) => _grafikDetalLabel(e as Map<String, dynamic>))
+                .toList(),
+          ),
         ],
       ]),
     );
@@ -3692,7 +3725,8 @@ Widget _mashinaGrafik() {
                 _sidebarIcon(Icons.dashboard, 0, "Dashboard"),
                 _sidebarIcon(
                     Icons.description_outlined, 1, "Hujjatlar"),
-                _sidebarIcon(Icons.bar_chart, 2, "Statistika"),
+                _sidebarIcon(Icons.bar_chart, 2, "Statistika",
+                    onExtraTap: grafikDetalniYukla),
                 _sidebarIcon(
                     Icons.people_outline, 3, "Foydalanuvchilar"),
                 _sidebarIcon(Icons.settings, 4, "Sozlamalar"),

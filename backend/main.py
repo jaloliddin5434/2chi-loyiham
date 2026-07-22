@@ -7,6 +7,7 @@ from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, Hujjat
 from schemas import UserLogin, Token, UserCreate, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
 from config import PG_DUMP_YOL, WKHTMLTOPDF_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL
+from utils import konditsion_hisobla
 import models
 from datetime import datetime
 
@@ -404,11 +405,6 @@ def hujjat_tahrir_tarixi(hujjat_id: int, db: Session = Depends(get_db), current_
     return [_tahrir_yozuv_dict(y) for y in yozuvlar]
 
 # ============ OLCHOVLAR ============
-
-KONDITSION_KOEFFITSENT = 89.5
-
-def konditsion_hisobla(netto: float, namlik: float, ifloslik: float) -> float:
-    return netto * (100 - (namlik + ifloslik)) / KONDITSION_KOEFFITSENT
 
 @app.post("/olchovlar")
 def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):

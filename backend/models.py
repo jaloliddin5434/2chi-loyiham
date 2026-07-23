@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from database import Base
 
@@ -117,8 +117,14 @@ class Navbat(Base):
 
 class HujjatRaqamHisoblagich(Base):
     __tablename__ = "hujjat_raqam_hisoblagich"
-    yil = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    yil = Column(Integer, nullable=False)
+    mahsulot_id = Column(Integer, nullable=True)  # NULL = eski (2026 yilgacha ishlatilgan) umumiy hisoblagich
     oxirgi_raqam = Column(Integer, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("yil", "mahsulot_id", name="uq_hujjat_raqam_hisoblagich_yil_mahsulot"),
+    )
 
 class TizimXatosi(Base):
     __tablename__ = "tizim_xatolari"

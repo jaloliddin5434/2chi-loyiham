@@ -111,27 +111,32 @@ def mahsulotlar_royxati(db: Session = Depends(get_db)):
 
 # ============ HUJJATLAR ============
 
-def keyingi_hujjat_raqami(db: Session, yil: int) -> str:
+MAHSULOT_RAQAM_PREFIKS = {1: "CHG", 2: "CHN", 3: "CHP", 4: "PTZ"}
+
+def keyingi_hujjat_raqami(db: Session, yil: int, mahsulot_id: int) -> str:
     hisoblagich = db.query(HujjatRaqamHisoblagich).filter(
-        HujjatRaqamHisoblagich.yil == yil
+        HujjatRaqamHisoblagich.yil == yil,
+        HujjatRaqamHisoblagich.mahsulot_id == mahsulot_id
     ).with_for_update().first()
 
     if not hisoblagich:
-        hisoblagich = HujjatRaqamHisoblagich(yil=yil, oxirgi_raqam=0)
+        hisoblagich = HujjatRaqamHisoblagich(yil=yil, mahsulot_id=mahsulot_id, oxirgi_raqam=0)
         db.add(hisoblagich)
         db.flush()
         hisoblagich = db.query(HujjatRaqamHisoblagich).filter(
-            HujjatRaqamHisoblagich.yil == yil
+            HujjatRaqamHisoblagich.yil == yil,
+            HujjatRaqamHisoblagich.mahsulot_id == mahsulot_id
         ).with_for_update().first()
 
     hisoblagich.oxirgi_raqam += 1
     db.flush()
-    return f"{yil}/{str(hisoblagich.oxirgi_raqam).zfill(3)}"
+    prefiks = MAHSULOT_RAQAM_PREFIKS.get(mahsulot_id, "DOC")
+    return f"{prefiks}-{yil}/{str(hisoblagich.oxirgi_raqam).zfill(3)}"
 
 @app.post("/hujjatlar")
 def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     yil = datetime.now().year
-    yangi_raqam = keyingi_hujjat_raqami(db, yil)
+    yangi_raqam = keyingi_hujjat_raqami(db, yil, hujjat.mahsulot_id)
     mashina = db.query(Mashina).filter(Mashina.id == hujjat.mashina_id).first()
     yangi = Hujjat(
         raqam=yangi_raqam,

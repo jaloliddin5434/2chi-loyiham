@@ -3714,7 +3714,7 @@ Widget _mashinaGrafik() {
                   border: Border.all(color: goldBorder),
                   borderRadius: BorderRadius.circular(8)),
               child: Text(
-                  "⏳ ${NavbatService.navbat.value.length} navbatda",
+                  "⏳ ${backendNavbat.length} navbatda",
                   style: const TextStyle(
                       fontSize: 11, color: goldColor)),
             ),
@@ -3727,7 +3727,7 @@ Widget _mashinaGrafik() {
                   border: Border.all(color: greenBorder),
                   borderRadius: BorderRadius.circular(8)),
               child: Text(
-                  "✅ ${NavbatService.tugallanganlar.value.length} tugallandi",
+                  "✅ ${backendTugallangan.length} tugallandi",
                   style: const TextStyle(
                       fontSize: 11, color: greenLight)),
             ),

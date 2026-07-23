@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 backend/server.log
 frontend/pw_shots/
+backup/

@@ -498,6 +498,30 @@ def navbat_tugallandi(data: dict, db: Session = Depends(get_db), current_user: d
         navbat.tugallandi = True
         navbat.tugallangan_vaqt = datetime.now()
         navbat.aravalar_json = json.dumps(data.get("aravalar", {}))
+
+        if navbat.hujjat_id:
+            hujjat = db.query(Hujjat).filter(Hujjat.id == navbat.hujjat_id).first()
+            if hujjat and hujjat.holat != HujjatHolati.TUGALLANDI:
+                if holat_otishi_ruxsatmi(hujjat.holat, HujjatHolati.TUGALLANDI):
+                    eski_holat = hujjat.holat.value
+                    hujjat.holat = HujjatHolati.TUGALLANDI
+                    db.add(TahrirTarixi(
+                        hujjat_id=hujjat.id,
+                        maydon="holat",
+                        eski_qiymat=eski_holat,
+                        yangi_qiymat=HujjatHolati.TUGALLANDI.value,
+                        sabab="Operator tomonidan navbatda avtomatik tugallandi",
+                        ozgartirgan_user_id=current_user.get("id"),
+                        ozgartirgan_username=current_user.get("sub"),
+                    ))
+                else:
+                    tizim_xatosini_saqla(
+                        "navbat_tugallandi",
+                        f"Hujjat {hujjat.raqam} (id={hujjat.id}) '{hujjat.holat.value}' holatida edi, "
+                        f"operator navbatda tugatdi, lekin avtomatik 'tugallandi'ga o'tkazilmadi "
+                        f"(ruxsat etilmagan holat o'tishi)."
+                    )
+
         db.commit()
     return {"status": "ok"}
 

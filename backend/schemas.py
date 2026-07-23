@@ -44,6 +44,8 @@ class HujjatCreate(BaseModel):
     davomlilik_gacha: Optional[str] = None
     yuk_oluvchi: Optional[str] = None
     shartnoma: Optional[str] = None
+    dostaverka: Optional[str] = None
+    dostaverka_vaqt: Optional[str] = None
 
 class HujjatUpdate(BaseModel):
     aravalar_soni: Optional[int] = None
@@ -66,6 +68,8 @@ class HujjatUpdate(BaseModel):
     terim_turi: Optional[str] = None
     qabul_qildi: Optional[str] = None
     yuk_olindi: Optional[str] = None
+    dostaverka: Optional[str] = None
+    dostaverka_vaqt: Optional[str] = None
     namlik: Optional[float] = None
     ifloslik: Optional[float] = None
     holat: Optional[HujjatHolati] = None

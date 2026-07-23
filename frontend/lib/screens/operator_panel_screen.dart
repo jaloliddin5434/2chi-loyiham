@@ -1084,16 +1084,6 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         tur: 'brutto',
       );
 
-      // Nakladnoy PDF saqlash
-      ApiService.nakladnoySaqla(
-        mashinaRaqami: raqamiCtrl.text,
-        mahsulotNomi: widget.mahsulotNomi,
-        sana: DateTime.now().toString().substring(0, 10),
-        html: '<p>nakladnoy</p>',
-        hujjatId: tanlanganNavbat?.hujjatId ?? hujjatId,
-        nakladnoyRaqam: tanlanganNavbat?.hujjatRaqam ?? _hujjatRaqam,
-      );
-
     try {
         print('hujjatId: $hujjatId, navbat: ${tanlanganNavbat?.hujjatId}');
         final result = await ApiService.olchovSaqlash(
@@ -1129,6 +1119,25 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
                 e.value.konditsion;
           }
         }
+
+        await ApiService.hujjatYangilash(tug.hujjatId, {
+          'qabul_qildi': qabulQildiCtrl.text,
+          'yuk_olindi': yukOlindiCtrl.text,
+          'dostaverka': dostaverkaCtrl.text,
+          'dostaverka_vaqt': dostaverkaVaqtCtrl.text,
+          'sabab': 'Tortish yakunlanganda operator tomonidan kiritildi',
+        });
+
+        // Nakladnoy PDF saqlash - dostaverka/qabul_qildi/yuk_olindi endi
+        // bazaga yozilgandan KEYIN chaqiriladi, shunda backend hujjat_id
+        // orqali o'qiganda bu maydonlar ham allaqachon tayyor bo'ladi.
+        ApiService.nakladnoySaqla(
+          mashinaRaqami: tug.raqam,
+          mahsulotNomi: tug.mahsulotNomi,
+          sana: DateTime.now().toString().substring(0, 10),
+          hujjatId: tug.hujjatId,
+          nakladnoyRaqam: tug.hujjatRaqam,
+        );
 
         ApiService.navbatTugallandi({
           'hujjatId': tug.hujjatId,

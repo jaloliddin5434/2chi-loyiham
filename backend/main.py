@@ -253,6 +253,7 @@ AUDIT_MAYDONLAR = [
     'davomlilik_raqam', 'davomlilik_dan', 'davomlilik_gacha', 'yuk_oluvchi', 'shartnoma',
     'mashina_raqami', 'shofyor', 'firma', 'tiket_raqam', 'klass', 'sinf',
     'seleksiya_navi', 'terim_turi', 'qabul_qildi', 'yuk_olindi',
+    'dostaverka', 'dostaverka_vaqt',
     'holat', 'bekor_sabab',
 ]
 
@@ -1191,60 +1192,135 @@ def telegram_kunlik(db: Session = Depends(get_db), current_user: dict = Depends(
     return {"status": "ok", "xabar": matn}
  # ============ PDF SAQLASH ============
 
+def _boshmi(qiymat):
+    """None va bo'sh satrni 'qiymat yo'q' deb hisoblaydi - fallback zanjiri uchun."""
+    if qiymat is None:
+        return True
+    if isinstance(qiymat, str) and qiymat.strip() == "":
+        return True
+    return False
+
+
+def nakladnoy_uchun_malumot(db: Session, hujjat_id: int) -> dict:
+    """Nakladnoy PDF uchun kerakli barcha ma'lumotni bazadan to'liq, ishonchli
+    yig'ib beradi - frontend ekran holatiga (matn controller'lariga) bog'liq emas.
+
+    Manba tartibi:
+    - mashina_raqami/shofyor/firma/raqam/aravalar_soni - Hujjat'dan
+    - mashina_turi - Mashina'dan (mashina_id orqali)
+    - mahsulot_nomi - Mahsulot'dan (mahsulot_id orqali)
+    - tiket_raqam/klass/sinf/seleksiya_navi/terim_turi/tuda_raqam - avval Hujjat'ning
+      o'z ustuni, bo'sh bo'lsa Navbat'dagi mos ustunga fallback (eski hujjatlarda bu
+      ustunlar Hujjat'ga backfill qilingan, yangilarida hali faqat Navbat'da bor)
+    - qabul_qildi/yuk_olindi/dostaverka/dostaverka_vaqt - faqat Hujjat'dan (Navbat'da
+      bunday ustunlar yo'q)
+    - har arava uchun tara/brutto/netto/namlik/ifloslik/konditsion - Olchov'dan,
+      shu arava_raqam bo'yicha eng oxirgi ma'lum (NULL bo'lmagan) qiymatlar
+    """
+    hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
+    if not hujjat:
+        return None
+
+    mashina = db.query(Mashina).filter(Mashina.id == hujjat.mashina_id).first()
+    mahsulot = db.query(Mahsulot).filter(Mahsulot.id == hujjat.mahsulot_id).first()
+
+    from models import Navbat
+    navbat = db.query(Navbat).filter(Navbat.hujjat_id == hujjat_id).first()
+
+    def hn(hujjat_maydon, navbat_maydon):
+        """Hujjat -> Navbat fallback zanjiri."""
+        if not _boshmi(hujjat_maydon):
+            return hujjat_maydon
+        if navbat is not None and not _boshmi(navbat_maydon):
+            return navbat_maydon
+        return ""
+
+    # Har arava_raqam uchun barcha Olchov qatorlarini id bo'yicha o'sish tartibida
+    # ko'rib chiqib, har bir maydonni faqat YANGI qiymat NULL bo'lmaganda yangilaymiz -
+    # shunda keyingi (masalan faqat brutto yozilgan) qator avvalgi tara qiymatini
+    # "yo'qotib qo'ymaydi".
+    olchov_qatorlari = db.query(Olchov).filter(
+        Olchov.hujjat_id == hujjat_id
+    ).order_by(Olchov.id.asc()).all()
+
+    aravalar = {}
+    for o in olchov_qatorlari:
+        a = aravalar.setdefault(o.arava_raqam, {
+            "tara": None, "brutto": None, "netto": None,
+            "namlik": None, "ifloslik": None, "konditsion": None,
+        })
+        for maydon in ("tara", "brutto", "netto", "namlik", "ifloslik", "konditsion"):
+            qiymat = getattr(o, maydon)
+            if qiymat is not None:
+                a[maydon] = qiymat
+
+    return {
+        "hujjat_id": hujjat.id,
+        "raqam": hujjat.raqam,
+        "mashina_raqami": hujjat.mashina_raqami or "",
+        "mashina_turi": mashina.turi if mashina else "",
+        "shofyor": hujjat.shofyor or "",
+        "firma": hujjat.firma or "",
+        "mahsulot_nomi": mahsulot.nom if mahsulot else "",
+        "aravalar_soni": hujjat.aravalar_soni or 1,
+        "tuda_raqam": hn(hujjat.tuda_raqam, navbat.tuda_raqam if navbat else None),
+        "tiket_raqam": hn(hujjat.tiket_raqam, navbat.tiket_raqam if navbat else None),
+        "klass": hn(hujjat.klass, navbat.klass if navbat else None),
+        "sinf": hn(hujjat.sinf, navbat.sinf if navbat else None),
+        "seleksiya_navi": hn(hujjat.seleksiya_navi, navbat.seleksiya_navi if navbat else None),
+        "terim_turi": hn(hujjat.terim_turi, navbat.terim_turi if navbat else None),
+        # Hujjat'da namlik/ifloslik ustuni yo'q (faqat Navbat va Olchov'da bor) -
+        # avval Navbat'ga, u ham bo'lmasa 1-aravaning Olchov qiymatiga qaraladi.
+        "namlik": (navbat.namlik if navbat and not _boshmi(navbat.namlik)
+                   else aravalar.get(1, {}).get("namlik")) or "",
+        "ifloslik": (navbat.ifloslik if navbat and not _boshmi(navbat.ifloslik)
+                     else aravalar.get(1, {}).get("ifloslik")) or "",
+        "qabul_qildi": hujjat.qabul_qildi or "",
+        "yuk_olindi": hujjat.yuk_olindi or "",
+        "dostaverka": hujjat.dostaverka or "",
+        "dostaverka_vaqt": hujjat.dostaverka_vaqt or "",
+        "aravalar": aravalar,
+    }
+
+
 @app.post("/nakladnoy/saqlash")
-async def nakladnoy_saqlash(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def nakladnoy_saqlash(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
-        data = await request.json()
-        mashina_raqami = data.get("mashina_raqami", "noma_lum")
-        mahsulot_nomi = data.get("mahsulot_nomi", "Chigit")
-        sana = data.get("sana", datetime.now().strftime("%Y-%m-%d"))
-        print(f"Kelgan data: tara1={data.get('tara1')}, brutto1={data.get('brutto1')}, firma={data.get('firma')}")
-        tara1 = float(data.get("tara1", 0) or 0)
-        brutto1 = float(data.get("brutto1", 0) or 0)
-        netto1 = brutto1 - tara1
-        tara2 = float(data.get("tara2", 0) or 0)
-        brutto2 = float(data.get("brutto2", 0) or 0)
-        netto2 = brutto2 - tara2
-        tara3 = float(data.get("tara3", 0) or 0)
-        brutto3 = float(data.get("brutto3", 0) or 0)
-        netto3 = brutto3 - tara3
-        tiket = data.get("tiket", "")
-        nakladnoy_raqam = data.get("nakladnoy_raqam", "")
-        hujjat_id_val = data.get("hujjat_id", None)
-        if hujjat_id_val:
-            hujjat_obj = db.query(Hujjat).filter(Hujjat.id == hujjat_id_val).first()
-            if hujjat_obj:
-                nakladnoy_raqam = hujjat_obj.raqam
-                print(f"nakladnoy_raqam: {nakladnoy_raqam}")
-            else:
-                print(f"hujjat topilmadi: {hujjat_id_val}")
-        else:
-            print(f"hujjat_id_val yoq: {data.get('hujjat_id')}")
-        firma = data.get("firma", "")
-        konditsion1_raw = data.get("konditsion1", 0)
-        hujjat_id_raw = data.get("hujjat_id", None)
-        if (not konditsion1_raw or konditsion1_raw == 0) and hujjat_id_raw:
-            olchovlar_db = db.query(Olchov).filter(Olchov.hujjat_id == hujjat_id_raw).all()
-            konditsion1 = sum(o.konditsion for o in olchovlar_db if o.konditsion) or 0
-        else:
-            konditsion1 = float(konditsion1_raw or 0)
-        
-        
-        namlik = data.get("namlik", "") or "—"
-        ifloslik = data.get("ifloslik", "") or "—"
-        shofyor = data.get("shofyor", "")
-        seleksiya = data.get("seleksiya", "")
-        klass = data.get("klass", "")
-        terim_turi = data.get("terim_turi", "")
-        tuda_raqam = data.get("tuda_raqam", "")
-        qabul_qildi = data.get("qabul_qildi", "")
-        yuk_olindi = data.get("yuk_olindi", "")
-        dostaverka = data.get("dostaverka", "")
-        dostaverka_vaqt = data.get("dostaverka_vaqt", "")
-        mashina_turi = data.get("mashina_turi", "")
-        arava1_qator = f"<tr><td>1-arava</td><td>{round(tara1)}</td><td>{round(brutto1)}</td><td>{round(netto1)}</td><td>{round(konditsion1)}</td></tr>" if tara1 > 0 else ""
-        arava2_qator = f"<tr><td>2-arava</td><td>{round(tara2)}</td><td>{round(brutto2)}</td><td>{round(netto2)}</td><td>-</td></tr>" if tara2 > 0 else ""
-        arava3_qator = f"<tr><td>3-arava</td><td>{round(tara3)}</td><td>{round(brutto3)}</td><td>{round(netto3)}</td><td>-</td></tr>" if tara3 > 0 else ""
+        hujjat_id = data.get("hujjat_id")
+        if not hujjat_id:
+            return {"status": "error", "message": "hujjat_id kerak"}
+
+        m = nakladnoy_uchun_malumot(db, hujjat_id)
+        if not m:
+            return {"status": "error", "message": f"Hujjat topilmadi (id={hujjat_id})"}
+
+        sana = data.get("sana") or datetime.now().strftime("%Y-%m-%d")
+
+        def arava_qatori(n):
+            a = m["aravalar"].get(n)
+            if not a or not a.get("tara"):
+                return ""
+            tara = a.get("tara") or 0
+            brutto = a.get("brutto") or 0
+            netto = a.get("netto")
+            if netto is None:
+                netto = brutto - tara
+            kond = a.get("konditsion")
+            kond_str = str(round(kond)) if kond is not None else "-"
+            return f"<tr><td>{n}-arava</td><td>{round(tara)}</td><td>{round(brutto)}</td><td>{round(netto)}</td><td>{kond_str}</td></tr>"
+
+        arava1_qator = arava_qatori(1)
+        arava2_qator = arava_qatori(2)
+        arava3_qator = arava_qatori(3)
+
+        jami_tara = sum((m["aravalar"].get(n) or {}).get("tara") or 0 for n in (1, 2, 3))
+        jami_brutto = sum((m["aravalar"].get(n) or {}).get("brutto") or 0 for n in (1, 2, 3))
+        jami_netto = jami_brutto - jami_tara
+        jami_konditsion = sum((m["aravalar"].get(n) or {}).get("konditsion") or 0 for n in (1, 2, 3))
+
+        namlik = m["namlik"] if m["namlik"] != "" else "—"
+        ifloslik = m["ifloslik"] if m["ifloslik"] != "" else "—"
+
         html_content = f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <style>
@@ -1262,28 +1338,28 @@ td.left {{ text-align: left; }}
 </style></head>
 <body>
 <h2>ЗАВОД НУСХАСИ</h2>
-<h2>ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № {nakladnoy_raqam} &nbsp;&nbsp; Тикет №: {tiket}</h2>
+<h2>ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № {m['raqam']} &nbsp;&nbsp; Тикет №: {m['tiket_raqam']}</h2>
 <h3>Ishlab chiqarishdan qabul qilingan mahsulotlarni tashish uchun</h3>
-<p style="text-align:center">Sana: {sana} &nbsp;&nbsp; Mashina turi: {mashina_turi} &nbsp;&nbsp; Raqam: {mashina_raqami}</p>
+<p style="text-align:center">Sana: {sana} &nbsp;&nbsp; Mashina turi: {m['mashina_turi']} &nbsp;&nbsp; Raqam: {m['mashina_raqami']}</p>
 <table style="margin-bottom:8px">
 <tr><td class="left"><b>Юк жўнатувчи:</b> "Ҳазорасп текстил" МЧЖга қарашли пахта тозалаш завод</td></tr>
-<tr><td class="left"><b>Юк олувчи:</b> {firma}</td></tr>
+<tr><td class="left"><b>Юк олувчи:</b> {m['firma']}</td></tr>
 </table>
 <table style="margin-bottom:8px">
 <tr>
-  <td class="left"><b>Тикет №:</b> {tiket}</td>
+  <td class="left"><b>Тикет №:</b> {m['tiket_raqam']}</td>
   <td class="left"><b>Сана:</b> {sana}</td>
-  <td class="left"><b>Туда №:</b> {tuda_raqam}</td>
+  <td class="left"><b>Туда №:</b> {m['tuda_raqam']}</td>
 </tr>
 <tr>
-  <td class="left"><b>Терим тури:</b> {terim_turi}</td>
-  <td class="left"><b>Класс:</b> {klass}</td>
-  <td class="left"><b>Селексия нави:</b> {seleksiya}</td>
+  <td class="left"><b>Терим тури:</b> {m['terim_turi']}</td>
+  <td class="left"><b>Класс:</b> {m['klass']}</td>
+  <td class="left"><b>Селексия нави:</b> {m['seleksiya_navi']}</td>
 </tr>
 <tr>
   <td class="left"><b>Намлик %:</b> {namlik}</td>
   <td class="left"><b>Ифлослик %:</b> {ifloslik}</td>
-  <td class="left"><b>Шофёр:</b> {shofyor}</td>
+  <td class="left"><b>Шофёр:</b> {m['shofyor']}</td>
 </tr>
 </table>
 <table>
@@ -1299,17 +1375,17 @@ td.left {{ text-align: left; }}
 {arava3_qator}
 <tr class="jami">
   <td>Жами:</td>
-  <td>{round(tara1+tara2+tara3)}</td>
-  <td>{round(brutto1+brutto2+brutto3)}</td>
-  <td>{round(netto1+netto2+netto3)}</td>
-  <td>{round(konditsion1)}</td>
+  <td>{round(jami_tara)}</td>
+  <td>{round(jami_brutto)}</td>
+  <td>{round(jami_netto)}</td>
+  <td>{round(jami_konditsion)}</td>
 </tr>
 </table>
-<p style="margin-top:8px"><b>Доставерна № {dostaverka}</b> &nbsp;&nbsp; Муддат: {dostaverka_vaqt}</p>
+<p style="margin-top:8px"><b>Доставерна № {m['dostaverka']}</b> &nbsp;&nbsp; Муддат: {m['dostaverka_vaqt']}</p>
 <table style="margin-top:10px;border:none">
 <tr>
-  <td class="imzo">Қабул қилди: {qabul_qildi} ___________</td>
-  <td class="imzo">Юк олинди: {yuk_olindi} ___________</td>
+  <td class="imzo">Қабул қилди: {m['qabul_qildi']} ___________</td>
+  <td class="imzo">Юк олинди: {m['yuk_olindi']} ___________</td>
 </tr>
 <tr>
   <td class="imzo">Раҳбар ИМЗО ___________</td>
@@ -1322,24 +1398,21 @@ td.left {{ text-align: left; }}
 </table>
 </body></html>"""
 
-        raqam = mashina_raqami.replace(" ", "_").replace("/", "_")
-        papka = Path(f"C:/RASMLAR/{sana}/{mahsulot_nomi}/{raqam}")
+        raqam_papka = (m["mashina_raqami"] or "noma_lum").replace(" ", "_").replace("/", "_")
+        papka = Path(f"C:/RASMLAR/{sana}/{m['mahsulot_nomi']}/{raqam_papka}")
         papka.mkdir(parents=True, exist_ok=True)
-        
+
         html_fayl = papka / "nakladnoy.html"
         with open(html_fayl, "w", encoding="utf-8") as f:
             f.write(html_content)
-        print(f"arava1_qator: {arava1_qator}")
-        print(f"HTML uzunligi: {len(html_content)}")
-        
+
         pdf_fayl = papka / "nakladnoy.pdf"
         import pdfkit
         wkhtmltopdf_yol = WKHTMLTOPDF_YOL
         config = pdfkit.configuration(wkhtmltopdf=wkhtmltopdf_yol)
         options = {'orientation': 'Landscape', 'page-size': 'A4'}
         pdfkit.from_file(str(html_fayl), str(pdf_fayl), configuration=config, options=options)
-       
-        
+
         return {"status": "ok", "fayl": str(pdf_fayl)}
     except Exception as e:
         print(f"XATO: {e}")

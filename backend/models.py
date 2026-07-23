@@ -61,6 +61,8 @@ class Hujjat(Base):
     terim_turi = Column(String, nullable=True)
     qabul_qildi = Column(String, nullable=True)
     yuk_olindi = Column(String, nullable=True)
+    dostaverka = Column(String, nullable=True)
+    dostaverka_vaqt = Column(String, nullable=True)
     holat = Column(
         SQLEnum(
             HujjatHolati,

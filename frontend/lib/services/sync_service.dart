@@ -50,7 +50,7 @@ class SyncService {
         try {
           final res = await http.post(
             Uri.parse('${ApiService.baseUrl}/nakladnoy/saqlash'),
-            headers: {'Content-Type': 'application/json'},
+            headers: ApiService.authHeaders(),
             body: jsonEncode(n),
           );
           if (res.statusCode != 200) qolganNakladnoylar.add(n);

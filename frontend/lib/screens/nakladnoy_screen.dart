@@ -113,38 +113,16 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
       final sana = '${now.year}-${now.month.toString().padLeft(2,'0')}-${now.day.toString().padLeft(2,'0')}';
       
      try {
+        // Backend endi hujjat_id orqali bazadan (Hujjat+Navbat+Olchov) hamma
+        // narsani o'zi to'liq o'qiydi - shu sababli bu yerdan faqat hujjat_id
+        // va sana yuboriladi, ekran holatidagi boshqa maydonlar yuborilmaydi.
         await html.HttpRequest.request(
           '${ApiService.baseUrl}/nakladnoy/saqlash',
           method: 'POST',
-          requestHeaders: {'Content-Type': 'application/json'},
+          requestHeaders: ApiService.authHeaders(),
           sendData: jsonEncode({
-            'mashina_raqami': widget.mashinaRaqami,
-            'mahsulot_nomi': widget.mahsulotNomi,
-            'sana': sana,
-            'tara1': widget.tara1 ?? 0,
-            'brutto1': widget.brutto1 ?? 0,
-            'netto1': (widget.brutto1 ?? 0) - (widget.tara1 ?? 0),
-            'konditsion1': widget.konditsion1 ?? 0,
             'hujjat_id': widget.hujjatId,
-            'tara2': widget.tara2 ?? 0,
-            'brutto2': widget.brutto2 ?? 0,
-            'tara3': widget.tara3 ?? 0,
-            'brutto3': widget.brutto3 ?? 0,
-            'tiket': widget.tiketRaqam,
-            'nakladnoy_raqam': widget.hujjatRaqam,
-            'firma': widget.firma,
-            'shofyor': widget.shofyor,
-            'namlik': widget.namlik ?? '',
-            'ifloslik': widget.ifloslik ?? '',
-            'seleksiya': widget.seleksiyaNavi,
-            'klass': widget.klass,
-            'terim_turi': widget.terimTuri,
-            'tuda_raqam': widget.tudaRaqam,
-            'qabul_qildi': widget.qabulQildi,
-            'yuk_olindi': widget.yukOlindi,
-            'dostaverka': widget.dostaverka,
-            'dostaverka_vaqt': widget.dostaverkaVaqt,
-            'mashina_turi': widget.mashinaTuri,
+            'sana': sana,
           }),
         );
       } catch (e) {

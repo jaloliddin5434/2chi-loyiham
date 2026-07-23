@@ -125,6 +125,17 @@ static const String baseUrl = "http://10.112.30.77:8001";
     };
   }
 
+  static Future<void> hujjatYangilash(int hujjatId, Map<String, dynamic> maydonlar) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/hujjatlar/$hujjatId'),
+        headers: _headers(),
+        body: jsonEncode(maydonlar),
+      );
+      _check401(response);
+    } catch (e) {}
+  }
+
   static Future<Map<String, dynamic>> olchovSaqlash({
     required int hujjatId,
     required int aravaRaqam,

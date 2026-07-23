@@ -182,6 +182,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       final mavsum = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/mavsum'), headers: ApiService.authHeaders());
       if (mounted) {
         setState(() {
+          serverUlangan = true;
           backendNavbat = navbatData;
           backendTugallangan = tugallanganData;
           if (kunlik.statusCode == 200)
@@ -210,6 +211,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       }
     } catch (e) {
       print('navbatYangilash xato: $e');
+      if (mounted) setState(() => serverUlangan = false);
     }
   }
 Future<void> _sozlamalarYukla() async {
@@ -2626,27 +2628,48 @@ Widget _mashinaGrafik() {
 
   Future<void> grafikDetalniYukla() async {
     setState(() => grafikDetalYuklanmoqda = true);
-    final natija = await _grafikDetalChaqir(tanlanganStatDavr, tanlanganStatMahsulot);
-    if (!mounted) return;
-    setState(() {
-      grafikDetalData = natija;
-      grafikDetalYuklanmoqda = false;
-    });
+    try {
+      final natija = await _grafikDetalChaqir(tanlanganStatDavr, tanlanganStatMahsulot);
+      if (!mounted) return;
+      setState(() {
+        grafikDetalData = natija;
+        grafikDetalYuklanmoqda = false;
+        serverUlangan = true;
+      });
+    } catch (e) {
+      // Eski grafikDetalData ATAYLAB o'zgartirilmaydi - server bilan aloqa
+      // uzilganda oxirgi ko'rilgan grafik ekranda qolishi kerak.
+      if (!mounted) return;
+      setState(() {
+        grafikDetalYuklanmoqda = false;
+        serverUlangan = false;
+      });
+    }
   }
 
   Future<void> dashboardTonnajniYukla() async {
     setState(() => dashTonnajYuklanmoqda = true);
-    final davr = _dashDavrlar[tanlanganTab];
-    final natijalar = await Future.wait([
-      _grafikDetalChaqir(davr, 'Chigit'),
-      _grafikDetalChaqir(davr, 'Chiganoq'),
-    ]);
-    if (!mounted) return;
-    setState(() {
-      dashTonnajChigit = natijalar[0];
-      dashTonnajChiganoq = natijalar[1];
-      dashTonnajYuklanmoqda = false;
-    });
+    try {
+      final davr = _dashDavrlar[tanlanganTab];
+      final natijalar = await Future.wait([
+        _grafikDetalChaqir(davr, 'Chigit'),
+        _grafikDetalChaqir(davr, 'Chiganoq'),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        dashTonnajChigit = natijalar[0];
+        dashTonnajChiganoq = natijalar[1];
+        dashTonnajYuklanmoqda = false;
+        serverUlangan = true;
+      });
+    } catch (e) {
+      // Eski dashTonnajChigit/dashTonnajChiganoq ATAYLAB o'zgartirilmaydi.
+      if (!mounted) return;
+      setState(() {
+        dashTonnajYuklanmoqda = false;
+        serverUlangan = false;
+      });
+    }
   }
 
   String _grafikDetalLabel(Map<String, dynamic> bucket, [String? davr]) {
@@ -3653,6 +3676,28 @@ Widget _mashinaGrafik() {
   }
 
   // ============ BUILD ============
+  Widget _offlineBanner() {
+    if (serverUlangan) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFFFF3E0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(children: [
+        const Icon(Icons.wifi_off, size: 14, color: Color(0xFFB05A00)),
+        const SizedBox(width: 8),
+        const Expanded(
+          child: Text(
+            "Server bilan aloqa yo'q — oxirgi ko'rilgan ma'lumot ko'rsatilmoqda",
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFB05A00)),
+          ),
+        ),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bgColor =
@@ -3842,6 +3887,8 @@ Widget _mashinaGrafik() {
             ),
           ]),
         ),
+
+        _offlineBanner(),
 
         // KONTENT
         Expanded(

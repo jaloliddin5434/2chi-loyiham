@@ -201,14 +201,12 @@ static const String baseUrl = "http://10.112.30.77:8001";
   }
 
   static Future<List<dynamic>> tugallanganlarOl() async {
-    try {
-      final response = await http.get(Uri.parse('$baseUrl/navbat/tugallanganlar'), headers: _headers());
-      _check401(response);
-      if (response.statusCode == 200) {
-        return jsonDecode(utf8.decode(response.bodyBytes));
-      }
-    } catch (e) {}
-    return [];
+    final response = await http.get(Uri.parse('$baseUrl/navbat/tugallanganlar'), headers: _headers());
+    _check401(response);
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    }
+    throw Exception('Tugallanganlar yuklanmadi (status ${response.statusCode})');
   }
 
   static Future<void> navbatBekor(int hujjatId) async {
@@ -229,22 +227,20 @@ static const String baseUrl = "http://10.112.30.77:8001";
     String? sanaDan,
     String? sanaGacha,
   }) async {
-    try {
-      final params = {
-        'sahifa': sahifa.toString(),
-        'sahifa_hajmi': sahifaHajmi.toString(),
-        if (mahsulotId != null) 'mahsulot_id': mahsulotId.toString(),
-        if (sanaDan != null) 'sana_dan': sanaDan,
-        if (sanaGacha != null) 'sana_gacha': sanaGacha,
-      };
-      final uri = Uri.parse('$baseUrl/hujjatlar').replace(queryParameters: params);
-      final response = await http.get(uri, headers: _headers());
-      _check401(response);
-      if (response.statusCode == 200) {
-        return jsonDecode(utf8.decode(response.bodyBytes));
-      }
-    } catch (e) {}
-    return {"natijalar": [], "jami": 0, "sahifa": sahifa, "sahifa_hajmi": sahifaHajmi};
+    final params = {
+      'sahifa': sahifa.toString(),
+      'sahifa_hajmi': sahifaHajmi.toString(),
+      if (mahsulotId != null) 'mahsulot_id': mahsulotId.toString(),
+      if (sanaDan != null) 'sana_dan': sanaDan,
+      if (sanaGacha != null) 'sana_gacha': sanaGacha,
+    };
+    final uri = Uri.parse('$baseUrl/hujjatlar').replace(queryParameters: params);
+    final response = await http.get(uri, headers: _headers());
+    _check401(response);
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    }
+    throw Exception('Hujjatlar yuklanmadi (status ${response.statusCode})');
   }
 
   static Future<Map<String, dynamic>?> getHujjat(int hujjatId) async {
@@ -289,16 +285,14 @@ static const String baseUrl = "http://10.112.30.77:8001";
   }
 
   static Future<List<dynamic>> _grafikDetalOl(String davr, String mahsulot) async {
-    try {
-      final uri = Uri.parse('$baseUrl/statistika/grafik-detal/$davr')
-          .replace(queryParameters: {'mahsulot': mahsulot});
-      final response = await http.get(uri, headers: _headers());
-      _check401(response);
-      if (response.statusCode == 200) {
-        return jsonDecode(utf8.decode(response.bodyBytes));
-      }
-    } catch (e) {}
-    return [];
+    final uri = Uri.parse('$baseUrl/statistika/grafik-detal/$davr')
+        .replace(queryParameters: {'mahsulot': mahsulot});
+    final response = await http.get(uri, headers: _headers());
+    _check401(response);
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    }
+    throw Exception('Grafik-detal yuklanmadi (status ${response.statusCode})');
   }
 
   static Future<List<dynamic>> getGrafikDetalKunlik(String mahsulot) =>

@@ -282,6 +282,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       
       final navbatData = await ApiService.navbatOl();
       final tugallanganData = await ApiService.tugallanganlarOl();
+      if (mounted) setState(() => serverUlangan = true);
      if (navbatData.isNotEmpty) {
         await OfflineService.navbatSaqla(navbatData);
       }

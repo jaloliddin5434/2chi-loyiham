@@ -135,6 +135,13 @@ def keyingi_hujjat_raqami(db: Session, yil: int, mahsulot_id: int) -> str:
 
 @app.post("/hujjatlar")
 def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    if hujjat.mijoz_kaliti:
+        mavjud = db.query(Hujjat).filter(Hujjat.mijoz_kaliti == hujjat.mijoz_kaliti).first()
+        if mavjud:
+            # Bu so'rov allaqachon bajarilgan (masalan javob yo'qolib,
+            # frontend qayta yuborgan) - yangisini yaratmasdan mavjudini
+            # qaytaramiz, shunda ikkilamchi hujjat/raqam sarflanmaydi.
+            return mavjud
     yil = datetime.now().year
     yangi_raqam = keyingi_hujjat_raqami(db, yil, hujjat.mahsulot_id)
     mashina = db.query(Mashina).filter(Mashina.id == hujjat.mashina_id).first()

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'screens/mahsulot_tanlash_screen.dart';
 import 'services/sync_service.dart';
 import 'services/api_service.dart';
+import 'services/offline_queue_bootstrap.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  OfflineQueueBootstrap.ishgaTushirish();
   SyncService.boshlash();
   runApp(const MyApp());
 }

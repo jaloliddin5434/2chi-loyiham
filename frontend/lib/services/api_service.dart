@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'offline_service.dart';
+import 'offline_queue_service.dart';
 
 class ApiService {
 static const String baseUrl = "http://10.112.30.77:8001";
@@ -63,6 +64,12 @@ static const String baseUrl = "http://10.112.30.77:8001";
     throw Exception('Login yoki parol noto\'g\'ri!');
   }
 
+  /// Mashina yaratish/olish. Onlayn muvaffaqiyatli bo'lsa, haqiqiy
+  /// serverdan qaytgan obyektni ('id' - int) qaytaradi. Server bilan
+  /// aloqa bo'lmasa - ENDI SOXTA ID QAYTARILMAYDI. Buning o'rniga
+  /// offline navbatga (mahalliy kalit bilan) qo'yiladi va natijada
+  /// 'id': null, 'mahalliyKalit': <kalit> qaytadi - chaqiruvchi shu
+  /// ikkalasini FARQLASHI SHART (id==null bo'lsa - offline).
   static Future<Map<String, dynamic>> mashinaQoshish({
     required String davlatRaqami,
     required String turi,
@@ -87,8 +94,22 @@ static const String baseUrl = "http://10.112.30.77:8001";
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
     } catch (e) {}
+
+    final mahalliyKalit = OfflineQueueService.yangiMahalliyKalit();
+    await OfflineQueueService.qoshish(
+      'mashina_yaratish',
+      {
+        'davlat_raqami': davlatRaqami,
+        'turi': turi,
+        'shofyor': shofyor,
+        'firma': firma,
+        'viloyat': viloyat,
+      },
+      yaratadiganKalit: mahalliyKalit,
+    );
     return {
-      'id': DateTime.now().millisecondsSinceEpoch,
+      'id': null,
+      'mahalliyKalit': mahalliyKalit,
       'davlat_raqami': davlatRaqami,
       'turi': turi,
       'shofyor': shofyor,
@@ -96,32 +117,62 @@ static const String baseUrl = "http://10.112.30.77:8001";
     };
   }
 
+  /// Hujjat yaratish/olish. [mashinaIdYokiKalit] mashina HAQIQIY ID'si
+  /// (int, mashina onlayn yaratilgan bo'lsa) YOKI uning mahalliy kaliti
+  /// (String, mashina hali offline navbatda bo'lsa) bo'lishi mumkin.
+  /// Ikkinchi holatda hujjat ham to'g'ridan-to'g'ri navbatga qo'yiladi
+  /// (mashina hali haqiqiy ID olmagani uchun serverga urinishning
+  /// ma'nosi yo'q). Natija shakli [mashinaQoshish] bilan bir xil -
+  /// 'id': null bo'lsa, offline.
+  ///
+  /// [mavjudMijozKaliti] - agar chaqiruvchi BIR MARTA allaqachon
+  /// navbatga qo'yishga urinib ko'rgan bo'lsa (masalan operator
+  /// "TARA SAQLASH"ni offlineda ikkinchi marta bossa), o'sha SAFAR
+  /// generatsiya qilingan kalitni shu yerga uzatish SHART - aks holda
+  /// har chaqiruvda YANGI mijoz_kaliti yaratilib, orqa fonda avtomatik
+  /// sinxronlangan hujjat bilan QATOR (ikkilamchi hujjat) yaratilib
+  /// qolishi mumkin.
   static Future<Map<String, dynamic>> hujjatYaratish({
-    required int mashinaId,
+    required dynamic mashinaIdYokiKalit,
     required int mahsulotId,
     required int aravalarSoni,
+    String? mavjudMijozKaliti,
   }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/hujjatlar'),
-        headers: _headers(),
-        body: jsonEncode({
-          'mashina_id': mashinaId,
-          'mahsulot_id': mahsulotId,
-          'aravalar_soni': aravalarSoni,
-        }),
-      );
-      _check401(response);
-      if (response.statusCode == 200) {
-        return jsonDecode(utf8.decode(response.bodyBytes));
-      }
-    } catch (e) {}
+    final mijozKaliti = mavjudMijozKaliti ?? OfflineQueueService.yangiMahalliyKalit();
+
+    if (mashinaIdYokiKalit is int) {
+      try {
+        final response = await http.post(
+          Uri.parse('$baseUrl/hujjatlar'),
+          headers: _headers(),
+          body: jsonEncode({
+            'mashina_id': mashinaIdYokiKalit,
+            'mahsulot_id': mahsulotId,
+            'aravalar_soni': aravalarSoni,
+            'mijoz_kaliti': mijozKaliti,
+          }),
+        );
+        _check401(response);
+        if (response.statusCode == 200) {
+          return jsonDecode(utf8.decode(response.bodyBytes));
+        }
+      } catch (e) {}
+    }
+
+    await OfflineQueueService.qoshish(
+      'hujjat_yaratish',
+      {
+        'mashina_id': mashinaIdYokiKalit,
+        'mahsulot_id': mahsulotId,
+        'aravalar_soni': aravalarSoni,
+        'mijoz_kaliti': mijozKaliti,
+      },
+      yaratadiganKalit: mijozKaliti,
+    );
     return {
-      'id': DateTime.now().millisecondsSinceEpoch % 10000,
-      'raqam': '2026/${(DateTime.now().millisecondsSinceEpoch % 1000).toString().padLeft(3, '0')}',
-      'mashina_id': mashinaId,
-      'mahsulot_id': mahsulotId,
-      'aravalar_soni': aravalarSoni,
+      'id': null,
+      'raqam': '',
+      'mahalliyKalit': mijozKaliti,
     };
   }
 
@@ -217,7 +268,13 @@ static const String baseUrl = "http://10.112.30.77:8001";
         body: jsonEncode({'hujjatId': hujjatId}),
       );
       _check401(response);
+      if (response.statusCode == 200) return;
     } catch (e) {}
+    // Server bilan aloqa bo'lmadi - keyinroq avtomatik qayta yuborish
+    // uchun offline navbatga qo'yamiz. hujjatId bu yerda ALLAQACHON
+    // haqiqiy (mahalliy kalit emas) - chunki bekor qilinayotgan mashina
+    // navbatda turgan, ya'ni allaqachon serverda mavjud yozuv.
+    await OfflineQueueService.qoshish('navbat_bekor', {'hujjatId': hujjatId});
   }
 
   static Future<Map<String, dynamic>> getHujjatlar({
@@ -340,7 +397,11 @@ static const String baseUrl = "http://10.112.30.77:8001";
         body: jsonEncode(data),
       );
       _check401(response);
+      if (response.statusCode == 200) return;
     } catch (e) {}
+    // Server bilan aloqa bo'lmadi (yoki xato qaytardi) - keyinroq
+    // avtomatik qayta yuborish uchun offline navbatga qo'yamiz.
+    await OfflineQueueService.qoshish('sozlama_saqlash', data);
   }
 
   static Future<Map<String, dynamic>> sozlamalarOl() async {

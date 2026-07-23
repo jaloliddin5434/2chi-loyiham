@@ -4,6 +4,7 @@ import 'dart:html' as html;
 import 'package:http/http.dart' as http;
 import 'offline_service.dart';
 import 'api_service.dart';
+import 'offline_queue_service.dart';
 
 class SyncService {
   static Timer? _syncTimer;
@@ -24,6 +25,11 @@ class SyncService {
     if (_syncing) return;
     _syncing = true;
     try {
+      final navbatNatija = await OfflineQueueService.sinxronlash();
+      if (navbatNatija.muvaffaqiyatli > 0 || navbatNatija.xato > 0) {
+        print('Offline navbat sinxronizatsiyasi: $navbatNatija');
+      }
+
       final kutayotganlar = await OfflineService.kutayotganlarOl();
      
       for (final op in kutayotganlar) {

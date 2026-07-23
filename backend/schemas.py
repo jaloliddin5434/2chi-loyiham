@@ -46,6 +46,7 @@ class HujjatCreate(BaseModel):
     shartnoma: Optional[str] = None
     dostaverka: Optional[str] = None
     dostaverka_vaqt: Optional[str] = None
+    mijoz_kaliti: Optional[str] = None
 
 class HujjatUpdate(BaseModel):
     aravalar_soni: Optional[int] = None

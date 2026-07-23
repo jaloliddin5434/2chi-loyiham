@@ -119,6 +119,15 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   double bugunTonnaj = 0;
   int? mashinaId;
   int? hujjatId;
+  // Offlineda "TARA SAQLASH" bir necha marta bosilsa (masalan orqa fonda
+  // avtomatik sinxronizatsiya orada tugagan bo'lsa-yu, operator bundan
+  // xabarsiz qayta bossa), HAR SAFAR YANGI mijoz_kaliti yaratilmasligi
+  // uchun - BIRINCHI urinishda saqlab qolinadi va keyingi urinishlarda
+  // QAYTA ISHLATILADI (aks holda backend buni ikkita alohida hujjat deb
+  // hisoblab, ikkilamchi hujjat yaratib qo'yishi mumkin - mashina.davlat_raqami
+  // orqali idempotentligi buni qoplamaydi, chunki hujjat idempotentligi
+  // faqat mijoz_kaliti bo'yicha ishlaydi).
+  String? _bazagaHujjatMijozKaliti;
   String _hujjatRaqam = '';
   String _defTudaRaqam = '';
   String _defKlass = '1';
@@ -620,6 +629,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   }
 
   Future<void> _tozala() async {
+    _bazagaHujjatMijozKaliti = null;
     raqamiCtrl.clear();
     turiCtrl.text = "FAW";
     shofyorCtrl.clear();
@@ -1315,14 +1325,32 @@ try {
         shofyor: shofyorCtrl.text.trim(),
         firma: firmaCtrl.text.trim(),
       );
-      mashinaId = mashina['id'];
       final hujjat = await ApiService.hujjatYaratish(
-        mashinaId: mashinaId!,
+        mashinaIdYokiKalit: mashina['id'] ?? mashina['mahalliyKalit'],
         mahsulotId: widget.mahsulotId,
         aravalarSoni: aravalarSoni,
+        mavjudMijozKaliti: _bazagaHujjatMijozKaliti,
       );
+
+      if (hujjat['id'] == null) {
+        // Server bilan aloqa yo'q - mashina/hujjat offline navbatga
+        // qo'yildi (soxta ID BILAN EMAS). Shu urinishda ishlatilgan
+        // mijoz_kaliti'ni saqlab qolamiz - agar operator "TARA SAQLASH"ni
+        // yana bossa (masalan sinxronizatsiya orada allaqachon tugagan
+        // bo'lsa), AYNAN SHU kalit qayta ishlatiladi va ikkilamchi
+        // hujjat yaratilmaydi. bazagaSaqlandi ATAYLAB true qilinmaydi -
+        // shu funksiyani chaqirgan joydagi "if (!bazagaSaqlandi) return;"
+        // tekshiruvi operatorni tortishga o'tishdan avtomatik to'xtatadi.
+        _bazagaHujjatMijozKaliti = hujjat['mahalliyKalit'];
+        _xabar(
+            "⏳ Server bilan aloqa yo'q — mashina/hujjat navbatga qo'yildi. Ulanish tiklanguncha kuting va qayta urinib ko'ring.");
+        return;
+      }
+
+      mashinaId = mashina['id'];
       hujjatId = hujjat['id'];
       _hujjatRaqam = hujjat['raqam'] ?? '';
+      _bazagaHujjatMijozKaliti = null;
       setState(() => bazagaSaqlandi = true);
     } catch (e) {
       _xabar("❌ Xato: $e");

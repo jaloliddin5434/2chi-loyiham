@@ -74,6 +74,10 @@ class Hujjat(Base):
     )
     bekor_sabab = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now())
+    # Offlineda yaratilgan hujjatlar uchun mijoz (frontend) tomonidan
+    # generatsiya qilingan noyob kalit - qayta yuborilgan (retry) so'rov
+    # ikkilamchi hujjat yaratib qo'ymasligi uchun (idempotentlik).
+    mijoz_kaliti = Column(String, unique=True, nullable=True)
 
 class Olchov(Base):
     __tablename__ = "olchovlar"

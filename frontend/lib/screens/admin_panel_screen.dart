@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'dart:html' as html;
 import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart';
-import 'package:excel/excel.dart' hide Border;
 import 'operator_panel_screen.dart';
 import '../services/navbat_service.dart';
 import '../services/api_service.dart';
+import '../services/excel_export_service.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   final String username;
@@ -1597,43 +1596,56 @@ Widget _mashinaGrafik() {
 
   Future<void> excelYuklaOl() async {
     try {
-      final ro = filtrlangan;
-      final excel = Excel.createExcel();
-      final sheet = excel['Hujjatlar'];
-      sheet.appendRow([
-        TextCellValue('№'), TextCellValue('Sana'),
-        TextCellValue('Mashina'), TextCellValue('Shofyor'),
-        TextCellValue('Firma'), TextCellValue('Mahsulot'),
-        TextCellValue('Tara (kg)'), TextCellValue('Brutto (kg)'),
-        TextCellValue('Netto (kg)'), TextCellValue('Konditsion (kg)'),
-        TextCellValue('Holat'),
-      ]);
-      for (int i = 0; i < ro.length; i++) {
-        final h = ro[i];
-        sheet.appendRow([
-          IntCellValue(i + 1),
-          TextCellValue(h['created_at']?.toString().substring(0, 10) ?? '—'),
-          TextCellValue(h['mashina_raqami'] ?? '—'),
-          TextCellValue(h['shofyor'] ?? '—'),
-          TextCellValue(h['firma'] ?? '—'),
-          TextCellValue(h['mahsulot_id'] == 1 ? 'Chigit' : h['mahsulot_id'] == 2 ? 'Chiganoq' : "Chig. po'chog'i"),
-          DoubleCellValue(h['tara']?.toDouble() ?? 0),
-          DoubleCellValue(h['brutto']?.toDouble() ?? 0),
-          DoubleCellValue(h['netto']?.toDouble() ?? 0),
-          DoubleCellValue(h['konditsion']?.toDouble() ?? 0),
-          TextCellValue(h['holat'] ?? '—'),
-        ]);
-      }
-      final bytes = excel.encode()!;
-      final blob = html.Blob([bytes]);
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', 'hujjatlar.xlsx')
-        ..click();
-      html.Url.revokeObjectUrl(url);
+      // DIQQAT: `filtrlangan` faqat ekranda ALLAQACHON yuklangan
+      // (sahifalangan) ro'yxat ustida ishlaydi - shu sabab eksport uchun
+      // ATAYLAB ishlatilmaydi. Sana/mahsulot filtri backendga
+      // to'g'ridan-to'g'ri uzatiladi (ExcelExportService orqali), shunda
+      // ekranda hali yuklanmagan sahifalardagi mos yozuvlar ham eksportga
+      // kiradi. Qolgan (matnli qidiruv, firma, holat) filtrlar esa TO'LIQ
+      // ro'yxat ustida mahalliy qo'llaniladi.
+      final soni = await ExcelExportService.hujjatlarniEksportQil(
+        mahsulotId: tanlanganMahsulotId == 0 ? null : tanlanganMahsulotId,
+        sanaDan: sanadan.isEmpty ? null : sanadan,
+        sanaGacha: sanagacha.isEmpty ? null : sanagacha,
+        qoshimchaFiltr: (h) {
+          if (nakladnoyFilter.isNotEmpty &&
+              !(h['raqam'] ?? '')
+                  .toString()
+                  .toLowerCase()
+                  .contains(nakladnoyFilter.toLowerCase())) {
+            return false;
+          }
+          if (qidiruv.isNotEmpty) {
+            final raqam = (h['raqam'] ?? '').toString().toLowerCase();
+            final firma = (h['firma'] ?? '').toString().toLowerCase();
+            final mashina =
+                (h['mashina_raqami'] ?? '').toString().toLowerCase();
+            final shofyor = (h['shofyor'] ?? '').toString().toLowerCase();
+            final q = qidiruv.toLowerCase();
+            if (!(raqam.contains(q) ||
+                firma.contains(q) ||
+                mashina.contains(q) ||
+                shofyor.contains(q))) {
+              return false;
+            }
+          }
+          if (holatFilter != 'hammasi' && h['holat'] != holatFilter) {
+            return false;
+          }
+          if (firmaFilter != 'hammasi' &&
+              (h['firma'] ?? '').toString() != firmaFilter) {
+            return false;
+          }
+          return true;
+        },
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Excel yuklab olindi!"), backgroundColor: Colors.green),
+          SnackBar(
+              content: Text(soni > 0
+                  ? "Excel yuklab olindi! ($soni ta yozuv)"
+                  : "Filtrga mos yozuv topilmadi"),
+              backgroundColor: soni > 0 ? Colors.green : Colors.orange),
         );
       }
     } catch (e) {

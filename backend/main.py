@@ -187,11 +187,21 @@ def hujjatlar_royxati(
 
     natija = []
     for h in hujjatlar:
-        olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).all()
+        olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).order_by(Olchov.id.asc()).all()
         jami_tara = sum(o.tara for o in olchovlar if o.tara) or None
         jami_brutto = sum(o.brutto for o in olchovlar if o.brutto) or None
         jami_netto = sum(o.netto for o in olchovlar if o.netto) or None
         jami_konditsion = sum(o.konditsion for o in olchovlar if o.konditsion) or None
+        # namlik/ifloslik Hujjatda emas, Olchov qatorlarida saqlanadi -
+        # eksport uchun eng oxirgi NULL bo'lmagan qiymat olinadi
+        # (nakladnoy_uchun_malumot()dagi bilan bir xil mantiq).
+        namlik = None
+        ifloslik = None
+        for o in olchovlar:
+            if o.namlik is not None:
+                namlik = o.namlik
+            if o.ifloslik is not None:
+                ifloslik = o.ifloslik
         natija.append({
             "id": h.id,
             "raqam": h.raqam,
@@ -214,6 +224,8 @@ def hujjatlar_royxati(
             "brutto": jami_brutto,
             "netto": jami_netto,
             "konditsion": jami_konditsion,
+            "namlik": namlik,
+            "ifloslik": ifloslik,
             "created_at": str(h.created_at) if h.created_at else None,
         })
     return {
@@ -279,8 +291,25 @@ def _qiymat_matn(qiymat):
         return None
     return qiymat.value if hasattr(qiymat, "value") else str(qiymat)
 
+
+# Operator ekrani (tortish yakunlanganda) shu maydonlarni saqlaydi -
+# boshqa barcha maydon (mashina_raqami, namlik, holat, va h.k.) faqat
+# admin/hisobchi tomonidan, "Tuzat" oynasi orqali, sabab ko'rsatib
+# o'zgartirilishi kerak.
+OPERATOR_RUXSAT_ETILGAN_MAYDONLAR = {
+    "qabul_qildi", "yuk_olindi", "dostaverka", "dostaverka_vaqt", "sabab",
+}
+
 @app.put("/hujjatlar/{hujjat_id}")
 def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") not in ("admin", "hisobchi"):
+        yuborilgan = set(data.dict(exclude_unset=True).keys())
+        ruxsatsiz = yuborilgan - OPERATOR_RUXSAT_ETILGAN_MAYDONLAR
+        if ruxsatsiz:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Bu maydonlarni faqat admin o'zgartira oladi: {', '.join(sorted(ruxsatsiz))}"
+            )
     hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
     if not hujjat:
         raise HTTPException(status_code=404, detail="Hujjat topilmadi!")

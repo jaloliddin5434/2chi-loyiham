@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'nakladnoy_screen.dart';
+import 'hujjatlar_royxati_paneli.dart';
 import '../services/api_service.dart';
 import '../services/navbat_service.dart';
 import '../services/offline_service.dart';
@@ -115,6 +116,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   String xabarMatni = '';
   bool serverUlangan = true;
   bool tugallanganlarKorinsin = false;
+  int _tanlanganBolim = 0;
 
   int bugunMashinalar = 0;
   double bugunTonnaj = 0;
@@ -1952,24 +1954,27 @@ try {
     );
   }
 
-  Widget _sidebarIcon(IconData icon, bool active) {
-    return Container(
-      width: 38,
-      height: 38,
-      margin: const EdgeInsets.only(bottom: 6),
-      decoration: BoxDecoration(
-        color: active
-            ? (kechagiRejim
-                ? Colors.black.withValues(alpha: 0.3)
-                : greenBg)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Icon(icon,
+  Widget _sidebarIcon(IconData icon, bool active, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        margin: const EdgeInsets.only(bottom: 6),
+        decoration: BoxDecoration(
           color: active
-              ? (kechagiRejim ? greenLight : green)
-              : muted,
-          size: 18),
+              ? (kechagiRejim
+                  ? Colors.black.withValues(alpha: 0.3)
+                  : greenBg)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon,
+            color: active
+                ? (kechagiRejim ? greenLight : green)
+                : muted,
+            size: 18),
+      ),
     );
   }
 
@@ -2191,9 +2196,14 @@ try {
             padding: const EdgeInsets.symmetric(
                 vertical: 12),
             child: Column(children: [
-              _sidebarIcon(Icons.scale, true),
+              _sidebarIcon(Icons.scale, _tanlanganBolim == 0,
+                  onTap: () =>
+                      setState(() => _tanlanganBolim = 0)),
               _sidebarIcon(
-                  Icons.description_outlined, false),
+                  Icons.description_outlined,
+                  _tanlanganBolim == 1,
+                  onTap: () =>
+                      setState(() => _tanlanganBolim = 1)),
               _sidebarIcon(
                   Icons.format_list_numbered, false),
               _sidebarIcon(
@@ -2201,7 +2211,9 @@ try {
             ]),
           ),
         Expanded(
-          child: SingleChildScrollView(
+          child: _tanlanganBolim == 1
+              ? const HujjatlarRoyxatiPaneli()
+              : SingleChildScrollView(
             padding: const EdgeInsets.all(12),
             child: Column(children: [
               IntrinsicHeight(

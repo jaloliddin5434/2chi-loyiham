@@ -17,6 +17,27 @@ static const String baseUrl = "http://10.112.30.77:8001";
     return headers;
   }
 
+  /// [maydonlar]dagi har bir maydon hali sinxronlanmagan "yerli ID"
+  /// (manfiy int, [OfflineQueueService.yerliIdBiriktir] orqali berilgan)
+  /// bo'lsa, uni navbat mexanizmi tushunadigan mahalliy kalit satriga
+  /// almashtiradi. Agar biror maydon hali hal qilinmagan bo'lsa,
+  /// `kutilmoqda: true` qaytaradi - bu holda HTTP urinishning ma'nosi
+  /// yo'q, to'g'ridan-to'g'ri offline navbatga qo'yish kerak.
+  static ({Map<String, dynamic> malumot, bool kutilmoqda}) _yerliIdlarniOchir(
+      Map<String, dynamic> asl, List<String> maydonlar) {
+    final natija = Map<String, dynamic>.from(asl);
+    var kutilmoqda = false;
+    for (final maydon in maydonlar) {
+      final qiymat = natija[maydon];
+      if (qiymat is int && OfflineQueueService.yerliIdmi(qiymat)) {
+        final kalit = OfflineQueueService.yerliIdKalitiniOl(qiymat);
+        natija[maydon] = kalit;
+        kutilmoqda = true;
+      }
+    }
+    return (malumot: natija, kutilmoqda: kutilmoqda);
+  }
+
   // Boshqa fayllardagi to'g'ridan-to'g'ri http.get()/http.post() chaqiruvlari
   // uchun (masalan admin_panel_screen.dart), autentifikatsiya headerini
   // qo'shish uchun ochiq yordamchi.
@@ -177,14 +198,28 @@ static const String baseUrl = "http://10.112.30.77:8001";
   }
 
   static Future<void> hujjatYangilash(int hujjatId, Map<String, dynamic> maydonlar) async {
-    try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/hujjatlar/$hujjatId'),
-        headers: _headers(),
-        body: jsonEncode(maydonlar),
-      );
-      _check401(response);
-    } catch (e) {}
+    final yerli = OfflineQueueService.yerliIdmi(hujjatId);
+    if (!yerli) {
+      try {
+        final response = await http.put(
+          Uri.parse('$baseUrl/hujjatlar/$hujjatId'),
+          headers: _headers(),
+          body: jsonEncode(maydonlar),
+        );
+        _check401(response);
+        if (response.statusCode == 200) return;
+      } catch (e) {}
+    }
+    // Server bilan aloqa bo'lmadi (yoki hujjat hali sinxronlanmagan) -
+    // dostaverka/qabul_qildi/yuk_olindi kabi maydonlar YO'QOLMASIN uchun
+    // offline navbatga qo'yamiz.
+    final hujjatIdYokiKalit = yerli
+        ? OfflineQueueService.yerliIdKalitiniOl(hujjatId)
+        : hujjatId;
+    await OfflineQueueService.qoshish('hujjat_yangilash', {
+      'hujjat_id': hujjatIdYokiKalit,
+      'maydonlar': maydonlar,
+    });
   }
 
   static Future<Map<String, dynamic>> olchovSaqlash({
@@ -195,36 +230,51 @@ static const String baseUrl = "http://10.112.30.77:8001";
     double? namlik,
     double? ifloslik,
   }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/olchovlar'),
-        headers: _headers(),
-        body: jsonEncode({
-          'hujjat_id': hujjatId,
-          'arava_raqam': aravaRaqam,
-          'tara': tara,
-          'brutto': brutto,
-          'namlik': namlik,
-          'ifloslik': ifloslik,
-        }),
-      );
-      _check401(response);
-      if (response.statusCode == 200) {
-        return jsonDecode(utf8.decode(response.bodyBytes));
-      }
-    } catch (e) {}
-    return {'status': 'ok'};
+    final asl = {
+      'hujjat_id': hujjatId,
+      'arava_raqam': aravaRaqam,
+      'tara': tara,
+      'brutto': brutto,
+      'namlik': namlik,
+      'ifloslik': ifloslik,
+    };
+    final ochirilgan = _yerliIdlarniOchir(asl, ['hujjat_id']);
+    if (!ochirilgan.kutilmoqda) {
+      try {
+        final response = await http.post(
+          Uri.parse('$baseUrl/olchovlar'),
+          headers: _headers(),
+          body: jsonEncode(asl),
+        );
+        _check401(response);
+        if (response.statusCode == 200) {
+          return jsonDecode(utf8.decode(response.bodyBytes));
+        }
+      } catch (e) {}
+    }
+    // Server bilan aloqa bo'lmadi (yoki hujjat hali sinxronlanmagan) -
+    // o'lchov (tara/brutto) YO'QOLMASIN uchun offline navbatga qo'yamiz.
+    await OfflineQueueService.qoshish('olchov_saqlash', ochirilgan.malumot);
+    return {'status': 'queued'};
   }
 
   static Future<void> navbatQosh(Map<String, dynamic> mashina) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/navbat/qosh'),
-        headers: _headers(),
-        body: jsonEncode(mashina),
-      );
-      _check401(response);
-    } catch (e) {}
+    final ochirilgan = _yerliIdlarniOchir(mashina, ['hujjatId', 'mashinaId']);
+    if (!ochirilgan.kutilmoqda) {
+      try {
+        final response = await http.post(
+          Uri.parse('$baseUrl/navbat/qosh'),
+          headers: _headers(),
+          body: jsonEncode(mashina),
+        );
+        _check401(response);
+        if (response.statusCode == 200) return;
+      } catch (e) {}
+    }
+    // Server bilan aloqa bo'lmadi (yoki hujjat/mashina hali
+    // sinxronlanmagan) - navbatga qo'shish YO'QOLMASIN uchun offline
+    // navbatga qo'yamiz.
+    await OfflineQueueService.qoshish('navbat_qosh', ochirilgan.malumot);
   }
 
   static Future<List<dynamic>> navbatOl() async {
@@ -241,14 +291,22 @@ static const String baseUrl = "http://10.112.30.77:8001";
   }
 
   static Future<void> navbatTugallandi(Map<String, dynamic> mashina) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/navbat/tugallandi'),
-        headers: _headers(),
-        body: jsonEncode(mashina),
-      );
-      _check401(response);
-    } catch (e) {}
+    final ochirilgan = _yerliIdlarniOchir(mashina, ['hujjatId', 'mashinaId']);
+    if (!ochirilgan.kutilmoqda) {
+      try {
+        final response = await http.post(
+          Uri.parse('$baseUrl/navbat/tugallandi'),
+          headers: _headers(),
+          body: jsonEncode(mashina),
+        );
+        _check401(response);
+        if (response.statusCode == 200) return;
+      } catch (e) {}
+    }
+    // Server bilan aloqa bo'lmadi (yoki hujjat/mashina hali
+    // sinxronlanmagan) - tortish yakunlanganini bildiruvchi yozuv
+    // YO'QOLMASIN uchun offline navbatga qo'yamiz.
+    await OfflineQueueService.qoshish('navbat_tugallandi', ochirilgan.malumot);
   }
 
   static Future<List<dynamic>> tugallanganlarOl() async {

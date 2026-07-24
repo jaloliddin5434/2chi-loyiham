@@ -21,6 +21,91 @@ class OfflineQueueExecutors {
     OfflineQueueService.turiniRoyxatgaOl('navbat_bekor', navbatBekorBajaruvchisi);
     OfflineQueueService.turiniRoyxatgaOl('mashina_yaratish', mashinaYaratishBajaruvchisi);
     OfflineQueueService.turiniRoyxatgaOl('hujjat_yaratish', hujjatYaratishBajaruvchisi);
+    OfflineQueueService.turiniRoyxatgaOl('olchov_saqlash', olchovSaqlashBajaruvchisi);
+    OfflineQueueService.turiniRoyxatgaOl('navbat_qosh', navbatQoshBajaruvchisi);
+    OfflineQueueService.turiniRoyxatgaOl('navbat_tugallandi', navbatTugallandiBajaruvchisi);
+    OfflineQueueService.turiniRoyxatgaOl('hujjat_yangilash', hujjatYangilashBajaruvchisi);
+  }
+
+  /// `malumot['hujjat_id']` (sinxronizatsiya vaqtida allaqachon haqiqiy
+  /// ID'ga hal qilingan bo'ladi) URL yo'lida, `malumot['maydonlar']` esa
+  /// PUT so'rov tanasida yuboriladi.
+  static Future<Map<String, dynamic>> hujjatYangilashBajaruvchisi(
+      Map<String, dynamic> malumot) async {
+    final hujjatId = malumot['hujjat_id'];
+    final maydonlar = Map<String, dynamic>.from(malumot['maydonlar'] as Map);
+    http.Response javob;
+    try {
+      javob = await http.put(
+        Uri.parse('${baseUrlOluvchi()}/hujjatlar/$hujjatId'),
+        headers: headerOluvchi(),
+        body: jsonEncode(maydonlar),
+      );
+    } catch (e) {
+      throw OfflineTarmoqXatosi(e.toString());
+    }
+    if (javob.statusCode == 200) {
+      return jsonDecode(utf8.decode(javob.bodyBytes)) as Map<String, dynamic>;
+    }
+    throw OfflineServerXatosi(
+        "Hujjat yangilanmadi (status ${javob.statusCode})", javob.statusCode);
+  }
+
+  static Future<Map<String, dynamic>> navbatQoshBajaruvchisi(
+      Map<String, dynamic> malumot) async {
+    http.Response javob;
+    try {
+      javob = await http.post(
+        Uri.parse('${baseUrlOluvchi()}/navbat/qosh'),
+        headers: headerOluvchi(),
+        body: jsonEncode(malumot),
+      );
+    } catch (e) {
+      throw OfflineTarmoqXatosi(e.toString());
+    }
+    if (javob.statusCode == 200) {
+      return jsonDecode(utf8.decode(javob.bodyBytes)) as Map<String, dynamic>;
+    }
+    throw OfflineServerXatosi(
+        "Navbatga qo'shilmadi (status ${javob.statusCode})", javob.statusCode);
+  }
+
+  static Future<Map<String, dynamic>> navbatTugallandiBajaruvchisi(
+      Map<String, dynamic> malumot) async {
+    http.Response javob;
+    try {
+      javob = await http.post(
+        Uri.parse('${baseUrlOluvchi()}/navbat/tugallandi'),
+        headers: headerOluvchi(),
+        body: jsonEncode(malumot),
+      );
+    } catch (e) {
+      throw OfflineTarmoqXatosi(e.toString());
+    }
+    if (javob.statusCode == 200) {
+      return jsonDecode(utf8.decode(javob.bodyBytes)) as Map<String, dynamic>;
+    }
+    throw OfflineServerXatosi(
+        "Navbat tugallanmadi (status ${javob.statusCode})", javob.statusCode);
+  }
+
+  static Future<Map<String, dynamic>> olchovSaqlashBajaruvchisi(
+      Map<String, dynamic> malumot) async {
+    http.Response javob;
+    try {
+      javob = await http.post(
+        Uri.parse('${baseUrlOluvchi()}/olchovlar'),
+        headers: headerOluvchi(),
+        body: jsonEncode(malumot),
+      );
+    } catch (e) {
+      throw OfflineTarmoqXatosi(e.toString());
+    }
+    if (javob.statusCode == 200) {
+      return jsonDecode(utf8.decode(javob.bodyBytes)) as Map<String, dynamic>;
+    }
+    throw OfflineServerXatosi(
+        "Olchov saqlanmadi (status ${javob.statusCode})", javob.statusCode);
   }
 
   static Future<Map<String, dynamic>> sozlamaBajaruvchisi(

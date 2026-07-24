@@ -4,6 +4,7 @@
 // kerak emas. Saqlash zaxirasi (storageOqi/storageYoz) shu yerda
 // oddiy Map bilan simulyatsiya qilinadi.
 
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/services/offline_queue_service.dart';
 
@@ -249,5 +250,41 @@ void main() {
     final opId = OfflineQueueService.xatoliklar().first.opId;
     OfflineQueueService.xatoniOchirish(opId);
     expect(OfflineQueueService.xatoliklar().length, 0);
+  });
+
+  test('REPRO: sinxronlash ishlab turganda qoshilgan yangi amal yoqolmasligi kerak', () async {
+    // sinxronlash() birinchi amalni bajarishga urinib, "osilib qoladi"
+    // (hali tarmoq javobini kutmoqda) - shu payt UI tomonidan yangi amal
+    // navbatga qoshiladi. sinxronlash() keyinroq (tarmoq xatosi bilan)
+    // davom etganda, navbatni saqlashda yangi qoshilgan amalni
+    // O'CHIRIB YUBORMASLIGI kerak.
+    final tugadiComp = Completer<void>();
+    OfflineQueueService.turiniRoyxatgaOl('sekin_amal', (malumot) async {
+      await tugadiComp.future; // sinxronlash shu yerda "osilib" turadi
+      throw OfflineTarmoqXatosi("tarmoq yoq");
+    });
+    OfflineQueueService.turiniRoyxatgaOl('tez_amal', (malumot) async {
+      return {'status': 'ok'};
+    });
+
+    await OfflineQueueService.qoshish('sekin_amal', {'a': 1}, vaqt: 100);
+
+    final sinxronlashFuture = OfflineQueueService.sinxronlash();
+    // sinxronlash() endi 'sekin_amal'ni bajarishga kirib, Completer
+    // hal bo'lishini kutib "osilib" turibdi.
+
+    await OfflineQueueService.qoshish('tez_amal', {'b': 2}, vaqt: 200);
+    // Shu payt navbatda: [sekin_amal(navbatda), tez_amal(navbatda)]
+    // localStorage'da ikkalasi ham yozilgan bo'lishi kerak.
+
+    tugadiComp.complete();
+    await sinxronlashFuture;
+
+    // sinxronlash 'sekin_amal'ni tarmoq xatosi bilan tugatib, darhol
+    // qaytdi (qolganlarini keyingi siklga qoldirib). 'tez_amal' hali
+    // navbatda turishi SHART - yo'qolmasligi kerak.
+    final qolganlar = OfflineQueueService.navbatdagilar();
+    expect(qolganlar.any((o) => o.turi == 'tez_amal'), true,
+        reason: "'tez_amal' sinxronlash bilan poyga (race)da yoqolib qoldi - navbat: ${qolganlar.map((o) => o.turi).toList()}");
   });
 }

@@ -159,6 +159,27 @@ class OfflineQueueService {
   static bool mahalliyKalitmi(dynamic qiymat) =>
       qiymat is String && qiymat.startsWith('OFFLINE-');
 
+  /// Ba'zi ekran maydonlari (masalan NavbatMashina.hujjatId) non-nullable
+  /// `int` bo'lgani uchun ularga to'g'ridan-to'g'ri mahalliy kalit
+  /// (String) berib bo'lmaydi - shu sabab har bir hali sinxronlanmagan
+  /// mashina/hujjat uchun MANFIY vaqtinchalik "yerli ID" beriladi (haqiqiy
+  /// backend ID'lari hech qachon manfiy bo'lmaydi, shuning uchun to'qnashuv
+  /// bo'lmaydi). Bu ID faqat ekran holatida vaqtinchalik ishlatiladi;
+  /// serverga yuborishdan oldin ApiService uni qaytadan mahalliy kalitga
+  /// almashtiradi.
+  static final Map<int, String> _yerliIdlar = {};
+  static int _keyingiYerliId = -1;
+
+  static int yerliIdBiriktir(String mahalliyKalit) {
+    final id = _keyingiYerliId--;
+    _yerliIdlar[id] = mahalliyKalit;
+    return id;
+  }
+
+  static String? yerliIdKalitiniOl(int yerliId) => _yerliIdlar[yerliId];
+
+  static bool yerliIdmi(int id) => id < 0;
+
   static List<OfflineOperation> _navbatniOqish() {
     final xom = storageOqi(_navbatKaliti);
     if (xom == null || xom.isEmpty) return [];
@@ -232,6 +253,31 @@ class OfflineQueueService {
   static void hammasiniTozalash() {
     storageYoz(_navbatKaliti, jsonEncode(<dynamic>[]));
     storageYoz(_xaritaKaliti, jsonEncode(<String, dynamic>{}));
+    _yerliIdlar.clear();
+    _keyingiYerliId = -1;
+  }
+
+  /// Bitta amalni opId bo'yicha topib, uning holatini yangilaydi. HAR
+  /// DOIM localStorage'dan QAYTA o'qib ishlaydi (o'zida eski/qotib
+  /// qolgan ro'yxat nusxasini SAQLAMAYDI) - shunda [sinxronlash]
+  /// ishlab turgan payt UI tomonidan [qoshish] orqali parallel
+  /// qo'shilgan YANGI amallar bu yozishda o'chib ketmaydi. Bu funksiya
+  /// o'zi hech qanday `await` ichida emas, shuning uchun Dart'ning
+  /// yagona-ipli (single-threaded) tabiati tufayli o'qish-yozish
+  /// bo'linmas (atomik) bo'ladi.
+  static void _opNiYangila(String opId,
+      {OfflineOpHolati? holat, String? oxirgiXato, bool urinishOshir = false, bool ochirish = false}) {
+    final royxat = _navbatniOqish();
+    if (ochirish) {
+      royxat.removeWhere((o) => o.opId == opId);
+    } else {
+      final idx = royxat.indexWhere((o) => o.opId == opId);
+      if (idx == -1) return;
+      if (holat != null) royxat[idx].holati = holat;
+      if (oxirgiXato != null) royxat[idx].oxirgiXato = oxirgiXato;
+      if (urinishOshir) royxat[idx].urinishSoni++;
+    }
+    _navbatniSaqlash(royxat);
   }
 
   /// Navbatdagi amallarni YARATILGAN VAQTI bo'yicha ketma-ket (parallel
@@ -244,6 +290,15 @@ class OfflineQueueService {
     }
     _ishlamoqda = true;
     try {
+      // DIQQAT: bu yerda o'qilgan `royxat` faqat ISHLANADIGAN amallar
+      // TARTIBINI aniqlash uchun ishlatiladi - navbatga HECH QACHON shu
+      // (eskirib qolishi mumkin bo'lgan) ro'yxat asosida to'liq
+      // qayta yozib SAQLANMAYDI. Har bir holat o'zgarishi [_opNiYangila]
+      // orqali localStorage'dan QAYTA o'qib, faqat bitta opId'ni
+      // yangilab yoziladi - shunda shu funksiya ishlayotgan payt UI
+      // tomonidan [qoshish] orqali parallel qo'shilgan yangi amallar
+      // yo'qolmaydi (masalan: tarmoq javobini kutib "osilib" turgan
+      // paytda operator boshqa amalni navbatga qo'shsa).
       final royxat = _navbatniOqish()..sort((a, b) => a.vaqt.compareTo(b.vaqt));
       final xarita = _xaritaniOqish();
       int muvaffaqiyatli = 0;
@@ -274,47 +329,41 @@ class OfflineQueueService {
         }
 
         if (bloklangan) {
-          op.holati = OfflineOpHolati.xato;
-          op.oxirgiXato = "Bog'liq yozuv hali sinxronlanmagan yoki muvaffaqiyatsiz bo'lgan";
+          _opNiYangila(op.opId,
+              holat: OfflineOpHolati.xato,
+              oxirgiXato: "Bog'liq yozuv hali sinxronlanmagan yoki muvaffaqiyatsiz bo'lgan");
           xato++;
           continue;
         }
 
         final bajaruvchi = _bajaruvchilar[op.turi];
         if (bajaruvchi == null) {
-          op.holati = OfflineOpHolati.xato;
-          op.oxirgiXato = "Noma'lum amal turi: ${op.turi}";
+          _opNiYangila(op.opId,
+              holat: OfflineOpHolati.xato, oxirgiXato: "Noma'lum amal turi: ${op.turi}");
           xato++;
           continue;
         }
 
         try {
           final natija = await bajaruvchi(ochirilganMalumot);
-          op.holati = OfflineOpHolati.muvaffaqiyatli;
+          _opNiYangila(op.opId, ochirish: true);
           muvaffaqiyatli++;
           if (op.yaratadiganKalit != null && natija['id'] != null) {
             xarita[op.yaratadiganKalit!] = natija['id'];
+            _xaritaniSaqlash(xarita);
           }
         } on OfflineServerXatosi catch (e) {
-          op.holati = OfflineOpHolati.xato;
-          op.oxirgiXato = e.xabar;
+          _opNiYangila(op.opId, holat: OfflineOpHolati.xato, oxirgiXato: e.xabar);
           xato++;
         } on OfflineTarmoqXatosi catch (e) {
-          op.urinishSoni++;
-          op.oxirgiXato = e.xabar;
+          _opNiYangila(op.opId, urinishOshir: true, oxirgiXato: e.xabar);
           // Tarmoq o'zi ishlamayapti - qolgan yozuvlarni ham urinib
           // ko'rishning ma'nosi yo'q, keyingi siklga qoldiramiz.
-          _navbatniSaqlash(
-              royxat.where((o) => o.holati != OfflineOpHolati.muvaffaqiyatli).toList());
-          _xaritaniSaqlash(xarita);
           return SinxronizatsiyaNatijasi(
               muvaffaqiyatli: muvaffaqiyatli, xato: xato, tarmoqYoq: true);
         }
       }
 
-      _navbatniSaqlash(
-          royxat.where((o) => o.holati != OfflineOpHolati.muvaffaqiyatli).toList());
-      _xaritaniSaqlash(xarita);
       return SinxronizatsiyaNatijasi(muvaffaqiyatli: muvaffaqiyatli, xato: xato, tarmoqYoq: false);
     } finally {
       _ishlamoqda = false;

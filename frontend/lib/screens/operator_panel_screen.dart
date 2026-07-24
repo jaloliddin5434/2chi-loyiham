@@ -4,6 +4,7 @@ import 'nakladnoy_screen.dart';
 import '../services/api_service.dart';
 import '../services/navbat_service.dart';
 import '../services/offline_service.dart';
+import '../services/offline_queue_service.dart';
 
 class AravaData {
   double? tara;
@@ -1142,13 +1143,20 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         // Nakladnoy PDF saqlash - dostaverka/qabul_qildi/yuk_olindi endi
         // bazaga yozilgandan KEYIN chaqiriladi, shunda backend hujjat_id
         // orqali o'qiganda bu maydonlar ham allaqachon tayyor bo'ladi.
-        ApiService.nakladnoySaqla(
-          mashinaRaqami: tug.raqam,
-          mahsulotNomi: tug.mahsulotNomi,
-          sana: DateTime.now().toString().substring(0, 10),
-          hujjatId: tug.hujjatId,
-          nakladnoyRaqam: tug.hujjatRaqam,
-        );
+        // Hujjat hali sinxronlanmagan bo'lsa (yerli ID), bu chaqiruv
+        // ATAYLAB o'tkazib yuboriladi - backendda mavjud bo'lmagan
+        // hujjat_id bilan PDF yaratib bo'lmaydi. Nakladnoy keyinroq
+        // hujjat sinxronlangach qo'lda "Nakladnoy chop etish" tugmasi
+        // orqali yaratiladi.
+        if (!OfflineQueueService.yerliIdmi(tug.hujjatId)) {
+          ApiService.nakladnoySaqla(
+            mashinaRaqami: tug.raqam,
+            mahsulotNomi: tug.mahsulotNomi,
+            sana: DateTime.now().toString().substring(0, 10),
+            hujjatId: tug.hujjatId,
+            nakladnoyRaqam: tug.hujjatRaqam,
+          );
+        }
 
         ApiService.navbatTugallandi({
           'hujjatId': tug.hujjatId,
@@ -1334,16 +1342,24 @@ try {
 
       if (hujjat['id'] == null) {
         // Server bilan aloqa yo'q - mashina/hujjat offline navbatga
-        // qo'yildi (soxta ID BILAN EMAS). Shu urinishda ishlatilgan
-        // mijoz_kaliti'ni saqlab qolamiz - agar operator "TARA SAQLASH"ni
-        // yana bossa (masalan sinxronizatsiya orada allaqachon tugagan
-        // bo'lsa), AYNAN SHU kalit qayta ishlatiladi va ikkilamchi
-        // hujjat yaratilmaydi. bazagaSaqlandi ATAYLAB true qilinmaydi -
-        // shu funksiyani chaqirgan joydagi "if (!bazagaSaqlandi) return;"
-        // tekshiruvi operatorni tortishga o'tishdan avtomatik to'xtatadi.
-        _bazagaHujjatMijozKaliti = hujjat['mahalliyKalit'];
+        // qo'yildi. Shu urinishda ishlatilgan mijoz_kaliti'ni saqlab
+        // qolamiz (ehtiyot chorasi sifatida). Operator tortishni DARHOL
+        // davom ettira olishi uchun hujjatId/mashinaId'ga MANFIY vaqtinchalik
+        // "yerli ID" beriladi - bu haqiqiy ID sinxronlanguncha ekran
+        // holatida o'rinbosar bo'lib turadi, ApiService uni serverga
+        // yuborishdan oldin qaytadan mahalliy kalitga almashtiradi.
+        final hujjatMahalliyKalit = hujjat['mahalliyKalit'] as String;
+        _bazagaHujjatMijozKaliti = hujjatMahalliyKalit;
+
+        final mashinaMahalliyKalit = mashina['mahalliyKalit'] as String?;
+        mashinaId = mashinaMahalliyKalit != null
+            ? OfflineQueueService.yerliIdBiriktir(mashinaMahalliyKalit)
+            : mashina['id'] as int;
+        hujjatId = OfflineQueueService.yerliIdBiriktir(hujjatMahalliyKalit);
+        _hujjatRaqam = '';
         _xabar(
-            "⏳ Server bilan aloqa yo'q — mashina/hujjat navbatga qo'yildi. Ulanish tiklanguncha kuting va qayta urinib ko'ring.");
+            "⏳ Server bilan aloqa yo'q — mashina/hujjat navbatga qo'yildi, tortishni davom ettirishingiz mumkin. Aloqa tiklangach avtomatik yuboriladi.");
+        setState(() => bazagaSaqlandi = true);
         return;
       }
 
@@ -1381,6 +1397,11 @@ try {
     final _firma = firmaCtrl.text;
     final _tiketRaqam = tiketRaqamCtrl.text;
     final _hujjatId = hujjatId ?? tanlanganNavbat?.hujjatId;
+    if (_hujjatId != null && OfflineQueueService.yerliIdmi(_hujjatId)) {
+      _xabar(
+          "⏳ Hujjat hali serverga sinxronlanmagan — aloqa tiklanguncha kuting.");
+      return;
+    }
     Navigator.push(
         context,
         MaterialPageRoute(

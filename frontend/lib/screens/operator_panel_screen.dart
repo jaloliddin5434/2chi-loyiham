@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'nakladnoy_screen.dart';
 import 'hujjatlar_royxati_paneli.dart';
+import 'statistika_paneli.dart';
 import '../services/api_service.dart';
 import '../services/navbat_service.dart';
 import '../services/offline_service.dart';
@@ -2205,7 +2206,10 @@ try {
                   onTap: () =>
                       setState(() => _tanlanganBolim = 1)),
               _sidebarIcon(
-                  Icons.format_list_numbered, false),
+                  Icons.bar_chart,
+                  _tanlanganBolim == 2,
+                  onTap: () =>
+                      setState(() => _tanlanganBolim = 2)),
               _sidebarIcon(
                   Icons.camera_alt_outlined, false),
             ]),
@@ -2213,6 +2217,8 @@ try {
         Expanded(
           child: _tanlanganBolim == 1
               ? const HujjatlarRoyxatiPaneli()
+              : _tanlanganBolim == 2
+              ? const StatistikaPaneli()
               : SingleChildScrollView(
             padding: const EdgeInsets.all(12),
             child: Column(children: [

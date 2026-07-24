@@ -422,6 +422,24 @@ static const String baseUrl = "http://10.112.30.77:8001";
   static Future<List<dynamic>> getGrafikDetalMavsum(String mahsulot) =>
       _grafikDetalOl('mavsum', mahsulot);
 
+  static Future<Map<String, dynamic>> _statistikaOl(String davr) async {
+    final response = await http.get(
+        Uri.parse('$baseUrl/statistika/$davr'), headers: _headers());
+    _check401(response);
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    }
+    throw Exception('Statistika ($davr) yuklanmadi (status ${response.statusCode})');
+  }
+
+  static Future<Map<String, dynamic>> getKunlikStat() => _statistikaOl('kunlik');
+
+  static Future<Map<String, dynamic>> getHaftalikStat() => _statistikaOl('haftalik');
+
+  static Future<Map<String, dynamic>> getOylikStat() => _statistikaOl('oylik');
+
+  static Future<Map<String, dynamic>> getMavsumStat() => _statistikaOl('mavsum');
+
   static Future<void> rasmOl({
     required String mashinaRaqami,
     required String mahsulotNomi,

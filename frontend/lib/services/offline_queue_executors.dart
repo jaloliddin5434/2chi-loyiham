@@ -16,6 +16,22 @@ class OfflineQueueExecutors {
   static String Function() baseUrlOluvchi = () => '';
   static Map<String, String> Function() headerOluvchi = () => {};
 
+  /// Bitta joydan boshqariladigan xato-klassifikatsiya: status 401
+  /// (avtorizatsiya tokeni muddati tugagan/notogri) DOIMIY server
+  /// rad etishi (OfflineServerXatosi) EMAS - bu holatda ma'lumotning
+  /// o'zi mutlaqo to'g'ri, faqat operator hozircha qayta login qilishi
+  /// kerak. Shu sabab [OfflineTarmoqXatosi] sifatida qaraladi - bu
+  /// amal "xato" deb belgilanib yo'qolib qolmaydi, operator qayta
+  /// login qilgach keyingi sinxronizatsiya siklida avtomatik qayta
+  /// urinilib, muvaffaqiyatli tugaydi.
+  static Never _xatoOtish(http.Response javob, String xabar) {
+    if (javob.statusCode == 401) {
+      throw OfflineTarmoqXatosi(
+          "Avtorizatsiya muddati tugagan (401) - qayta login qilingach avtomatik qayta urinilyapti");
+    }
+    throw OfflineServerXatosi("$xabar (status ${javob.statusCode})", javob.statusCode);
+  }
+
   static void barchasiniRoyxatgaOl() {
     OfflineQueueService.turiniRoyxatgaOl('sozlama_saqlash', sozlamaBajaruvchisi);
     OfflineQueueService.turiniRoyxatgaOl('navbat_bekor', navbatBekorBajaruvchisi);
@@ -47,8 +63,7 @@ class OfflineQueueExecutors {
     if (javob.statusCode == 200) {
       return jsonDecode(utf8.decode(javob.bodyBytes)) as Map<String, dynamic>;
     }
-    throw OfflineServerXatosi(
-        "Hujjat yangilanmadi (status ${javob.statusCode})", javob.statusCode);
+    _xatoOtish(javob, "Hujjat yangilanmadi");
   }
 
   static Future<Map<String, dynamic>> navbatQoshBajaruvchisi(
@@ -66,8 +81,7 @@ class OfflineQueueExecutors {
     if (javob.statusCode == 200) {
       return jsonDecode(utf8.decode(javob.bodyBytes)) as Map<String, dynamic>;
     }
-    throw OfflineServerXatosi(
-        "Navbatga qo'shilmadi (status ${javob.statusCode})", javob.statusCode);
+    _xatoOtish(javob, "Navbatga qo'shilmadi");
   }
 
   static Future<Map<String, dynamic>> navbatTugallandiBajaruvchisi(
@@ -85,8 +99,7 @@ class OfflineQueueExecutors {
     if (javob.statusCode == 200) {
       return jsonDecode(utf8.decode(javob.bodyBytes)) as Map<String, dynamic>;
     }
-    throw OfflineServerXatosi(
-        "Navbat tugallanmadi (status ${javob.statusCode})", javob.statusCode);
+    _xatoOtish(javob, "Navbat tugallanmadi");
   }
 
   static Future<Map<String, dynamic>> olchovSaqlashBajaruvchisi(
@@ -104,8 +117,7 @@ class OfflineQueueExecutors {
     if (javob.statusCode == 200) {
       return jsonDecode(utf8.decode(javob.bodyBytes)) as Map<String, dynamic>;
     }
-    throw OfflineServerXatosi(
-        "Olchov saqlanmadi (status ${javob.statusCode})", javob.statusCode);
+    _xatoOtish(javob, "Olchov saqlanmadi");
   }
 
   static Future<Map<String, dynamic>> sozlamaBajaruvchisi(
@@ -123,8 +135,7 @@ class OfflineQueueExecutors {
     if (javob.statusCode == 200) {
       return {'status': 'ok'};
     }
-    throw OfflineServerXatosi(
-        "Sozlama saqlanmadi (status ${javob.statusCode})", javob.statusCode);
+    _xatoOtish(javob, "Sozlama saqlanmadi");
   }
 
   static Future<Map<String, dynamic>> navbatBekorBajaruvchisi(
@@ -142,8 +153,7 @@ class OfflineQueueExecutors {
     if (javob.statusCode == 200) {
       return {'status': 'ok'};
     }
-    throw OfflineServerXatosi(
-        "Navbatdan o'chirilmadi (status ${javob.statusCode})", javob.statusCode);
+    _xatoOtish(javob, "Navbatdan o'chirilmadi");
   }
 
   /// Mashina yaratish - backend `davlat_raqami` bo'yicha allaqachon
@@ -164,8 +174,7 @@ class OfflineQueueExecutors {
     if (javob.statusCode == 200) {
       return jsonDecode(utf8.decode(javob.bodyBytes)) as Map<String, dynamic>;
     }
-    throw OfflineServerXatosi(
-        "Mashina yaratilmadi (status ${javob.statusCode})", javob.statusCode);
+    _xatoOtish(javob, "Mashina yaratilmadi");
   }
 
   /// Hujjat yaratish - `malumot['mijoz_kaliti']` (offline navbatga
@@ -187,7 +196,6 @@ class OfflineQueueExecutors {
     if (javob.statusCode == 200) {
       return jsonDecode(utf8.decode(javob.bodyBytes)) as Map<String, dynamic>;
     }
-    throw OfflineServerXatosi(
-        "Hujjat yaratilmadi (status ${javob.statusCode})", javob.statusCode);
+    _xatoOtish(javob, "Hujjat yaratilmadi");
   }
 }

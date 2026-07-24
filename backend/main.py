@@ -1,12 +1,13 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
 from database import engine, get_db, Base, SessionLocal
 from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi
 from schemas import UserLogin, Token, UserCreate, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
-from config import PG_DUMP_YOL, WKHTMLTOPDF_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL
+from config import PG_DUMP_YOL, WKHTMLTOPDF_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL
 from utils import konditsion_hisobla
 import models
 from datetime import datetime
@@ -1290,9 +1291,21 @@ def nakladnoy_uchun_malumot(db: Session, hujjat_id: int) -> dict:
             if qiymat is not None:
                 a[maydon] = qiymat
 
+    # Kirgan vaqt = tara BIRINCHI o'lchangan payt, chiqqan vaqt = brutto
+    # OXIRGI o'lchangan payt - Navbat qatoriga bog'liq emas (ba'zi
+    # hujjatlarda Navbat qatori umuman bo'lmasligi mumkin), shu sabab
+    # to'g'ridan-to'g'ri Olchov.created_at'dan hisoblanadi.
+    tara_vaqtlari = [o.created_at for o in olchov_qatorlari if o.tara is not None]
+    brutto_vaqtlari = [o.created_at for o in olchov_qatorlari if o.brutto is not None]
+    kirgan_vaqt = min(tara_vaqtlari) if tara_vaqtlari else None
+    chiqqan_vaqt = max(brutto_vaqtlari) if brutto_vaqtlari else None
+
     return {
         "hujjat_id": hujjat.id,
         "raqam": hujjat.raqam,
+        "sana": hujjat.created_at.strftime("%Y-%m-%d") if hujjat.created_at else "",
+        "kirgan_vaqt": kirgan_vaqt.strftime("%Y-%m-%d %H:%M:%S") if kirgan_vaqt else "",
+        "chiqqan_vaqt": chiqqan_vaqt.strftime("%Y-%m-%d %H:%M:%S") if chiqqan_vaqt else "",
         "mashina_raqami": hujjat.mashina_raqami or "",
         "mashina_turi": mashina.turi if mashina else "",
         "shofyor": hujjat.shofyor or "",
@@ -1329,6 +1342,26 @@ def nakladnoy_saqlash(data: dict, db: Session = Depends(get_db), current_user: d
         m = nakladnoy_uchun_malumot(db, hujjat_id)
         if not m:
             return {"status": "error", "message": f"Hujjat topilmadi (id={hujjat_id})"}
+
+        hujjat_obj = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
+        if not hujjat_obj.nakladnoy_token:
+            import secrets
+            hujjat_obj.nakladnoy_token = secrets.token_urlsafe(24)
+            db.commit()
+            db.refresh(hujjat_obj)
+
+        qr_base64 = ""
+        try:
+            import qrcode
+            import io
+            import base64
+            korish_url = f"{SERVER_ASOSIY_URL}/nakladnoy-korish/{hujjat_obj.nakladnoy_token}"
+            qr_rasm = qrcode.make(korish_url)
+            buffer = io.BytesIO()
+            qr_rasm.save(buffer, format="PNG")
+            qr_base64 = base64.b64encode(buffer.getvalue()).decode("ascii")
+        except Exception as qr_xato:
+            print(f"QR kod generatsiya qilinmadi: {qr_xato}")
 
         sana = data.get("sana") or datetime.now().strftime("%Y-%m-%d")
 
@@ -1371,8 +1404,12 @@ td {{ text-align: center; }}
 td.left {{ text-align: left; }}
 .jami {{ font-weight: bold; }}
 .imzo {{ border: none; padding: 12px 0; }}
+.qr-burchak {{ position: absolute; top: 15px; right: 20px; text-align: center; }}
+.qr-burchak img {{ width: 90px; height: 90px; }}
+.qr-burchak div {{ font-size: 9px; color: #444; margin-top: 2px; }}
 </style></head>
 <body>
+{f'<div class="qr-burchak"><img src="data:image/png;base64,{qr_base64}"/><div>Onlayn ko&#39;rish</div></div>' if qr_base64 else ''}
 <h2>ЗАВОД НУСХАСИ</h2>
 <h2>ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № {m['raqam']} &nbsp;&nbsp; Тикет №: {m['tiket_raqam']}</h2>
 <h3>Ishlab chiqarishdan qabul qilingan mahsulotlarni tashish uchun</h3>
@@ -1455,6 +1492,105 @@ td.left {{ text-align: left; }}
         import traceback
         traceback.print_exc()
         return {"status": "error", "message": str(e)}
+
+
+@app.get("/nakladnoy-korish/{token}", response_class=HTMLResponse)
+def nakladnoy_korish(token: str, db: Session = Depends(get_db)):
+    """QR kod orqali ochiladigan, LOGIN TALAB QILMAYDIGAN ochiq sahifa.
+
+    DIQQAT - xavfsizlik: bu yerda ATAYLAB hujjat_id emas, tasodifiy
+    nakladnoy_token bo'yicha qidiriladi (Depends(get_current_user) YO'Q,
+    lekin shu tufayli ID'larni ketma-ket sinab boshqa hujjatlarni ko'rish
+    imkonsiz bo'ladi). Faqat GET - hech qanday yozish/o'zgartirish yo'q.
+    """
+    hujjat = db.query(Hujjat).filter(Hujjat.nakladnoy_token == token).first()
+    if not hujjat:
+        return HTMLResponse(
+            content="<html><body style='font-family:Arial;text-align:center;padding:40px'>"
+                    "<h2>Hujjat topilmadi</h2>"
+                    "<p>Havola noto'g'ri yoki muddati o'tgan.</p></body></html>",
+            status_code=404,
+        )
+
+    m = nakladnoy_uchun_malumot(db, hujjat.id)
+
+    def arava_qatori(n):
+        a = m["aravalar"].get(n)
+        if not a or not a.get("tara"):
+            return ""
+        tara = a.get("tara") or 0
+        brutto = a.get("brutto") or 0
+        netto = a.get("netto")
+        if netto is None:
+            netto = brutto - tara
+        kond = a.get("konditsion")
+        kond_str = str(round(kond)) if kond is not None else "-"
+        return (f"<tr><td>{n}-arava</td><td>{round(tara)}</td>"
+                f"<td>{round(brutto)}</td><td>{round(netto)}</td><td>{kond_str}</td></tr>")
+
+    aravalar_qatorlari = "".join(arava_qatori(n) for n in (1, 2, 3))
+
+    jami_tara = sum((m["aravalar"].get(n) or {}).get("tara") or 0 for n in (1, 2, 3))
+    jami_brutto = sum((m["aravalar"].get(n) or {}).get("brutto") or 0 for n in (1, 2, 3))
+    jami_netto = jami_brutto - jami_tara
+    jami_konditsion = sum((m["aravalar"].get(n) or {}).get("konditsion") or 0 for n in (1, 2, 3))
+
+    namlik = m["namlik"] if m["namlik"] != "" else "—"
+    ifloslik = m["ifloslik"] if m["ifloslik"] != "" else "—"
+
+    html_content = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nakladnoy {m['raqam']}</title>
+<style>
+body {{ font-family: Arial, sans-serif; font-size: 16px; margin: 0; padding: 16px; background: #F5F7FA; color: #0D1B2A; }}
+.karta {{ background: white; border-radius: 12px; padding: 16px; max-width: 480px; margin: 0 auto 12px auto; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }}
+h2 {{ font-size: 18px; margin: 0 0 4px 0; color: #1A4A08; }}
+h3 {{ font-size: 13px; margin: 0 0 12px 0; color: #607080; font-weight: normal; }}
+.maydon {{ display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #EEF1F4; font-size: 14px; }}
+.maydon:last-child {{ border-bottom: none; }}
+.label {{ color: #607080; }}
+.qiymat {{ font-weight: 600; text-align: right; }}
+table {{ width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }}
+th, td {{ border: 1px solid #E0E4E8; padding: 8px 6px; text-align: center; }}
+th {{ background: #1A4A08; color: white; font-weight: 600; }}
+.jami {{ font-weight: bold; background: #F0F4F0; }}
+.vaqt-badge {{ display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 12px; margin-right: 6px; }}
+.kirgan {{ background: #E3F2FD; color: #1565C0; }}
+.chiqqan {{ background: #E8F5E9; color: #2E7D32; }}
+</style></head>
+<body>
+<div class="karta">
+  <h2>Nakladnoy № {m['raqam']}</h2>
+  <h3>{m['mashina_turi']} · {m['mashina_raqami']} · {m['sana']}</h3>
+  <div>
+    <span class="vaqt-badge kirgan">Kirgan: {m['kirgan_vaqt'] or '—'}</span>
+    <span class="vaqt-badge chiqqan">Chiqqan: {m['chiqqan_vaqt'] or '—'}</span>
+  </div>
+</div>
+<div class="karta">
+  <div class="maydon"><span class="label">Shofyor</span><span class="qiymat">{m['shofyor']}</span></div>
+  <div class="maydon"><span class="label">Firma</span><span class="qiymat">{m['firma']}</span></div>
+  <div class="maydon"><span class="label">Mahsulot</span><span class="qiymat">{m['mahsulot_nomi']}</span></div>
+  <div class="maydon"><span class="label">Tiket №</span><span class="qiymat">{m['tiket_raqam'] or '—'}</span></div>
+  <div class="maydon"><span class="label">Tuda №</span><span class="qiymat">{m['tuda_raqam'] or '—'}</span></div>
+  <div class="maydon"><span class="label">Klass</span><span class="qiymat">{m['klass'] or '—'}</span></div>
+  <div class="maydon"><span class="label">Sinf</span><span class="qiymat">{m['sinf'] or '—'}</span></div>
+  <div class="maydon"><span class="label">Seleksiya navi</span><span class="qiymat">{m['seleksiya_navi'] or '—'}</span></div>
+  <div class="maydon"><span class="label">Terim turi</span><span class="qiymat">{m['terim_turi'] or '—'}</span></div>
+  <div class="maydon"><span class="label">Namlik %</span><span class="qiymat">{namlik}</span></div>
+  <div class="maydon"><span class="label">Ifloslik %</span><span class="qiymat">{ifloslik}</span></div>
+</div>
+<div class="karta">
+  <table>
+    <tr><th>Arava</th><th>Tara</th><th>Brutto</th><th>Netto</th><th>Kond.</th></tr>
+    {aravalar_qatorlari}
+    <tr class="jami"><td>Jami</td><td>{round(jami_tara)}</td><td>{round(jami_brutto)}</td><td>{round(jami_netto)}</td><td>{round(jami_konditsion)}</td></tr>
+  </table>
+</div>
+</body></html>"""
+    return HTMLResponse(content=html_content)
+
 
 # ============ KAMERA ============
 from pathlib import Path

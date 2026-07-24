@@ -78,6 +78,12 @@ class Hujjat(Base):
     # generatsiya qilingan noyob kalit - qayta yuborilgan (retry) so'rov
     # ikkilamchi hujjat yaratib qo'ymasligi uchun (idempotentlik).
     mijoz_kaliti = Column(String, unique=True, nullable=True)
+    # Nakladnoyni login'siz (QR kod orqali) ochish uchun tasodifiy,
+    # taxmin qilib bo'lmaydigan token - hujjat_id o'rniga ishlatiladi,
+    # shunda ketma-ket ID sinab boshqa hujjatlarni ko'rish (IDOR)
+    # imkoni bo'lmaydi. Birinchi nakladnoy saqlanganda "lazy" generatsiya
+    # qilinadi.
+    nakladnoy_token = Column(String, unique=True, nullable=True, index=True)
 
 class Olchov(Base):
     __tablename__ = "olchovlar"

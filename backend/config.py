@@ -22,5 +22,10 @@ KAMERA_2_IP = os.getenv("KAMERA_2_IP")
 KAMERA_LOGIN = os.getenv("KAMERA_LOGIN")
 KAMERA_PAROL = os.getenv("KAMERA_PAROL")
 
+# QR kod (nakladnoy-korish ochiq sahifasi) uchun serverning tashqi manzili -
+# frontend'ning ApiService.baseUrl bilan bir xil (hozircha lokal tarmoq IP,
+# faqat shu WiFi'ga ulangan qurilmalar ocha oladi).
+SERVER_ASOSIY_URL = os.getenv("SERVER_ASOSIY_URL", "http://10.112.30.77:8001")
+
 if not DATABASE_URL or not SECRET_KEY:
     raise RuntimeError(".env faylida DATABASE_URL yoki SECRET_KEY topilmadi!")

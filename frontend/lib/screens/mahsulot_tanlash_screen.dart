@@ -43,12 +43,34 @@ class _MahsulotTanlashScreenState extends State<MahsulotTanlashScreen> {
     }
   }
 
-  final List<Map<String, dynamic>> _config = [
-    {'rang': const Color(0xFFD97706), 'fon': const Color(0xFFFEF3E2)},
-    {'rang': const Color(0xFF0F9D6C), 'fon': const Color(0xFFE7F7F1)},
-    {'rang': const Color(0xFFC2461A), 'fon': const Color(0xFFFDEDE7)},
-    {'rang': const Color(0xFF1D62D6), 'fon': const Color(0xFFEAF1FD)},
-  ];
+  // Har bir mahsulot nomiga mos ikonka va rang - nom bo'yicha moslashtiriladi
+  // (backend tartibiga qattiq bog'lanmaslik uchun), noma'lum nom uchun
+  // standart (Chigit bilan bir xil) qiymatga tushadi.
+  static const Map<String, Map<String, dynamic>> _mahsulotConfig = {
+    'Chigit': {
+      'ikon': Icons.grass,
+      'rang': Color(0xFF2E7D32),
+      'fon': Color(0xFFE8F5E9),
+    },
+    'Chiganoq': {
+      'ikon': Icons.eco,
+      'rang': Color(0xFF795548),
+      'fon': Color(0xFFEFEBE9),
+    },
+    "Chiganoq po'chog'i": {
+      'ikon': Icons.layers,
+      'rang': Color(0xFFD97706),
+      'fon': Color(0xFFFEF3E2),
+    },
+    'Patoz': {
+      'ikon': Icons.air,
+      'rang': Color(0xFF1D62D6),
+      'fon': Color(0xFFEAF1FD),
+    },
+  };
+
+  Map<String, dynamic> _configOl(String nom) =>
+      _mahsulotConfig[nom] ?? _mahsulotConfig['Chigit']!;
 
   @override
   Widget build(BuildContext context) {
@@ -71,9 +93,9 @@ class _MahsulotTanlashScreenState extends State<MahsulotTanlashScreen> {
           ),
           // Fon paxta naqshlari
           Positioned(top: -40, left: -40,
-            child: _fonDoira(200, const Color(0xFF4CAF50).withOpacity(0.07))),
+            child: _fonDoira(200, const Color(0xFF0F6E56).withOpacity(0.08))),
           Positioned(bottom: -60, right: -60,
-            child: _fonDoira(250, const Color(0xFF1565C0).withOpacity(0.06))),
+            child: _fonDoira(250, const Color(0xFF0F6E56).withOpacity(0.06))),
           Positioned(top: 100, right: 30,
             child: _fonDoira(100, const Color(0xFFFF8F00).withOpacity(0.07))),
           Positioned(bottom: 100, left: 30,
@@ -82,7 +104,7 @@ class _MahsulotTanlashScreenState extends State<MahsulotTanlashScreen> {
           SafeArea(
             child: Center(
               child: yuklanmoqda
-                  ? const CircularProgressIndicator(color: Color(0xFF1565C0))
+                  ? const CircularProgressIndicator(color: Color(0xFF0F6E56))
                   : SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                       child: Column(
@@ -94,14 +116,14 @@ class _MahsulotTanlashScreenState extends State<MahsulotTanlashScreen> {
                             height: 80,
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                colors: [Color(0xFF1565C0), Color(0xFF1976D2)],
+                                colors: [Color(0xFF0F6E56), Color(0xFF14876A)],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
-                              borderRadius: BorderRadius.circular(24),
+                              borderRadius: BorderRadius.circular(16),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF1565C0).withOpacity(0.35),
+                                  color: const Color(0xFF0F6E56).withOpacity(0.35),
                                   blurRadius: 20,
                                   offset: const Offset(0, 8),
                                 ),
@@ -134,9 +156,7 @@ class _MahsulotTanlashScreenState extends State<MahsulotTanlashScreen> {
                             height: 2,
                             width: 60,
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF4CAF50), Color(0xFF1565C0)],
-                              ),
+                              color: const Color(0xFF0F6E56),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
@@ -156,7 +176,8 @@ class _MahsulotTanlashScreenState extends State<MahsulotTanlashScreen> {
                             alignment: WrapAlignment.center,
                             children: List.generate(mahsulotlar.length, (index) {
                               final m = mahsulotlar[index];
-                              final config = _config[index % _config.length];
+                              final config = _configOl(m['nom'] as String);
+                              final ikon = config['ikon'] as IconData;
                               final rang = config['rang'] as Color;
                               final fon = config['fon'] as Color;
                               final isHover = hoverIndex == index;
@@ -185,7 +206,7 @@ class _MahsulotTanlashScreenState extends State<MahsulotTanlashScreen> {
                                       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
                                       decoration: BoxDecoration(
                                         color: Colors.white,
-                                        borderRadius: BorderRadius.circular(20),
+                                        borderRadius: BorderRadius.circular(16),
                                         border: Border.all(
                                           color: isHover ? rang : rang.withOpacity(0.25),
                                           width: isHover ? 2 : 1.5,
@@ -207,16 +228,13 @@ class _MahsulotTanlashScreenState extends State<MahsulotTanlashScreen> {
                                             height: 64,
                                             decoration: BoxDecoration(
                                               color: isHover ? rang : fon,
-                                              borderRadius: BorderRadius.circular(18),
+                                              borderRadius: BorderRadius.circular(16),
                                             ),
                                             child: Center(
-                                              child: Text(
-                                                "${index + 1}",
-                                                style: TextStyle(
-                                                  fontSize: 28,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: isHover ? Colors.white : rang,
-                                                ),
+                                              child: Icon(
+                                                ikon,
+                                                size: 30,
+                                                color: isHover ? Colors.white : rang,
                                               ),
                                             ),
                                           ),

@@ -46,7 +46,7 @@ class _RolTanlashScreenState extends State<RolTanlashScreen> {
           ),
           Positioned(
             bottom: -60, right: -60,
-            child: _fonDoira(260, const Color(0xFF1565C0).withOpacity(0.05)),
+            child: _fonDoira(260, const Color(0xFF0F6E56).withOpacity(0.05)),
           ),
           // Kontent
           SafeArea(
@@ -96,7 +96,7 @@ class _RolTanlashScreenState extends State<RolTanlashScreen> {
                             height: 72,
                             decoration: BoxDecoration(
                               color: widget.rang.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(16),
                               border: Border.all(
                                 color: widget.rang.withOpacity(0.3),
                                 width: 1.5,
@@ -200,7 +200,7 @@ class _RolTanlashScreenState extends State<RolTanlashScreen> {
             padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: isHover ? rang : rang.withOpacity(0.25),
                 width: isHover ? 2 : 1.5,

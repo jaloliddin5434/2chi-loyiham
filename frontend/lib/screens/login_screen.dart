@@ -100,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           Positioned(
             bottom: -80, left: -80,
-            child: _fonDoira(280, const Color(0xFF1565C0).withOpacity(0.05)),
+            child: _fonDoira(280, const Color(0xFF0F6E56).withOpacity(0.05)),
           ),
           // Kontent
           SafeArea(
@@ -129,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         padding: const EdgeInsets.all(32),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(28),
+                          borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
                               color: rang.withOpacity(0.1),
@@ -202,11 +202,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                 labelText: "Login",
                                 prefixIcon: Icon(Icons.person_outline, color: rang),
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(16),
                                   borderSide: BorderSide(color: Colors.grey.shade300),
                                 ),
                                 focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(16),
                                   borderSide: BorderSide(color: rang, width: 2),
                                 ),
                                 filled: true,
@@ -230,11 +230,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                   onPressed: () => setState(() => parolKorinsin = !parolKorinsin),
                                 ),
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(16),
                                   borderSide: BorderSide(color: Colors.grey.shade300),
                                 ),
                                 focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(16),
                                   borderSide: BorderSide(color: rang, width: 2),
                                 ),
                                 filled: true,
@@ -275,7 +275,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   foregroundColor: Colors.white,
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
+                                    borderRadius: BorderRadius.circular(16),
                                   ),
                                 ),
                                 child: yuklanmoqda

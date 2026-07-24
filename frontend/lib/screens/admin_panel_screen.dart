@@ -388,6 +388,81 @@ Future<void> hujjatlarniYukla() async {
     );
   }
 
+  // Statistika bo'limidagi mahsulot-tab nomini backend
+  // /statistika/kunlik va /statistika/mavsum javobidagi kalitga
+  // moslashtiradi.
+  String _statMahsulotKaliti(String nom) {
+    switch (nom) {
+      case 'Chigit':
+        return 'chigit';
+      case 'Chiganoq':
+        return 'chiganoq';
+      case "Chiganoq po'chog'i":
+        return 'pochog';
+      case 'Patoz':
+        return 'patoz';
+      default:
+        return 'chigit';
+    }
+  }
+
+  Widget _xulosaQatori(String label, String qiymat) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: kechagiRejim ? muted : Colors.grey)),
+            Text(qiymat,
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w700)),
+          ]),
+    );
+  }
+
+  /// Tanlangan mahsulot-tab uchun "Bugun"/"Mavsum" xulosa kartasi -
+  /// mashina soni, netto (tonna) va (faqat backend javobida
+  /// "konditsion" kaliti bo'lsa - hozircha faqat Chigit uchun)
+  /// kondicion (tonna) ko'rsatadi.
+  Widget _mahsulotXulosaKartasi(
+      String sarlavha, IconData icon, Color rang, Map<String, dynamic> stat) {
+    final cardColor = kechagiRejim ? const Color(0xFF0F2A0F) : Colors.white;
+    final soni = stat['soni'] ?? 0;
+    final tonnaj = stat['tonnaj'] ?? 0;
+    final kondicionBormi = stat.containsKey('konditsion');
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardColor,
+        border: Border.all(color: cardBorder),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(icon, size: 16, color: rang),
+              const SizedBox(width: 6),
+              Expanded(
+                  child: Text(sarlavha,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: rang),
+                      overflow: TextOverflow.ellipsis)),
+            ]),
+            const SizedBox(height: 10),
+            _xulosaQatori("Mashinalar", "$soni ta"),
+            _xulosaQatori("Netto", "$tonnaj tonna"),
+            if (kondicionBormi)
+              _xulosaQatori("Kondicion", "${stat['konditsion']} tonna"),
+          ]),
+    );
+  }
+
   Widget _solishtirmaKarta(String label, String bugun,
       String kecha, String hafta) {
     final cardColor = kechagiRejim ? const Color(0xFF0F2A0F) : Colors.white;
@@ -2861,6 +2936,26 @@ Widget _mashinaGrafik() {
           Expanded(child: _statCard("Hafta tonnaj",
               "${haftalikStat['jami_tonnaj'] ?? 0}", "tonna",
               Icons.scale, redColor)),
+        ]),
+        const SizedBox(height: 12),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+              child: _mahsulotXulosaKartasi(
+                  "Bugun — $tanlanganStatMahsulot",
+                  Icons.today,
+                  greenLight,
+                  (kunlikStat[_statMahsulotKaliti(tanlanganStatMahsulot)]
+                          as Map<String, dynamic>?) ??
+                      {})),
+          const SizedBox(width: 10),
+          Expanded(
+              child: _mahsulotXulosaKartasi(
+                  "Mavsum — $tanlanganStatMahsulot",
+                  Icons.calendar_month,
+                  blueColor,
+                  (mavsumStat[_statMahsulotKaliti(tanlanganStatMahsulot)]
+                          as Map<String, dynamic>?) ??
+                      {})),
         ]),
         const SizedBox(height: 12),
         if (grafikDetalYuklanmoqda)

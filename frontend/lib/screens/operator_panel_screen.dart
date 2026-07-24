@@ -309,10 +309,29 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
               .map((m) => m.hujjatId)
               .toSet();
 
-      // Faqat yangilarini qo'shish
+      // Faqat yangilarini qo'shish. DIQQAT: agar mahalliy ro'yxatda
+      // ALLAQACHON shu davlat raqami bo'yicha OFFLINE (hali
+      // sinxronlanmagan, manfiy "yerli ID"li) yozuv bo'lsa - bu ANIQ
+      // o'sha mashina endi backend bilan sinxronlangan degani (Stage 4c:
+      // mashina/hujjat offline yaratilgan). Eski (yerli ID'li) yozuvni
+      // olib tashlab, ANIQ backend nusxasi bilan almashtiramiz - aks
+      // holda Navbat panelida bitta mashina IKKI marta ko'rinib qoladi.
       for (final m in navbatData) {
         final id = (m['hujjatId'] ?? 0) as int;
-        if (!mavjudNavbatIds.contains(id) &&
+        final raqam = m['raqam'] as String? ?? '';
+        NavbatMashina? eskiMahalliy;
+        for (final x in NavbatService.navbat.value) {
+          if (OfflineQueueService.yerliIdmi(x.hujjatId) &&
+              x.raqam == raqam) {
+            eskiMahalliy = x;
+            break;
+          }
+        }
+        if (eskiMahalliy != null) {
+          NavbatService.navbatdanOchir(eskiMahalliy.hujjatId);
+          NavbatService.navbatQosh(_mapDanMashina(
+              Map<String, dynamic>.from(m)));
+        } else if (!mavjudNavbatIds.contains(id) &&
             !mavjudTugIds.contains(id)) {
           NavbatService.navbatQosh(_mapDanMashina(
               Map<String, dynamic>.from(m)));
@@ -321,13 +340,21 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
 
       for (final m in tugallanganData) {
         final id = (m['hujjatId'] ?? 0) as int;
-        if (!mavjudTugIds.contains(id)) {
+        final raqam = m['raqam'] as String? ?? '';
+        final eskiMahalliyBormi = NavbatService
+            .tugallanganlar.value
+            .any((x) =>
+                OfflineQueueService.yerliIdmi(x.hujjatId) &&
+                x.raqam == raqam);
+        if (!mavjudTugIds.contains(id) || eskiMahalliyBormi) {
           final mashina = _mapDanMashina(
               Map<String, dynamic>.from(m));
           NavbatService.tugallanganlar.value = [
             mashina,
-            ...NavbatService.tugallanganlar.value
-                .where((x) => x.hujjatId != id)
+            ...NavbatService.tugallanganlar.value.where((x) =>
+                x.hujjatId != id &&
+                !(OfflineQueueService.yerliIdmi(x.hujjatId) &&
+                    x.raqam == raqam))
           ];
         }
       }
@@ -426,6 +453,129 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       hozirgiSoat =
           "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}";
     });
+  }
+
+  // Har soniyada _soatniYanila() orqali qayta chizilgani uchun bu
+  // qiymatlar alohida holat/Timer talab qilmaydi - har safar taze
+  // o'qiladi.
+  int get _sinxronlanmaganSoni =>
+      OfflineQueueService.navbatdagilar().length;
+  int get _xatoSoni => OfflineQueueService.xatoliklar().length;
+
+  String _amalTuriMatni(String turi) {
+    switch (turi) {
+      case 'mashina_yaratish':
+        return "Mashina qo'shish";
+      case 'hujjat_yaratish':
+        return "Hujjat yaratish";
+      case 'olchov_saqlash':
+        return "Tara/brutto saqlash";
+      case 'navbat_qosh':
+        return "Navbatga qo'shish";
+      case 'navbat_tugallandi':
+        return "Tortishni tugatish";
+      case 'navbat_bekor':
+        return "Navbatdan bekor qilish";
+      case 'hujjat_yangilash':
+        return "Hujjat ma'lumotini yangilash";
+      case 'sozlama_saqlash':
+        return "Sozlamalarni saqlash";
+      default:
+        return turi;
+    }
+  }
+
+  void _xatolarniKorsat() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          const Icon(Icons.error_outline,
+              color: Color(0xFFC03030), size: 20),
+          const SizedBox(width: 8),
+          const Text("Sinxronlanmagan xatoliklar",
+              style: TextStyle(
+                  color: Color(0xFF0D1B2A), fontSize: 15)),
+        ]),
+        content: SizedBox(
+          width: 480,
+          child: StatefulBuilder(
+            builder: (ctx, setDialogState) {
+              final xatolar = OfflineQueueService.xatoliklar();
+              if (xatolar.isEmpty) {
+                return const Text(
+                    "Hozircha xatolik yo'q.",
+                    style: TextStyle(color: Colors.grey));
+              }
+              return SingleChildScrollView(
+                child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                  for (final x in xatolar)
+                    Container(
+                      margin: const EdgeInsets.only(
+                          bottom: 8),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF5F5),
+                        border: Border.all(
+                            color:
+                                const Color(0xFFF0B0A0)),
+                        borderRadius:
+                            BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                        Row(children: [
+                          Expanded(
+                            child: Text(
+                                _amalTuriMatni(x.turi),
+                                style: const TextStyle(
+                                    fontWeight:
+                                        FontWeight.w700,
+                                    fontSize: 13,
+                                    color: Color(
+                                        0xFF0D1B2A))),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              OfflineQueueService
+                                  .xatoniOchirish(x.opId);
+                              setDialogState(() {});
+                            },
+                            child: const Icon(
+                                Icons.close,
+                                size: 16,
+                                color: Colors.grey),
+                          ),
+                        ]),
+                        const SizedBox(height: 4),
+                        Text(
+                            x.oxirgiXato ??
+                                "Noma'lum xato",
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color:
+                                    Color(0xFFC03030))),
+                      ]),
+                    ),
+                ]),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("Yopish")),
+        ],
+      ),
+    ).then((_) => setState(() {}));
   }
 
   void _xabar(String matn) {
@@ -1863,13 +2013,27 @@ try {
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
                   children: [
-            Text(mashina.raqam,
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: tanlangan
-                        ? blueColor
-                        : const Color(0xFF0D1B2A))),
+            Row(children: [
+              Flexible(
+                  child: Text(mashina.raqam,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: tanlangan
+                              ? blueColor
+                              : const Color(
+                                  0xFF0D1B2A)))),
+              if (OfflineQueueService.yerliIdmi(
+                  mashina.hujjatId)) ...[
+                const SizedBox(width: 5),
+                const Text("⏳ offline",
+                    style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFC07A10))),
+              ],
+            ]),
             Text(
                 "${mashina.vaqt} · ${mashina.mahsulotNomi}",
                 style: const TextStyle(
@@ -1925,11 +2089,24 @@ try {
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
                   children: [
-            Text(mashina.raqam,
-                style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF0D1B2A))),
+            Row(children: [
+              Flexible(
+                  child: Text(mashina.raqam,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0D1B2A)))),
+              if (OfflineQueueService.yerliIdmi(
+                  mashina.hujjatId)) ...[
+                const SizedBox(width: 5),
+                const Text("⏳ offline",
+                    style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFC07A10))),
+              ],
+            ]),
             Row(children: [
               Text(mashina.vaqt,
                   style: const TextStyle(
@@ -2933,6 +3110,43 @@ try {
                       color: serverUlangan
                           ? greenLight
                           : Colors.red)),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                    color: blueBg,
+                    border: Border.all(
+                        color: const Color(0xFFA0C0E8)),
+                    borderRadius:
+                        BorderRadius.circular(8)),
+                child: Text(
+                    "🔄 $_sinxronlanmaganSoni ta sinxronlanmagan",
+                    style: const TextStyle(
+                        fontSize: 11, color: blueColor)),
+              ),
+              if (_xatoSoni > 0) ...[
+                const SizedBox(width: 6),
+                GestureDetector(
+                  onTap: _xatolarniKorsat,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFFFF0F0),
+                        border: Border.all(
+                            color:
+                                const Color(0xFFF0B0A0)),
+                        borderRadius:
+                            BorderRadius.circular(8)),
+                    child: Text("⚠️ $_xatoSoni ta xato",
+                        style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFC03030))),
+                  ),
+                ),
+              ],
               const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(

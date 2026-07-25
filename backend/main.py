@@ -1480,11 +1480,25 @@ td.left {{ text-align: left; }}
             f.write(html_content)
 
         pdf_fayl = papka / "nakladnoy.pdf"
-        import pdfkit
-        wkhtmltopdf_yol = WKHTMLTOPDF_YOL
-        config = pdfkit.configuration(wkhtmltopdf=wkhtmltopdf_yol)
-        options = {'orientation': 'Landscape', 'page-size': 'A4'}
-        pdfkit.from_file(str(html_fayl), str(pdf_fayl), configuration=config, options=options)
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            # Sahifa kengligi A4 landscape'ga teng (297mm), lekin balandligi
+            # HAR SAFAR haqiqiy kontent balandligiga moslab hisoblanadi -
+            # shunda bitta-arava hujjatlarda ortiqcha bo'sh joy qolmaydi va
+            # 2-3 aravali hujjatlarda qator kesilib qolmaydi.
+            kenglik_mm = 297
+            kenglik_px = round(kenglik_mm * 96 / 25.4)
+            page = browser.new_page(
+                viewport={"width": kenglik_px, "height": 1600})
+            page.goto(html_fayl.absolute().as_uri())
+            kontent_px = page.evaluate("document.body.scrollHeight")
+            balandlik_mm = kontent_px * 25.4 / 96 + 8
+            page.pdf(path=str(pdf_fayl), width=f"{kenglik_mm}mm",
+                     height=f"{balandlik_mm}mm", print_background=True,
+                     margin={"top": "0mm", "bottom": "0mm",
+                             "left": "0mm", "right": "0mm"})
+            browser.close()
 
         return {"status": "ok", "fayl": str(pdf_fayl)}
     except Exception as e:

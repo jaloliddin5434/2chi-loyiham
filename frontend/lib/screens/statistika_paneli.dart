@@ -15,10 +15,11 @@ class StatistikaPaneli extends StatefulWidget {
 }
 
 class _StatistikaPaneliState extends State<StatistikaPaneli> {
-  static const Color asosiyRang = Color(0xFF1976D2);
-  static const Color kartaBorder = Color(0xFFBBDEFB);
-  static const Color muted = Color(0xFF78909C);
-  static const Color goldColor = Color(0xFFF57C00);
+  // Admin panelidagi _statistika() bilan aniq bir xil (izchillik uchun)
+  static const Color asosiyRang = Color(0xFF2A6AB8);
+  static const Color kartaBorder = Color(0xFFD8EDD0);
+  static const Color muted = Color(0xFF9AC080);
+  static const Color goldColor = Color(0xFFC89020);
   // Brend rangi (kirish oqimi, operator va admin paneli bilan izchil)
   static const Color brandGreen = Color(0xFF0F6E56);
 
@@ -296,7 +297,7 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
             ),
             gridData: FlGridData(show: true,
                 getDrawingHorizontalLine: (v) => FlLine(
-                    color: const Color(0xFFE8F0F8), strokeWidth: 1)),
+                    color: const Color(0xFFE8F4E0), strokeWidth: 1)),
             borderData: FlBorderData(show: false),
             barTouchData: BarTouchData(
               touchTooltipData: BarTouchTooltipData(

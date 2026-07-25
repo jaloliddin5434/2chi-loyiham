@@ -15,11 +15,12 @@ class HujjatlarRoyxatiPaneli extends StatefulWidget {
 }
 
 class _HujjatlarRoyxatiPaneliState extends State<HujjatlarRoyxatiPaneli> {
-  static const Color asosiyRang = Color(0xFF1976D2);
+  // Admin panelidagi Hujjatlar bo'limi bilan aniq bir xil (izchillik uchun)
+  static const Color asosiyRang = Color(0xFF0F6E56);
   static const Color asosiyBg = Color(0xFFE3F2FD);
   static const Color asosiyBorder = Color(0xFF90CAF9);
-  static const Color kartaBorder = Color(0xFFBBDEFB);
-  static const Color muted = Color(0xFF78909C);
+  static const Color kartaBorder = Color(0xFFD8EDD0);
+  static const Color muted = Color(0xFF9AC080);
 
   int tanlanganMahsulotId = 0;
   String sanadan = '';
@@ -188,15 +189,15 @@ class _HujjatlarRoyxatiPaneliState extends State<HujjatlarRoyxatiPaneli> {
         label = 'Bekor';
         break;
       case 'tugallandi':
-        bg = const Color(0xFFE8F5E9);
-        border = const Color(0xFFA5D6A7);
-        matn = const Color(0xFF2E7D32);
+        bg = const Color(0xFFEAFADE);
+        border = const Color(0xFFB0D890);
+        matn = const Color(0xFF0F6E56);
         label = 'Tugallandi';
         break;
       default:
-        bg = const Color(0xFFFFF3E0);
-        border = const Color(0xFFFFCC80);
-        matn = const Color(0xFFF57C00);
+        bg = const Color(0xFFFFF8E0);
+        border = const Color(0xFFF0D070);
+        matn = const Color(0xFFC89020);
         label = 'Jarayon';
     }
     return Padding(
@@ -303,7 +304,7 @@ class _HujjatlarRoyxatiPaneliState extends State<HujjatlarRoyxatiPaneli> {
               ))
             else
               Table(
-                border: TableBorder.all(color: const Color(0xFFE3F2FD)),
+                border: TableBorder.all(color: const Color(0xFFE0F0D8)),
                 columnWidths: const {
                   0: FlexColumnWidth(1),
                   1: FlexColumnWidth(0.9),
@@ -331,7 +332,7 @@ class _HujjatlarRoyxatiPaneliState extends State<HujjatlarRoyxatiPaneli> {
                   ...hujjatlar.map((h) => TableRow(
                         decoration: BoxDecoration(
                             color: h['holat'] == 'bekor'
-                                ? const Color(0xFFFFF5F5)
+                                ? const Color(0xFFFFF0F0)
                                 : Colors.white),
                         children: [
                           _td((h['raqam'] ?? '—').toString(), bold: true),

@@ -502,7 +502,7 @@ Future<void> hujjatlarniYukla() async {
       case 'tugallandi':
         bg = greenBg;
         border = greenBorder;
-        text = greenLight;
+        text = brandGreen;
         label = 'Tugallandi';
         break;
       default:
@@ -1619,7 +1619,7 @@ Widget _mashinaGrafik() {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-              color: active ? greenLight : Colors.transparent,
+              color: active ? brandGreen : Colors.transparent,
               borderRadius: BorderRadius.circular(8)),
           child: Text(nom, textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
@@ -1823,7 +1823,7 @@ Widget _mashinaGrafik() {
             icon: const Icon(Icons.refresh, size: 14),
             label: const Text("Yangilash", style: TextStyle(fontSize: 11)),
             style: ElevatedButton.styleFrom(
-                backgroundColor: greenLight,
+                backgroundColor: brandGreen,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
@@ -1967,7 +1967,7 @@ Widget _mashinaGrafik() {
                               "Ko'proq yuklash (${hujjatlar.length}/$jamiHujjatlar)",
                               style: const TextStyle(fontSize: 12)),
                           style: ElevatedButton.styleFrom(
-                              backgroundColor: greenLight,
+                              backgroundColor: brandGreen,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 10),
@@ -2112,13 +2112,13 @@ Widget _mashinaGrafik() {
                     const SizedBox(height: 8),
                     Row(children: [
                       Expanded(child: readOnly("Tara",
-                          "${hujjat['tara'] ?? '—'} kg", greenLight)),
+                          "${hujjat['tara'] ?? '—'} kg", brandGreen)),
                       const SizedBox(width: 8),
                       Expanded(child: readOnly("Brutto",
                           "${hujjat['brutto'] ?? '—'} kg", blueColor)),
                       const SizedBox(width: 8),
                       Expanded(child: readOnly("Netto",
-                          "${hujjat['netto'] ?? '—'} kg", green)),
+                          "${hujjat['netto'] ?? '—'} kg", brandGreen)),
                       const SizedBox(width: 8),
                       Expanded(child: readOnly("Konditsion",
                           "${hujjat['konditsion'] ?? '—'} kg",
@@ -2476,7 +2476,7 @@ Widget _mashinaGrafik() {
                                   "${y['yangi_qiymat'] ?? '—'}",
                                   style: const TextStyle(
                                       fontSize: 11,
-                                      color: Color(0xFF1976D2),
+                                      color: brandGreen,
                                       fontWeight: FontWeight.w600))),
                         ]),
                         if ((y['sabab'] ?? '')

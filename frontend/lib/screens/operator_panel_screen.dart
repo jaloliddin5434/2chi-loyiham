@@ -184,11 +184,11 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   final dostaverkaVaqtCtrl =
       TextEditingController(text: "10.04.2026 - 30.06.2026");
 
- static const Color green = Color(0xFF1565C0);
-  static const Color greenLight = Color(0xFF1976D2);
-  static const Color greenBg = Color(0xFFE3F2FD);
-  static const Color greenBorder = Color(0xFF90CAF9);
-  static const Color cardBorder = Color(0xFFBBDEFB);
+ // Brend rangi (kirish oqimi bilan izchil)
+  static const Color brandGreen = Color(0xFF0F6E56);
+  static const Color brandGreenLight = Color(0xFF4CBE99);
+  static const Color brandGreenBg = Color(0xFFE6F4EF);
+  static const Color brandGreenBorder = Color(0xFFBFE3D4);
   static const Color muted = Color(0xFF78909C);
   static const Color mutedText = Color(0xFF546E7A);
   static const Color goldColor = Color(0xFFF57C00);
@@ -896,7 +896,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
             borderRadius: BorderRadius.circular(16)),
         title: Row(children: [
           const Icon(Icons.local_shipping,
-              color: Color(0xFF2A6AB8), size: 20),
+              color: brandGreen, size: 20),
           const SizedBox(width: 8),
           Expanded(
               child: Text(mashina.raqam,
@@ -909,7 +909,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
                 horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: mashina.tugallandi
-                  ? greenBg
+                  ? brandGreenBg
                   : goldBg,
               borderRadius: BorderRadius.circular(8),
             ),
@@ -920,7 +920,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
                 style: TextStyle(
                     fontSize: 11,
                     color: mashina.tugallandi
-                        ? greenLight
+                        ? brandGreen
                         : goldColor)),
           ),
         ]),
@@ -1014,7 +1014,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
               label: const Text("Brutto o'lchash",
                   style: TextStyle(fontSize: 12)),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: blueColor,
+                  backgroundColor: brandGreen,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                       borderRadius:
@@ -1080,11 +1080,12 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color:
-            arava.brutto != null ? greenBg : goldBg,
+        color: arava.brutto != null
+            ? brandGreenBg
+            : goldBg,
         border: Border.all(
             color: arava.brutto != null
-                ? greenBorder
+                ? brandGreenBorder
                 : goldBorder),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -1100,13 +1101,13 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         const SizedBox(height: 6),
         Row(children: [
           _olchovKarta("Tara", arava.tara,
-              arava.taraVaqt, greenLight),
+              arava.taraVaqt, brandGreenLight),
           const SizedBox(width: 8),
           _olchovKarta("Brutto", arava.brutto,
               arava.bruttoVaqt, blueColor),
           const SizedBox(width: 8),
           _olchovKarta(
-              "Netto", arava.netto, null, green),
+              "Netto", arava.netto, null, brandGreen),
           if (konditsionBor) ...[
             const SizedBox(width: 8),
             _olchovKarta("Konditsion",
@@ -1201,7 +1202,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
                 style: const TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF2A6AB8))),
+                    color: brandGreen)),
             const SizedBox(height: 4),
             Text(
                 "Netto: ${(taroziKg - (aravalar[tanlanganArava]?.tara ?? 0)).toStringAsFixed(0)} kg",
@@ -1218,7 +1219,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
               onPressed: () =>
                   Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: blueColor),
+                  backgroundColor: brandGreen),
               child: const Text("Saqlash",
                   style: TextStyle(
                       color: Colors.white)),
@@ -1638,8 +1639,8 @@ try {
             : Colors.white.withValues(alpha: 0.82),
         border: Border.all(
             color: kechagiRejim
-                ? const Color(0xFF2A4A2A)
-                : cardBorder),
+                ? const Color(0xFF1F4A3A)
+                : brandGreenBorder),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -1656,7 +1657,10 @@ try {
   Widget cardLabel(IconData icon, String text,
       {Color? color}) {
     return Row(children: [
-      Icon(icon, size: 15, color: color ?? greenLight),
+      Icon(icon,
+          size: 15,
+          color: color ??
+              (kechagiRejim ? brandGreenLight : brandGreen)),
       const SizedBox(width: 6),
       Text(text,
           style: TextStyle(
@@ -1678,7 +1682,7 @@ try {
             : const Color(0xFFEEEEEE),
         border: Border.all(
             color: enabled
-                ? cardBorder
+                ? brandGreenBorder
                 : Colors.grey.shade300),
         borderRadius: BorderRadius.circular(10),
       ),
@@ -1712,12 +1716,12 @@ try {
       bool gold = false,
       bool blue = false}) {
     Color bg = Colors.white.withValues(alpha: 0.8),
-        border = cardBorder,
+        border = brandGreenBorder,
         textColor = const Color(0xFF0D1B2A);
     if (special) {
-      bg = greenBg;
-      border = greenBorder;
-      textColor = green;
+      bg = brandGreenBg;
+      border = brandGreenBorder;
+      textColor = brandGreen;
     }
     if (gold) {
       bg = goldBg;
@@ -1811,7 +1815,7 @@ try {
                 vertical: 10, horizontal: 6),
             decoration: BoxDecoration(
               color: bruttoS
-                  ? greenBg
+                  ? brandGreenBg
                   : taraS
                       ? goldBg
                       : tanlangan
@@ -1822,10 +1826,10 @@ try {
                 color: tanlangan
                     ? blueColor
                     : bruttoS
-                        ? greenBorder
+                        ? brandGreenBorder
                         : taraS
                             ? goldBorder
-                            : cardBorder,
+                            : brandGreenBorder,
                 width: tanlangan ? 2 : 1,
               ),
               borderRadius:
@@ -1861,7 +1865,7 @@ try {
                         : Icons.radio_button_unchecked,
                 size: 24,
                 color: bruttoS
-                    ? greenLight
+                    ? brandGreen
                     : taraS
                         ? goldColor
                         : muted,
@@ -1877,7 +1881,7 @@ try {
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: bruttoS
-                        ? greenLight
+                        ? brandGreen
                         : taraS
                             ? goldColor
                             : muted),
@@ -1906,7 +1910,8 @@ try {
               : Colors.black.withValues(alpha: 0.06),
           border: Border.all(
               color: kechagiRejim
-                  ? greenLight.withValues(alpha: 0.4)
+                  ? brandGreenLight
+                      .withValues(alpha: 0.4)
                   : const Color(0xFFB0D890),
               width: 2),
           borderRadius: BorderRadius.circular(12),
@@ -1920,7 +1925,7 @@ try {
             Icon(Icons.camera_alt_outlined,
                 size: 32,
                 color: kechagiRejim
-                    ? greenLight
+                    ? brandGreenLight
                         .withValues(alpha: 0.6)
                     : const Color(0xFFA0C0A0)),
             const SizedBox(height: 4),
@@ -1928,7 +1933,7 @@ try {
                 style: TextStyle(
                     fontSize: 10,
                     color: kechagiRejim
-                        ? greenLight
+                        ? brandGreenLight
                             .withValues(alpha: 0.6)
                         : mutedText)),
           ])),
@@ -1965,14 +1970,14 @@ try {
         decoration: BoxDecoration(
           color: active
               ? (kechagiRejim
-                  ? Colors.black.withValues(alpha: 0.3)
-                  : greenBg)
+                  ? brandGreen.withValues(alpha: 0.25)
+                  : brandGreenBg)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(icon,
             color: active
-                ? (kechagiRejim ? greenLight : green)
+                ? (kechagiRejim ? brandGreenLight : brandGreen)
                 : muted,
             size: 18),
       ),
@@ -1993,8 +1998,9 @@ try {
               ? blueBg.withValues(alpha: 0.9)
               : Colors.white.withValues(alpha: 0.7),
           border: Border.all(
-              color:
-                  tanlangan ? blueColor : cardBorder,
+              color: tanlangan
+                  ? blueColor
+                  : brandGreenBorder,
               width: tanlangan ? 2 : 1),
           borderRadius: BorderRadius.circular(10),
         ),
@@ -2075,7 +2081,7 @@ try {
             horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.7),
-          border: Border.all(color: greenBorder),
+          border: Border.all(color: brandGreenBorder),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(children: [
@@ -2084,7 +2090,7 @@ try {
             height: 22,
             alignment: Alignment.center,
             decoration: const BoxDecoration(
-                color: greenLight,
+                color: brandGreen,
                 shape: BoxShape.circle),
             child: const Icon(Icons.check,
                 size: 12, color: Colors.white),
@@ -2131,7 +2137,7 @@ try {
             ]),
           ])),
           const Icon(Icons.done_all,
-              size: 16, color: greenLight),
+              size: 16, color: brandGreen),
         ]),
       ),
     );
@@ -2159,14 +2165,14 @@ try {
           end: Alignment.bottomRight,
           colors: kechagiRejim
               ? [
-                  const Color(0xFF0A1A0A),
-                  const Color(0xFF0D2A10),
-                  const Color(0xFF0A1A0A)
+                  const Color(0xFF081A16),
+                  const Color(0xFF0B2A22),
+                  const Color(0xFF081A16)
                 ]
               : [
-                  const Color(0xFFECF0F8),
-                  const Color(0xFFF0F4FC),
-                  const Color(0xFFE8EEF8)
+                  const Color(0xFFE7F5EF),
+                  const Color(0xFFF1FAF6),
+                  const Color(0xFFE3F2EA)
                 ],
         ),
       ),
@@ -2191,8 +2197,11 @@ try {
                   : Colors.white
                       .withValues(alpha: 0.7),
               border: Border(
-                  right:
-                      BorderSide(color: cardBorder)),
+                  right: BorderSide(
+                      color: kechagiRejim
+                          ? brandGreenLight
+                              .withValues(alpha: 0.3)
+                          : brandGreenBorder)),
             ),
             padding: const EdgeInsets.symmetric(
                 vertical: 12),
@@ -2268,7 +2277,7 @@ try {
                                     BoxDecoration(
                                   color: aravalarSoni ==
                                           i
-                                      ? greenLight
+                                      ? brandGreen
                                       : Colors.white
                                           .withValues(
                                               alpha:
@@ -2277,8 +2286,8 @@ try {
                                       color:
                                           aravalarSoni ==
                                                   i
-                                              ? greenLight
-                                              : cardBorder),
+                                              ? brandGreen
+                                              : brandGreenBorder),
                                   borderRadius:
                                       BorderRadius
                                           .circular(6),
@@ -2311,8 +2320,8 @@ try {
                                 fontWeight:
                                     FontWeight.w700,
                                 color: kechagiRejim
-                                    ? greenLight
-                                    : green,
+                                    ? brandGreenLight
+                                    : brandGreen,
                                 letterSpacing: -1)),
                         const SizedBox(width: 8),
                         Padding(
@@ -2336,13 +2345,13 @@ try {
                                 vertical: 4),
                             decoration: BoxDecoration(
                                 color: taroziBarqaror
-                                    ? greenBg
+                                    ? brandGreenBg
                                     : const Color(
                                         0xFFFFF0F0),
                                 border: Border.all(
                                     color:
                                         taroziBarqaror
-                                            ? greenBorder
+                                            ? brandGreenBorder
                                             : const Color(
                                                 0xFFF0B0A0)),
                                 borderRadius:
@@ -2357,7 +2366,7 @@ try {
                                   size: 8,
                                   color:
                                       taroziBarqaror
-                                          ? greenLight
+                                          ? brandGreen
                                           : Colors
                                               .red),
                               const SizedBox(width: 5),
@@ -2368,8 +2377,7 @@ try {
                                   style: TextStyle(
                                       fontSize: 11,
                                       color: taroziBarqaror
-                                          ? const Color(
-                                              0xFF2A8A1A)
+                                          ? brandGreen
                                           : Colors
                                               .red)),
                             ]),
@@ -2410,7 +2418,7 @@ try {
                                     color: tanlanganArava ==
                                             0
                                         ? goldBorder
-                                        : cardBorder,
+                                        : brandGreenBorder,
                                     width:
                                         tanlanganArava ==
                                                 0
@@ -2482,7 +2490,7 @@ try {
                                     ? Colors.red
                                     : faqatBrutto
                                         ? blueColor
-                                        : greenLight,
+                                        : brandGreen,
                             foregroundColor:
                                 Colors.white,
                             padding: const EdgeInsets
@@ -2505,21 +2513,21 @@ try {
                           icon: const Icon(
                               Icons.arrow_forward,
                               size: 16,
-                              color: blueColor),
+                              color: brandGreen),
                           label: const Text(
                               "Keyingi mashina",
                               style: TextStyle(
                                   fontSize: 13,
-                                  color: blueColor,
+                                  color: brandGreen,
                                   fontWeight:
                                       FontWeight
                                           .w700)),
                           style:
                               OutlinedButton.styleFrom(
-                            backgroundColor: blueBg
+                            backgroundColor: brandGreenBg
                                 .withValues(alpha: 0.7),
                             side: const BorderSide(
-                                color: blueColor),
+                                color: brandGreen),
                             padding: const EdgeInsets
                                 .symmetric(
                                 vertical: 10),
@@ -2689,9 +2697,10 @@ try {
                               horizontal: 8,
                               vertical: 2),
                           decoration: BoxDecoration(
-                              color: greenBg,
+                              color: brandGreenBg,
                               border: Border.all(
-                                  color: greenBorder),
+                                  color:
+                                      brandGreenBorder),
                               borderRadius:
                                   BorderRadius
                                       .circular(10)),
@@ -2837,12 +2846,12 @@ try {
                                   BoxDecoration(
                                 color:
                                     tugallanganlarKorinsin
-                                        ? greenBg
+                                        ? brandGreenBg
                                         : Colors
                                             .transparent,
                                 border: Border.all(
                                     color: tugallanganlarKorinsin
-                                        ? greenBorder
+                                        ? brandGreenBorder
                                         : Colors
                                             .transparent),
                                 borderRadius:
@@ -2859,7 +2868,7 @@ try {
                                           FontWeight
                                               .w700,
                                       color: tugallanganlarKorinsin
-                                          ? greenLight
+                                          ? brandGreen
                                           : muted)),
                             ),
                           ),
@@ -2934,14 +2943,14 @@ try {
             end: Alignment.bottomRight,
             colors: kechagiRejim
                 ? [
-                    const Color(0xFF0A1A0A),
-                    const Color(0xFF0D2A10),
-                    const Color(0xFF0A1A0A)
+                    const Color(0xFF081A16),
+                    const Color(0xFF0B2A22),
+                    const Color(0xFF081A16)
                   ]
                 : [
-                    const Color(0xFFE8F5E0),
-                    const Color(0xFFF0F8E8),
-                    const Color(0xFFE0F0D4)
+                    const Color(0xFFE7F5EF),
+                    const Color(0xFFF1FAF6),
+                    const Color(0xFFE3F2EA)
                   ],
           ),
         ),
@@ -2971,8 +2980,8 @@ try {
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                       colors: [
-                        Color(0xFF1A7A08),
-                        Color(0xFF3AAA1A)
+                        brandGreen,
+                        brandGreenLight
                       ]),
                   borderRadius:
                       BorderRadius.circular(10),
@@ -3024,9 +3033,9 @@ try {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                      color: greenBg,
+                      color: brandGreenBg,
                       border: Border.all(
-                          color: greenBorder),
+                          color: brandGreenBorder),
                       borderRadius:
                           BorderRadius.circular(8)),
                   child: Text(
@@ -3072,13 +3081,13 @@ try {
                   decoration: BoxDecoration(
                     color: xabarMatni.startsWith('❌')
                         ? const Color(0xFFFFF0F0)
-                        : greenBg,
+                        : brandGreenBg,
                     border: Border.all(
                         color:
                             xabarMatni.startsWith('❌')
                                 ? const Color(
                                     0xFFF0B0A0)
-                                : greenBorder),
+                                : brandGreenBorder),
                     borderRadius:
                         BorderRadius.circular(8),
                   ),
@@ -3089,7 +3098,7 @@ try {
                           color: xabarMatni
                                   .startsWith('❌')
                               ? const Color(0xFFC03030)
-                              : greenLight)),
+                              : brandGreen)),
                 ),
               ],
               const SizedBox(width: 8),
@@ -3115,7 +3124,7 @@ try {
                   height: 9,
                   decoration: BoxDecoration(
                       color: serverUlangan
-                          ? greenLight
+                          ? brandGreen
                           : Colors.red,
                       shape: BoxShape.circle)),
               const SizedBox(width: 4),
@@ -3126,7 +3135,7 @@ try {
                   style: TextStyle(
                       fontSize: 11,
                       color: serverUlangan
-                          ? greenLight
+                          ? brandGreen
                           : Colors.red)),
               const SizedBox(width: 8),
               Container(
@@ -3173,9 +3182,9 @@ try {
                     color: kechagiRejim
                         ? Colors.black
                             .withValues(alpha: 0.3)
-                        : greenBg,
+                        : brandGreenBg,
                     border: Border.all(
-                        color: greenBorder),
+                        color: brandGreenBorder),
                     borderRadius:
                         BorderRadius.circular(8)),
                 child: Text(hozirgiSoat,
@@ -3183,7 +3192,7 @@ try {
                         fontSize: 13,
                         fontFamily: 'monospace',
                         color: kechagiRejim
-                            ? greenLight
+                            ? brandGreenLight
                             : mutedText)),
               ),
               const SizedBox(width: 8),
@@ -3201,8 +3210,8 @@ try {
                               .withValues(alpha: 0.7),
                       border: Border.all(
                           color: kechagiRejim
-                              ? greenLight
-                              : cardBorder),
+                              ? brandGreenLight
+                              : brandGreenBorder),
                       borderRadius:
                           BorderRadius.circular(8)),
                   child: Row(
@@ -3214,7 +3223,7 @@ try {
                             : Icons.wb_sunny,
                         size: 15,
                         color: kechagiRejim
-                            ? greenLight
+                            ? brandGreenLight
                             : goldColor),
                     const SizedBox(width: 3),
                     Text(
@@ -3224,7 +3233,7 @@ try {
                         style: TextStyle(
                             fontSize: 11,
                             color: kechagiRejim
-                                ? greenLight
+                                ? brandGreenLight
                                 : mutedText)),
                   ]),
                 ),
@@ -3237,9 +3246,9 @@ try {
                     color: kechagiRejim
                         ? Colors.black
                             .withValues(alpha: 0.3)
-                        : greenBg,
+                        : brandGreenBg,
                     border: Border.all(
-                        color: greenBorder),
+                        color: brandGreenBorder),
                     borderRadius:
                         BorderRadius.circular(20)),
                 child: Row(
@@ -3247,7 +3256,7 @@ try {
                     children: [
                   const CircleAvatar(
                       radius: 12,
-                      backgroundColor: greenLight,
+                      backgroundColor: brandGreen,
                       child: Text("OP",
                           style: TextStyle(
                               fontSize: 10,
@@ -3257,9 +3266,8 @@ try {
                       style: TextStyle(
                           fontSize: 11,
                           color: kechagiRejim
-                              ? greenLight
-                              : const Color(
-                                  0xFF2A7A1A))),
+                              ? brandGreenLight
+                              : brandGreen)),
                 ]),
               ),
               const SizedBox(width: 8),

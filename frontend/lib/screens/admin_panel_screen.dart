@@ -99,6 +99,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   static const Color greenBg = Color(0xFFEAFADE);
   static const Color greenBorder = Color(0xFFB0D890);
   static const Color cardBorder = Color(0xFFD8EDD0);
+  // Yangi brend rangi (kirish oqimi va operator paneli bilan izchil)
+  static const Color brandGreen = Color(0xFF0F6E56);
+  static const Color brandGreenLight = Color(0xFF4CBE99);
   static const Color muted = Color(0xFF9AC080);
   static const Color mutedText = Color(0xFF7AAA5A);
   static const Color goldColor = Color(0xFFC89020);
@@ -381,9 +384,12 @@ Future<void> hujjatlarniYukla() async {
             fontWeight: FontWeight.w700,
             color: color,
             fontFamily: 'monospace')),
-        Text(sub, style: TextStyle(
-            fontSize: 10,
-            color: kechagiRejim ? muted : Colors.grey)),
+        Text(sub,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                fontSize: 10,
+                color: kechagiRejim ? muted : Colors.grey)),
       ]),
     );
   }
@@ -461,39 +467,6 @@ Future<void> hujjatlarniYukla() async {
               _xulosaQatori("Kondicion", "${stat['konditsion']} tonna"),
           ]),
     );
-  }
-
-  Widget _solishtirmaKarta(String label, String bugun,
-      String kecha, String hafta) {
-    final cardColor = kechagiRejim ? const Color(0xFF0F2A0F) : Colors.white;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-          color: cardColor,
-          border: Border.all(color: cardBorder),
-          borderRadius: BorderRadius.circular(12)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-        Text(label, style: const TextStyle(fontSize: 10, color: muted)),
-        const SizedBox(height: 8),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-          _solishtirmaItem("Bugun", bugun, greenLight),
-          Container(width: 1, height: 30, color: cardBorder),
-          _solishtirmaItem("Kecha", kecha, blueColor),
-          Container(width: 1, height: 30, color: cardBorder),
-          _solishtirmaItem("Hafta", hafta, goldColor),
-        ]),
-      ]),
-    );
-  }
-
-  Widget _solishtirmaItem(String label, String value, Color color) {
-    return Column(children: [
-      Text(value, style: TextStyle(
-          fontSize: 16, fontWeight: FontWeight.w700, color: color)),
-      Text(label, style: const TextStyle(fontSize: 9, color: muted)),
-    ]);
   }
 
   Widget _legend(Color color, String label) {
@@ -594,6 +567,8 @@ Future<void> hujjatlarniYukla() async {
     final tugallanganlar = backendTugallangan;
     final joriyStat = [kunlikStat, haftalikStat, oylikStat, mavsumStat][tanlanganTab];
     final davrSuffix = ['ta bugun', 'ta shu hafta', 'ta shu oy', 'ta shu mavsum'][tanlanganTab];
+    final nettoStr = "${joriyStat['jami_tonnaj'] ?? '—'}";
+    final kondStr = "${joriyStat['chigit']?['konditsion'] ?? '—'}";
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(14),
@@ -620,7 +595,7 @@ Future<void> hujjatlarniYukla() async {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                        color: active ? greenLight : Colors.transparent,
+                        color: active ? brandGreen : Colors.transparent,
                         borderRadius: BorderRadius.circular(8)),
                     child: Text(e.value,
                         textAlign: TextAlign.center,
@@ -645,31 +620,16 @@ Future<void> hujjatlarniYukla() async {
           childAspectRatio: 1.6,
           children: [
            _statCard("Mashinalar", "${joriyStat['mashinalar_soni'] ?? 0}",
-                davrSuffix, Icons.local_shipping, greenLight),
+                "Netto: ${nettoStr}t | Kond: ${kondStr}t",
+                Icons.local_shipping, brandGreen),
             _statCard("Navbatda", "${navbat.length}",
                 "ta kutmoqda", Icons.hourglass_top, goldColor),
             _statCard("Tugallandi", "${joriyStat['tugallanganlar_soni'] ?? 0}",
-                davrSuffix, Icons.check_circle, blueColor),
+                davrSuffix, Icons.check_circle, brandGreen),
             _statCard("Bekor", "${joriyStat['bekor_soni'] ?? 0}",
                 "ta yozuv", Icons.cancel, redColor),
           ],
         ),
-        const SizedBox(height: 12),
-
-        // SOLISHTIRMA
-        Row(children: [
-         Expanded(child: _solishtirmaKarta(
-              "Tonnaj (t)",
-              "${kunlikStat['jami_tonnaj'] ?? '—'}",
-              "${haftalikStat['jami_tonnaj'] ?? '—'}",
-              "${oylikStat['jami_tonnaj'] ?? '—'}")),
-          const SizedBox(width: 10),
-          Expanded(child: _solishtirmaKarta(
-              "Konditsion (t)",
-              "${kunlikStat['chigit']?['konditsion'] ?? '—'}",
-              "${haftalikStat['chigit']?['konditsion'] ?? '—'}",
-              "${oylikStat['chigit']?['konditsion'] ?? '—'}")),
-        ]),
         const SizedBox(height: 12),
 
         // NAVBAT VA TUGALLANGAN
@@ -731,7 +691,7 @@ Future<void> hujjatlarniYukla() async {
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                   cardLabel(Icons.check_circle,
-                      "TUGALLANGAN MASHINALAR", color: greenLight),
+                      "TUGALLANGAN MASHINALAR", color: brandGreen),
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 2),
@@ -741,7 +701,7 @@ Future<void> hujjatlarniYukla() async {
                         borderRadius: BorderRadius.circular(8)),
                     child: Text("${tugallanganlar.length} ta",
                         style: const TextStyle(
-                            fontSize: 11, color: greenLight)),
+                            fontSize: 11, color: brandGreen)),
                   ),
                 ]),
                 const SizedBox(height: 10),
@@ -914,7 +874,7 @@ void _jsonNavbatOchir(Map<String, dynamic> m) {
           Container(
             width: 22, height: 22,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(color: greenLight, shape: BoxShape.circle),
+            decoration: const BoxDecoration(color: brandGreen, shape: BoxShape.circle),
             child: const Icon(Icons.check, size: 12, color: Colors.white),
           ),
           const SizedBox(width: 8),
@@ -1435,7 +1395,7 @@ Widget _mashinaGrafik() {
           border: Border.all(color: cardBorder),
           borderRadius: BorderRadius.circular(16)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        cardLabel(Icons.bar_chart, "MASHINALAR SONI", color: blueColor),
+        cardLabel(Icons.bar_chart, "MASHINALAR SONI", color: brandGreen),
         const SizedBox(height: 16),
         SizedBox(
           height: 150,
@@ -1481,7 +1441,7 @@ Widget _mashinaGrafik() {
                 BarChartGroupData(x: e.key, barRods: [
                   BarChartRodData(
                       toY: e.value,
-                      color: greenLight,
+                      color: brandGreen,
                       width: 12,
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
                   BarChartRodData(
@@ -1494,7 +1454,7 @@ Widget _mashinaGrafik() {
         ),
         const SizedBox(height: 8),
         Row(children: [
-          Container(width: 10, height: 10, color: greenLight),
+          Container(width: 10, height: 10, color: brandGreen),
           const SizedBox(width: 4),
           const Text("Chigit", style: TextStyle(fontSize: 10, color: Colors.grey)),
           const SizedBox(width: 12),
@@ -1564,11 +1524,11 @@ Widget _mashinaGrafik() {
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
           cardLabel(Icons.show_chart, "MAHSULOT TONNAJI (t)",
-              color: blueColor),
+              color: brandGreen),
           Row(children: [
-            _legend(goldColor, "Chigit"),
+            _legend(brandGreen, "Chigit"),
             const SizedBox(width: 12),
-            _legend(greenLight, "Chiganoq"),
+            _legend(blueColor, "Chiganoq"),
           ]),
         ]),
         const SizedBox(height: 16),
@@ -1625,18 +1585,18 @@ Widget _mashinaGrafik() {
               LineChartBarData(
                 spots: chigitData.asMap().entries
                     .map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
-                isCurved: true, color: goldColor, barWidth: 2,
+                isCurved: true, color: brandGreen, barWidth: 2,
                 dotData: const FlDotData(show: true),
                 belowBarData: BarAreaData(show: true,
-                    color: goldColor.withValues(alpha: 0.1)),
+                    color: brandGreen.withValues(alpha: 0.1)),
               ),
               LineChartBarData(
                 spots: chiganoqData.asMap().entries
                     .map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
-                isCurved: true, color: greenLight, barWidth: 2,
+                isCurved: true, color: blueColor, barWidth: 2,
                 dotData: const FlDotData(show: true),
                 belowBarData: BarAreaData(show: true,
-                    color: greenLight.withValues(alpha: 0.1)),
+                    color: blueColor.withValues(alpha: 0.1)),
               ),
             ],
           )),

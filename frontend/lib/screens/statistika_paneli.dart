@@ -19,7 +19,8 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
   static const Color kartaBorder = Color(0xFFBBDEFB);
   static const Color muted = Color(0xFF78909C);
   static const Color goldColor = Color(0xFFF57C00);
-  static const Color greenLight = Color(0xFF2E7D32);
+  // Brend rangi (kirish oqimi, operator va admin paneli bilan izchil)
+  static const Color brandGreen = Color(0xFF0F6E56);
 
   static const List<String> _mahsulotlar = [
     'Chigit', 'Chiganoq', "Chiganoq po'chog'i", 'Patoz'
@@ -151,8 +152,8 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
-            color: active ? asosiyRang : Colors.transparent,
-            border: Border.all(color: active ? asosiyRang : kartaBorder),
+            color: active ? brandGreen : Colors.transparent,
+            border: Border.all(color: active ? brandGreen : kartaBorder),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(nom,
@@ -177,8 +178,8 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: active ? greenLight : Colors.transparent,
-            border: Border.all(color: active ? greenLight : kartaBorder),
+            color: active ? brandGreen : Colors.transparent,
+            border: Border.all(color: active ? brandGreen : kartaBorder),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Text(label,
@@ -357,7 +358,7 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
                 child: _xulosaKartasi("Bugun — $tanlanganMahsulot",
-                    Icons.today, greenLight,
+                    Icons.today, brandGreen,
                     (kunlikStat[joriyKalit] as Map<String, dynamic>?) ?? {})),
             const SizedBox(width: 10),
             Expanded(
@@ -399,7 +400,7 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
           _grafikChart(
             sarlavha: "MASHINALAR SONI",
             ikonka: Icons.local_shipping,
-            rang: asosiyRang,
+            rang: brandGreen,
             qiymatlar: grafikDetalData
                 .map((e) => (e['soni'] as num).toDouble())
                 .toList(),

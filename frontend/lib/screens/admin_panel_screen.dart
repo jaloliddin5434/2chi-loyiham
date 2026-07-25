@@ -2836,8 +2836,8 @@ Widget _mashinaGrafik() {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                   decoration: BoxDecoration(
-                    color: active ? blueColor : Colors.transparent,
-                    border: Border.all(color: active ? blueColor : cardBorder),
+                    color: active ? brandGreen : Colors.transparent,
+                    border: Border.all(color: active ? brandGreen : cardBorder),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(nom,
@@ -2865,8 +2865,8 @@ Widget _mashinaGrafik() {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                   decoration: BoxDecoration(
-                    color: active ? greenLight : Colors.transparent,
-                    border: Border.all(color: active ? greenLight : cardBorder),
+                    color: active ? brandGreen : Colors.transparent,
+                    border: Border.all(color: active ? brandGreen : cardBorder),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(d[1],
@@ -2883,7 +2883,7 @@ Widget _mashinaGrafik() {
         Row(children: [
           Expanded(child: _statCard("Bugun mashinalar",
               "${kunlikStat['mashinalar_soni'] ?? 0}", "ta",
-              Icons.local_shipping, greenLight)),
+              Icons.local_shipping, brandGreen)),
           const SizedBox(width: 10),
           Expanded(child: _statCard("Bugun tonnaj",
               "${kunlikStat['jami_tonnaj'] ?? 0}", "tonna",
@@ -2895,7 +2895,7 @@ Widget _mashinaGrafik() {
           const SizedBox(width: 10),
           Expanded(child: _statCard("Hafta tonnaj",
               "${haftalikStat['jami_tonnaj'] ?? 0}", "tonna",
-              Icons.scale, redColor)),
+              Icons.scale, goldColor)),
         ]),
         const SizedBox(height: 12),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2903,7 +2903,7 @@ Widget _mashinaGrafik() {
               child: _mahsulotXulosaKartasi(
                   "Bugun — $tanlanganStatMahsulot",
                   Icons.today,
-                  greenLight,
+                  brandGreen,
                   (kunlikStat[_statMahsulotKaliti(tanlanganStatMahsulot)]
                           as Map<String, dynamic>?) ??
                       {})),
@@ -2945,7 +2945,7 @@ Widget _mashinaGrafik() {
           _grafikDetalChart(
             sarlavha: "MASHINALAR SONI",
             ikonka: Icons.local_shipping,
-            rang: blueColor,
+            rang: brandGreen,
             qiymatlar: grafikDetalData
                 .map((e) => (e['soni'] as num).toDouble())
                 .toList(),

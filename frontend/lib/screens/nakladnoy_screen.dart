@@ -7,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../services/api_service.dart';
 import '../services/offline_service.dart';
+import '../services/offline_queue_service.dart';
 
 class NakladnoyScreen extends StatefulWidget {
   final String mashinaRaqami;
@@ -107,6 +108,25 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
   }
 
   Future<void> _pdfSaqla() async {
+    // Ikkinchi-qatlam himoya: odatda operator_panel_screen.dart'dagi
+    // hujjatOch() bu ekranga hujjatId hali mahalliy (manfiy, serverga
+    // sinxronlanmagan) bo'lganda umuman o'tkazmaydi - lekin kelajakda
+    // boshqa chaqiruv joyi qo'shilsa ham, offline navbatga hujjat hali
+    // mavjud bo'lmagan ID bilan yozilib qolmasligi uchun shu yerda ham
+    // tekshiriladi.
+    if (widget.hujjatId != null &&
+        OfflineQueueService.yerliIdmi(widget.hujjatId!)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                "⏳ Hujjat hali serverga sinxronlanmagan — aloqa tiklanguncha kuting."),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
     try {
       final htmlContent = _nakladnoyHtml();
       final now = DateTime.now();

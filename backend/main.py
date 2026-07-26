@@ -158,6 +158,35 @@ def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db), current
     db.refresh(yangi)
     return yangi
 
+def _olchovlar_jamlangan(olchovlar):
+    """Hujjatning barcha Olchov qatorlaridan JAMI tara/brutto/netto/konditsion
+    hisoblaydi. Bitta arava uchun bir nechta qator bo'lishi normal holat
+    (operator avval faqat TARA, keyin TARA+BRUTTO birga saqlaydi - shu sabab
+    shu arava_raqam bo'yicha ikkinchi qator birinchisini "davom ettiradi",
+    ikkalasi ham alohida arava sifatida qo'shilmasligi kerak). Shu sabab
+    avval har arava_raqam uchun bitta "jamlangan" qiymat (har maydon bo'yicha
+    eng oxirgi NULL bo'lmagan qiymat) hisoblanadi, SO'NGRA shu jamlangan
+    aravalar bo'yicha yig'indi olinadi - xuddi nakladnoy_uchun_malumot()dagi
+    bilan bir xil mantiq (bu yerda takrorlanish tufayli ikki baravar
+    hisoblanmasligi uchun).
+    """
+    aravalar = {}
+    for o in sorted(olchovlar, key=lambda x: x.id):
+        a = aravalar.setdefault(o.arava_raqam, {
+            "tara": None, "brutto": None, "netto": None, "konditsion": None,
+        })
+        for maydon in ("tara", "brutto", "netto", "konditsion"):
+            qiymat = getattr(o, maydon)
+            if qiymat is not None:
+                a[maydon] = qiymat
+
+    jami_tara = sum(a["tara"] for a in aravalar.values() if a["tara"]) or None
+    jami_brutto = sum(a["brutto"] for a in aravalar.values() if a["brutto"]) or None
+    jami_netto = sum(a["netto"] for a in aravalar.values() if a["netto"]) or None
+    jami_konditsion = sum(a["konditsion"] for a in aravalar.values() if a["konditsion"]) or None
+    return jami_tara, jami_brutto, jami_netto, jami_konditsion
+
+
 @app.get("/hujjatlar")
 def hujjatlar_royxati(
     mahsulot_id: int = None,
@@ -189,10 +218,7 @@ def hujjatlar_royxati(
     natija = []
     for h in hujjatlar:
         olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).order_by(Olchov.id.asc()).all()
-        jami_tara = sum(o.tara for o in olchovlar if o.tara) or None
-        jami_brutto = sum(o.brutto for o in olchovlar if o.brutto) or None
-        jami_netto = sum(o.netto for o in olchovlar if o.netto) or None
-        jami_konditsion = sum(o.konditsion for o in olchovlar if o.konditsion) or None
+        jami_tara, jami_brutto, jami_netto, jami_konditsion = _olchovlar_jamlangan(olchovlar)
         # namlik/ifloslik Hujjatda emas, Olchov qatorlarida saqlanadi -
         # eksport uchun eng oxirgi NULL bo'lmagan qiymat olinadi
         # (nakladnoy_uchun_malumot()dagi bilan bir xil mantiq).
@@ -242,10 +268,7 @@ def hujjat_detail(hujjat_id: int, db: Session = Depends(get_db), current_user: d
     if not hujjat:
         raise HTTPException(status_code=404, detail="Hujjat topilmadi!")
     olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == hujjat.id).all()
-    jami_tara = sum(o.tara for o in olchovlar if o.tara) or None
-    jami_brutto = sum(o.brutto for o in olchovlar if o.brutto) or None
-    jami_netto = sum(o.netto for o in olchovlar if o.netto) or None
-    jami_konditsion = sum(o.konditsion for o in olchovlar if o.konditsion) or None
+    jami_tara, jami_brutto, jami_netto, jami_konditsion = _olchovlar_jamlangan(olchovlar)
     natija = {c.name: getattr(hujjat, c.name) for c in Hujjat.__table__.columns}
     natija["tara"] = jami_tara
     natija["brutto"] = jami_brutto
@@ -451,7 +474,32 @@ def hujjat_tahrir_tarixi(hujjat_id: int, db: Session = Depends(get_db), current_
 
 @app.post("/olchovlar")
 def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    yangi = Olchov(**olchov.dict())
+    # Operator odatda shu (hujjat_id, arava_raqam) uchun avval faqat TARA,
+    # keyin TARA+BRUTTO birga saqlaydi - shu sabab har safar yangi qator
+    # QO'SHISH o'rniga, mavjud qator bo'lsa shu YANGILANADI (faqat so'rovda
+    # kelgan, bo'sh bo'lmagan maydonlar bilan - eskisi yo'qotilmaydi). Bu
+    # ham jami og'irlik ikki marta hisoblanib ketishining oldini oladi
+    # (qarang: _olchovlar_jamlangan), ham offline-qayta-yuborishni xavfsiz
+    # (idempotent) qiladi. Agar shu kombinatsiya uchun bir nechta eski qator
+    # mavjud bo'lsa (hozircha tozalanmagan tarixiy takrorlanish), har doim
+    # ENG OXIRGISI yangilanadi.
+    mavjud = db.query(Olchov).filter(
+        Olchov.hujjat_id == olchov.hujjat_id,
+        Olchov.arava_raqam == olchov.arava_raqam,
+    ).order_by(Olchov.id.desc()).first()
+
+    if mavjud:
+        yangi = mavjud
+        maydonlar = olchov.dict()
+        for maydon in ("tara", "brutto", "namlik", "ifloslik"):
+            qiymat = maydonlar.get(maydon)
+            if qiymat is not None:
+                setattr(yangi, maydon, qiymat)
+        yangi.qolda_kiritildi = olchov.qolda_kiritildi
+    else:
+        yangi = Olchov(**olchov.dict())
+        db.add(yangi)
+
     if yangi.brutto and yangi.tara:
         yangi.netto = yangi.brutto - yangi.tara
         if yangi.namlik and yangi.ifloslik:
@@ -604,7 +652,7 @@ def navbat_bekor(data: dict, db: Session = Depends(get_db), current_user: dict =
     return {"status": "ok"}
 
 @app.delete("/navbat/tozala")
-def navbat_tozala(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def navbat_tozala(db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
     from models import Navbat
     db.query(Navbat).delete()
     db.commit()
@@ -1337,11 +1385,11 @@ def nakladnoy_saqlash(data: dict, db: Session = Depends(get_db), current_user: d
     try:
         hujjat_id = data.get("hujjat_id")
         if not hujjat_id:
-            return {"status": "error", "message": "hujjat_id kerak"}
+            raise HTTPException(status_code=400, detail="hujjat_id kerak")
 
         m = nakladnoy_uchun_malumot(db, hujjat_id)
         if not m:
-            return {"status": "error", "message": f"Hujjat topilmadi (id={hujjat_id})"}
+            raise HTTPException(status_code=404, detail=f"Hujjat topilmadi (id={hujjat_id})")
 
         hujjat_obj = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
         if not hujjat_obj.nakladnoy_token:
@@ -1501,11 +1549,13 @@ td.left {{ text-align: left; }}
             browser.close()
 
         return {"status": "ok", "fayl": str(pdf_fayl)}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"XATO: {e}")
         import traceback
         traceback.print_exc()
-        return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/nakladnoy-korish/{token}", response_class=HTMLResponse)

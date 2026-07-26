@@ -8,7 +8,9 @@ import '../services/api_service.dart';
 /// har doim BARCHA 4 mahsulotni ko'ra oladi, o'zi ishlayotgan mahsulot
 /// bilan cheklanmaydi.
 class StatistikaPaneli extends StatefulWidget {
-  const StatistikaPaneli({super.key});
+  final bool kechagiRejim;
+
+  const StatistikaPaneli({super.key, this.kechagiRejim = false});
 
   @override
   State<StatistikaPaneli> createState() => _StatistikaPaneliState();
@@ -199,9 +201,17 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
       child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: widget.kechagiRejim ? muted : Colors.grey)),
             Text(qiymat,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: widget.kechagiRejim
+                        ? Colors.white
+                        : const Color(0xFF0D1B2A))),
           ]),
     );
   }
@@ -214,7 +224,7 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: widget.kechagiRejim ? const Color(0xFF0F2A0F) : Colors.white,
         border: Border.all(color: kartaBorder),
         borderRadius: BorderRadius.circular(14),
       ),
@@ -253,7 +263,7 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-          color: Colors.white,
+          color: widget.kechagiRejim ? const Color(0xFF0F2A0F) : Colors.white,
           border: Border.all(color: kartaBorder),
           borderRadius: BorderRadius.circular(16)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -280,7 +290,9 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
                       v == v.roundToDouble()
                           ? v.toInt().toString()
                           : v.toStringAsFixed(1),
-                      style: const TextStyle(fontSize: 9, color: Colors.grey)))),
+                      style: TextStyle(
+                          fontSize: 9,
+                          color: widget.kechagiRejim ? muted : Colors.grey)))),
               bottomTitles: AxisTitles(sideTitles: SideTitles(
                   showTitles: true, reservedSize: 22,
                   getTitlesWidget: (v, m) {
@@ -289,7 +301,9 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
                     return Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(labellar[i],
-                          style: const TextStyle(fontSize: 9, color: Colors.grey)),
+                          style: TextStyle(
+                              fontSize: 9,
+                              color: widget.kechagiRejim ? muted : Colors.grey)),
                     );
                   })),
               topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -297,7 +311,10 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
             ),
             gridData: FlGridData(show: true,
                 getDrawingHorizontalLine: (v) => FlLine(
-                    color: const Color(0xFFE8F4E0), strokeWidth: 1)),
+                    color: widget.kechagiRejim
+                        ? const Color(0xFF1E3A1E)
+                        : const Color(0xFFE8F4E0),
+                    strokeWidth: 1)),
             borderData: FlBorderData(show: false),
             barTouchData: BarTouchData(
               touchTooltipData: BarTouchTooltipData(
@@ -337,7 +354,9 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
         Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-              color: Colors.white,
+              color: widget.kechagiRejim
+                  ? const Color(0xFF0F2A0F)
+                  : Colors.white,
               border: Border.all(color: kartaBorder),
               borderRadius: BorderRadius.circular(12)),
           child: Row(children: _mahsulotlar.map(_mahsulotTab).toList()),
@@ -372,7 +391,9 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-                color: Colors.white,
+                color: widget.kechagiRejim
+                    ? const Color(0xFF0F2A0F)
+                    : Colors.white,
                 border: Border.all(color: kartaBorder),
                 borderRadius: BorderRadius.circular(16)),
             child: const Center(
@@ -384,7 +405,9 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-                color: Colors.white,
+                color: widget.kechagiRejim
+                    ? const Color(0xFF0F2A0F)
+                    : Colors.white,
                 border: Border.all(color: kartaBorder),
                 borderRadius: BorderRadius.circular(16)),
             child: Center(

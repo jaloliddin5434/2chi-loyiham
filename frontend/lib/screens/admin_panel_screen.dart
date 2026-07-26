@@ -423,8 +423,12 @@ Future<void> hujjatlarniYukla() async {
                     fontSize: 12,
                     color: kechagiRejim ? muted : Colors.grey)),
             Text(qiymat,
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w700)),
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: kechagiRejim
+                        ? Colors.white
+                        : const Color(0xFF0D1B2A))),
           ]),
     );
   }

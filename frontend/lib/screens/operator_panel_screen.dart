@@ -2227,7 +2227,7 @@ try {
           child: _tanlanganBolim == 1
               ? const HujjatlarRoyxatiPaneli()
               : _tanlanganBolim == 2
-              ? const StatistikaPaneli()
+              ? StatistikaPaneli(kechagiRejim: kechagiRejim)
               : SingleChildScrollView(
             padding: const EdgeInsets.all(12),
             child: Column(children: [

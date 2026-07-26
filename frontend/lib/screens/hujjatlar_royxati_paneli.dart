@@ -17,8 +17,6 @@ class HujjatlarRoyxatiPaneli extends StatefulWidget {
 class _HujjatlarRoyxatiPaneliState extends State<HujjatlarRoyxatiPaneli> {
   // Admin panelidagi Hujjatlar bo'limi bilan aniq bir xil (izchillik uchun)
   static const Color asosiyRang = Color(0xFF0F6E56);
-  static const Color asosiyBg = Color(0xFFE3F2FD);
-  static const Color asosiyBorder = Color(0xFF90CAF9);
   static const Color kartaBorder = Color(0xFFD8EDD0);
   static const Color muted = Color(0xFF9AC080);
 

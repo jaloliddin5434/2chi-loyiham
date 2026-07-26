@@ -101,7 +101,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   static const Color cardBorder = Color(0xFFD8EDD0);
   // Yangi brend rangi (kirish oqimi va operator paneli bilan izchil)
   static const Color brandGreen = Color(0xFF0F6E56);
-  static const Color brandGreenLight = Color(0xFF4CBE99);
   static const Color muted = Color(0xFF9AC080);
   static const Color mutedText = Color(0xFF7AAA5A);
   static const Color goldColor = Color(0xFFC89020);
@@ -111,8 +110,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   static const Color blueBg = Color(0xFFE8F0FC);
   static const Color blueBorder = Color(0xFFA0C0E8);
   static const Color redColor = Color(0xFFC03030);
-  static const Color redBg = Color(0xFFFFE8E8);
-  static const Color redBorder = Color(0xFFE8A0A0);
   static const Color bgPage = Color(0xFFF4F8F0);
 
   @override

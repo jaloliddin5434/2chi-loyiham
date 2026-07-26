@@ -49,9 +49,20 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
 
 @app.post("/setup")
 def setup(db: Session = Depends(get_db)):
-    admin = db.query(User).filter(User.role == "admin").first()
-    if admin:
-        return {"message": "Admin allaqachon mavjud!"}
+    # Autentifikatsiyasiz endpoint - lekin bu muammo emas, chunki yangi
+    # (bo'sh) bazada hali hech qanday token/parol yo'q, autentifikatsiya
+    # qo'shib bo'lmaydi (tuxum-tovuq muammosi). Shu sabab himoya IDENTITY
+    # orqali emas, BAZA HOLATI orqali qilinadi: agar bazada ALLAQACHON
+    # kamida bitta foydalanuvchi (istalgan rolda) bo'lsa, bu - haqiqiy,
+    # ishlab turgan tizim, va standart (hammaga ma'lum) admin/operator
+    # parollarini qayta yoki qo'shimcha yaratishga urinish rad etiladi.
+    bironta_user = db.query(User).first()
+    if bironta_user:
+        raise HTTPException(
+            status_code=403,
+            detail="Tizim allaqachon sozlangan - /setup faqat bo'sh bazada, "
+                   "birinchi marta ishga tushirishda ishlaydi.",
+        )
     new_admin = User(
         username="admin",
         password=hash_password("admin123"),
@@ -142,14 +153,28 @@ def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db), current
             # frontend qayta yuborgan) - yangisini yaratmasdan mavjudini
             # qaytaramiz, shunda ikkilamchi hujjat/raqam sarflanmaydi.
             return mavjud
+
+    # mahsulot_id/mashina_id noto'g'ri (mavjud bo'lmagan) bo'lsa, bazaning
+    # FK cheklovi keyinroq xom holda otilib, chiroyli xabar o'rniga 500
+    # xato berardi - shu sabab bu yerda OLDINDAN, hech qanday yon ta'sir
+    # (masalan hujjat raqami hisoblagichini oshirish) sodir bo'lishidan
+    # avval tekshiriladi.
+    mahsulot = db.query(Mahsulot).filter(Mahsulot.id == hujjat.mahsulot_id).first()
+    if not mahsulot:
+        raise HTTPException(
+            status_code=404, detail=f"Mahsulot topilmadi (id={hujjat.mahsulot_id})")
+    mashina = db.query(Mashina).filter(Mashina.id == hujjat.mashina_id).first()
+    if not mashina:
+        raise HTTPException(
+            status_code=404, detail=f"Mashina topilmadi (id={hujjat.mashina_id})")
+
     yil = datetime.now().year
     yangi_raqam = keyingi_hujjat_raqami(db, yil, hujjat.mahsulot_id)
-    mashina = db.query(Mashina).filter(Mashina.id == hujjat.mashina_id).first()
     yangi = Hujjat(
         raqam=yangi_raqam,
-        mashina_raqami=mashina.davlat_raqami if mashina else None,
-        shofyor=mashina.shofyor if mashina else None,
-        firma=mashina.firma if mashina else None,
+        mashina_raqami=mashina.davlat_raqami,
+        shofyor=mashina.shofyor,
+        firma=mashina.firma,
         **hujjat.dict(),
     )
     db.add(yangi)
@@ -1208,12 +1233,12 @@ hisobot_thread = threading.Thread(target=avtomatik_telegram_hisobot, daemon=True
 hisobot_thread.start()
 
 @app.post("/telegram/test")
-def telegram_test(current_user: dict = Depends(get_current_user)):
+def telegram_test(current_user: dict = Depends(require_role("admin"))):
     telegram_xabar_yuborish("✅ Hazorasp Tekstil tarozi tizimi ulandi!")
     return {"status": "ok"}
 
 @app.get("/telegram/kunlik")
-def telegram_kunlik(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def telegram_kunlik(db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
     from datetime import date
     bugun = date.today()
     mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= bugun).count()

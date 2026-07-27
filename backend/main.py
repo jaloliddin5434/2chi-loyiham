@@ -1313,12 +1313,22 @@ def _excel_fayl_qulfi(fayl_yol: str) -> threading.Lock:
         return _excel_qulflari[fayl_yol]
 
 
-_EXCEL_LOG_USTUNLARI = [
+_EXCEL_LOG_USTUNLARI_TOLIQ = [
     "№", "№ Naklad", "Mahsulot nomi", "Sana", "Tara (kg)", "Brutto (kg)",
     "Netto (kg)", "Kondicion (kg)", "Mashina raqami", "Shofyor", "Firma",
     "Tiket №", "Tuda №", "Terim turi", "Klass", "Sinf", "Seleksiya navi",
     "Namlik %", "Ifloslik %", "Dostaverka №", "Muddat", "Qabul qildi",
     "Yuk olindi",
+]
+# Chigit'dan boshqa 3 mahsulotda (Chiganoq, Chiganoq po'chog'i, Patoz)
+# faqat asosiy ustunlar mantiqiy - Tiket/Tuda/Terim turi/Klass/Sinf/
+# Seleksiya navi/Namlik/Ifloslik/Dostaverka/Muddat/Qabul qildi/Yuk olindi
+# ustunlari Kondicion kabi ular uchun umuman tegishli emas, shu sabab bu
+# ustunlar QATORNI EMAS, FAYLNING O'ZINI (sarlavha darajasida) chiqarib
+# tashlanadi - "Excel" tugmasidagi hisobot bilan bir xil qoida.
+_EXCEL_LOG_USTUNLARI_QISQA = [
+    "№", "№ Naklad", "Mahsulot nomi", "Sana", "Tara (kg)", "Brutto (kg)",
+    "Netto (kg)", "Mashina raqami", "Shofyor", "Firma",
 ]
 
 
@@ -1373,7 +1383,11 @@ def excel_qatorga_yoz(hujjat_id, db):
                 wb = openpyxl.Workbook()
                 ws = wb.active
                 ws.title = "Hisobot"
-                ws.append(_EXCEL_LOG_USTUNLARI)
+                ustunlar = (
+                    _EXCEL_LOG_USTUNLARI_TOLIQ if konditsiya_bormi
+                    else _EXCEL_LOG_USTUNLARI_QISQA
+                )
+                ws.append(ustunlar)
                 for cell in ws[1]:
                     cell.fill = PatternFill(start_color="1A4A08", end_color="1A4A08", fill_type="solid")
                     cell.font = Font(bold=True, color="FFFFFF")
@@ -1386,7 +1400,7 @@ def excel_qatorga_yoz(hujjat_id, db):
                 a = m["aravalar"][arava_raqam]
                 if a.get("tara") and a.get("brutto"):
                     qator_raqam = ws.max_row
-                    ws.append([
+                    asosiy = [
                         qator_raqam,
                         m["raqam"],
                         mahsulot_nomi,
@@ -1394,26 +1408,33 @@ def excel_qatorga_yoz(hujjat_id, db):
                         round(a["tara"]),
                         round(a["brutto"]),
                         round(a["netto"]) if a.get("netto") else 0,
-                        # Kondicion faqat konditsiya_bor=True mahsulotlarda
-                        # (hozircha faqat Chigit) ma'noli - "Excel"
-                        # tugmasidagi yangi hisobot bilan bir xil qoida.
-                        round(a["konditsion"]) if (konditsiya_bormi and a.get("konditsion")) else "",
-                        m["mashina_raqami"],
-                        m["shofyor"],
-                        m["firma"],
-                        m["tiket_raqam"],
-                        m["tuda_raqam"],
-                        m["terim_turi"],
-                        m["klass"],
-                        m["sinf"],
-                        m["seleksiya_navi"],
-                        m["namlik"],
-                        m["ifloslik"],
-                        m["dostaverka"],
-                        m["dostaverka_vaqt"],
-                        m["qabul_qildi"],
-                        m["yuk_olindi"],
-                    ])
+                    ]
+                    if konditsiya_bormi:
+                        qator = asosiy + [
+                            round(a["konditsion"]) if a.get("konditsion") else "",
+                            m["mashina_raqami"],
+                            m["shofyor"],
+                            m["firma"],
+                            m["tiket_raqam"],
+                            m["tuda_raqam"],
+                            m["terim_turi"],
+                            m["klass"],
+                            m["sinf"],
+                            m["seleksiya_navi"],
+                            m["namlik"],
+                            m["ifloslik"],
+                            m["dostaverka"],
+                            m["dostaverka_vaqt"],
+                            m["qabul_qildi"],
+                            m["yuk_olindi"],
+                        ]
+                    else:
+                        qator = asosiy + [
+                            m["mashina_raqami"],
+                            m["shofyor"],
+                            m["firma"],
+                        ]
+                    ws.append(qator)
 
             wb.save(fayl_yol)
         print(f"Excel ga yozildi: {m['raqam']} ({mahsulot_nomi})")

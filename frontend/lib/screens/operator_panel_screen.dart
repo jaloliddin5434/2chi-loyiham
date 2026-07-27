@@ -1330,54 +1330,16 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
           );
         }
 
-        ApiService.navbatTugallandi({
-          'hujjatId': tug.hujjatId,
-          'mashinaId': tug.mashinaId,
-          'raqam': tug.raqam,
-          'turi': tug.turi,
-          'shofyor': tug.shofyor,
-          'firma': tug.firma,
-          'vaqt': tug.vaqt,
-          'mahsulotId': tug.mahsulotId,
-          'mahsulotNomi': tug.mahsulotNomi,
-          'kelganVaqt':
-              tug.kelganVaqt.toIso8601String(),
-          'tudaRaqam': tug.tudaRaqam,
-          'tiketRaqam': tug.tiketRaqam,
-          'seleksiyaNavi': tug.seleksiyaNavi,
-          'klass': tug.klass,
-          'sinf': tug.sinf,
-          'terimTuri': tug.terimTuri,
-          'namlik': tug.namlik,
-          'ifloslik': tug.ifloslik,
-          'tugallandi': true,
-          'aravalar': {
-            '1': {
-              'tara': tug.aravalar[1]?.tara,
-              'brutto': tug.aravalar[1]?.brutto,
-              'netto': tug.aravalar[1]?.netto,
-              'konditsion':
-                  tug.aravalar[1]?.konditsion,
-            },
-            '2': {
-              'tara': tug.aravalar[2]?.tara,
-              'brutto': tug.aravalar[2]?.brutto,
-              'netto': tug.aravalar[2]?.netto,
-              'konditsion':
-                  tug.aravalar[2]?.konditsion,
-            },
-            '3': {
-              'tara': tug.aravalar[3]?.tara,
-              'brutto': tug.aravalar[3]?.brutto,
-              'netto': tug.aravalar[3]?.netto,
-              'konditsion':
-                  tug.aravalar[3]?.konditsion,
-            },
-          },
-        });
-
-        
-NavbatService.tugallandiQosh(tug);
+        // DIQQAT: bu yerda ilgari ApiService.navbatTugallandi(...) IKKINCHI
+        // marta (bu yerda, await'siz, ortiqcha to'liq payload bilan) ham
+        // chaqirilar edi - shu ikkalasi orasidagi millisoniyalik farq
+        // backendda poyga holatini (ikkalasi ham hujjat.holat="jarayon"
+        // deb o'qib, ikkalasi ham "tugallandi"ga o'tkazib, ikkalasi ham
+        // Excel jurnaliga qator qo'shib qo'yishi) keltirib chiqarar edi -
+        // natijada bitta hujjat uchun jurnalda ikki marta bir xil qator
+        // paydo bo'lardi. Endi FAQAT pastdagi, to'g'ri kutiladigan (await)
+        // va minimal ma'lumot yuboradigan chaqiruv qoladi.
+        NavbatService.tugallandiQosh(tug);
         try {
          await ApiService.navbatTugallandi({
             'hujjatId': tug.hujjatId,

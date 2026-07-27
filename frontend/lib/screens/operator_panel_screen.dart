@@ -200,6 +200,24 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   bool get dostavernaBor => widget.mahsulotId == 1;
   bool get faqatBrutto => tanlanganNavbat != null;
 
+  // Klass/Sinf/Terim turi/Seleksiya navi/Namlik/Ifloslik faqat Chigit
+  // uchun mantiqiy (boshqa 3 mahsulotda bu maydonlar umuman ko'rsatilmaydi
+  // - "HUJJAT" kartasi konditsionBor bilan yashiriladi). Lekin ekranda
+  // yashirilgan bo'lsa ham, matn boshqaruvchilar (controller)lar hali ham
+  // umumiy standart qiymatlarni ("1", "Kul terim", "Xorazm-150") saqlab
+  // turadi - shu sabab BAZAGA YUBORISHDAN oldin HAM shu tekshiruv
+  // qo'llaniladi, aks holda ko'rinmas maydonlardagi eskirgan standart
+  // matn baribir saqlanib qolar edi (buni topib tuzatgan bug).
+  String get _klassQiymati => konditsionBor ? klassCtrl.text : '';
+  String get _sinfQiymati => konditsionBor ? sinfCtrl.text : '';
+  String get _terimTuriQiymati => konditsionBor ? terimTuriCtrl.text : '';
+  String get _seleksiyaNaviQiymati =>
+      konditsionBor ? seleksiyaNaviCtrl.text : '';
+  double? get _namlikQiymati =>
+      konditsionBor ? double.tryParse(namlikCtrl.text) : null;
+  double? get _ifloslikQiymati =>
+      konditsionBor ? double.tryParse(ifloslikCtrl.text) : null;
+
  List<NavbatMashina> get navbat =>
       NavbatService.navbatByMahsulot(widget.mahsulotId);
   List<NavbatMashina> get tugallanganlar =>
@@ -654,12 +672,12 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       kelganVaqt: mashinaKelganVaqt ?? DateTime.now(),
       tudaRaqam: tudaRaqamCtrl.text,
       tiketRaqam: tiketRaqamCtrl.text,
-      seleksiyaNavi: seleksiyaNaviCtrl.text,
-      klass: klassCtrl.text,
-      sinf: sinfCtrl.text,
-      terimTuri: terimTuriCtrl.text,
-      namlik: double.tryParse(namlikCtrl.text),
-      ifloslik: double.tryParse(ifloslikCtrl.text),
+      seleksiyaNavi: _seleksiyaNaviQiymati,
+      klass: _klassQiymati,
+      sinf: _sinfQiymati,
+      terimTuri: _terimTuriQiymati,
+      namlik: _namlikQiymati,
+      ifloslik: _ifloslikQiymati,
       qabulQildi: qabulQildiCtrl.text,
       yukOlindi: yukOlindiCtrl.text,
     );
@@ -1257,8 +1275,8 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
           aravaRaqam: tanlanganArava,
           tara: arava.tara,
           brutto: taroziKg,
-          namlik: double.tryParse(namlikCtrl.text),
-          ifloslik: double.tryParse(ifloslikCtrl.text),
+          namlik: _namlikQiymati,
+          ifloslik: _ifloslikQiymati,
         );
         if (result['konditsion'] != null) {
           arava.konditsion = (result['konditsion'] as num).toDouble();
@@ -1423,9 +1441,8 @@ try {
         hujjatId: tanlanganNavbat?.hujjatId ?? hujjatId ?? 0,
         aravaRaqam: tanlanganArava,
         tara: taroziKg,
-        namlik: double.tryParse(namlikCtrl.text),
-        ifloslik:
-            double.tryParse(ifloslikCtrl.text),
+        namlik: _namlikQiymati,
+        ifloslik: _ifloslikQiymati,
       );
    } catch (e) {
      print('tara olchovSaqlash xato: $e');
@@ -1575,13 +1592,11 @@ try {
             brutto3: _brutto3,
             tudaRaqam: tudaRaqamCtrl.text,
             tiketRaqam: _tiketRaqam,
-            seleksiyaNavi: seleksiyaNaviCtrl.text,
-            klass: klassCtrl.text,
-            terimTuri: terimTuriCtrl.text,
-            ifloslik:
-                double.tryParse(ifloslikCtrl.text),
-            namlik:
-                double.tryParse(namlikCtrl.text),
+            seleksiyaNavi: _seleksiyaNaviQiymati,
+            klass: _klassQiymati,
+            terimTuri: _terimTuriQiymati,
+            ifloslik: _ifloslikQiymati,
+            namlik: _namlikQiymati,
             qabulQildi: qabulQildiCtrl.text,
             yukOlindi: yukOlindiCtrl.text,
             dostaverka: dostaverkaCtrl.text,

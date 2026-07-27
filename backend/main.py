@@ -458,7 +458,7 @@ def hujjatlar_eksport(
     # (probelli, asl mahsulot.nom) bo'lishi SHART - aks holda "Chiganoq
     # po'chog'i" va "Chiganoq_po'chog'i" kabi ikkita boshqa-boshqa papka
     # hosil bo'lib, bitta mahsulotning fayllari ikkiga bo'linib qoladi.
-    papka = Path(f"C:/RASMLAR/{mahsulot.nom}")
+    papka = Path(f"C:/RASMLAR/{mahsulot.nom.strip()}")
     papka.mkdir(parents=True, exist_ok=True)
     davr = f"{sana_dan or 'boshidan'}_{sana_gacha or 'hozirgacha'}"
     fayl_nomi = f"{mahsulot.nom.replace(' ', '_')}_{davr}.xlsx"
@@ -1374,7 +1374,7 @@ def excel_qatorga_yoz(hujjat_id, db):
         # mahsulot_nomi) bo'lishi SHART - aks holda "Chiganoq po'chog'i" va
         # "Chiganoq_po'chog'i" kabi ikkita boshqa-boshqa papka hosil bo'lib,
         # bitta mahsulotning fayllari ikkiga bo'linib qoladi.
-        mahsulot_papkasi = Path(f"C:/RASMLAR/{mahsulot_nomi or 'Nomalum'}")
+        mahsulot_papkasi = Path(f"C:/RASMLAR/{(mahsulot_nomi or 'Nomalum').strip()}")
         mahsulot_papkasi.mkdir(parents=True, exist_ok=True)
         fayl_yol = str(mahsulot_papkasi / f"hisobot_{fayl_nomi_qismi}_{bugun.year}.xlsx")
 
@@ -1872,8 +1872,8 @@ td.left {{ text-align: left; }}
 </table>
 </body></html>"""
 
-        raqam_papka = (m["mashina_raqami"] or "noma_lum").replace(" ", "_").replace("/", "_")
-        papka = Path(f"C:/RASMLAR/{m['mahsulot_nomi']}/{sana}/{raqam_papka}")
+        raqam_papka = (m["mashina_raqami"] or "noma_lum").strip().replace(" ", "_").replace("/", "_")
+        papka = Path(f"C:/RASMLAR/{m['mahsulot_nomi'].strip()}/{sana}/{raqam_papka}")
         papka.mkdir(parents=True, exist_ok=True)
 
         html_fayl = papka / "nakladnoy.html"
@@ -2036,10 +2036,18 @@ def bir_kameradan_rasm_ol(cam_ip, fayl_yol):
 @app.post("/kamera/rasm")
 def rasm_ol(data: dict, current_user: dict = Depends(get_current_user)):
     try:
-        mashina_raqami = data.get("mashina_raqami", "noma_lum")
-        mahsulot_nomi = data.get("mahsulot_nomi", "Chigit")
+        # DIQQAT: bu qiymatlar operator ekranidagi JONLI matn maydonidan
+        # (raqamiCtrl.text) keladi va oxirida bo'sh joy qolib ketishi
+        # mumkin (masalan avtomatik to'ldirish/bosish natijasida) - .strip()
+        # QILINMASA, xuddi shu mashina uchun keyinroq (Hujjat.mashina_raqami
+        # orqali, allaqachon tozalangan holda) yaratiladigan nakladnoy
+        # papkasidan BOSHQA papka hosil bo'lib qoladi (masalan "90_90_90"
+        # va "90_90_90_" - ikkita alohida papka, rasmlar va nakladnoy
+        # ajralib qoladi).
+        mashina_raqami = data.get("mashina_raqami", "noma_lum").strip()
+        mahsulot_nomi = data.get("mahsulot_nomi", "Chigit").strip()
         tur = data.get("tur", "tara")
-        
+
         sana = datetime.now().strftime("%Y-%m-%d")
         vaqt = datetime.now().strftime("%H-%M-%S")
         raqam = mashina_raqami.replace(" ", "_").replace("/", "_")

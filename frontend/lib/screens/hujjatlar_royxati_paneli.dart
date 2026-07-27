@@ -93,20 +93,34 @@ class _HujjatlarRoyxatiPaneliState extends State<HujjatlarRoyxatiPaneli> {
   }
 
   Future<void> excelYuklaOl() async {
+    // DIQQAT: rasmiy hisobot (kun/oy/mavsum guruhlangan, har mahsulot
+    // uchun alohida fayl) faqat SANA oralig'i bo'yicha filtrlanadi -
+    // mahsulot-tab tanlovi bu hisobotga ta'sir qilmaydi, chunki u har
+    // doim BARCHA 4 mahsulot uchun to'liq holda generatsiya qilinadi.
     setState(() => eksportQilinmoqda = true);
     try {
-      final soni = await ExcelExportService.hujjatlarniEksportQil(
-        mahsulotId: tanlanganMahsulotId == 0 ? null : tanlanganMahsulotId,
+      final natija = await ExcelExportService.hisobotlarniYuklabOl(
         sanaDan: sanadan.isEmpty ? null : sanadan,
         sanaGacha: sanagacha.isEmpty ? null : sanagacha,
       );
       if (!mounted) return;
+      final xato = natija.xatolar.isNotEmpty;
+      String xabar;
+      Color rang;
+      if (xato) {
+        xabar =
+            "${natija.muvaffaqiyatli}/4 ta fayl yuklandi. Xato: ${natija.xatolar.join('; ')}";
+        rang = Colors.orange;
+      } else if (natija.jamiHujjatlar == 0) {
+        xabar = "Tanlangan sana oralig'ida hujjat topilmadi (fayllar bo'sh)";
+        rang = Colors.orange;
+      } else {
+        xabar =
+            "4 ta Excel fayl yuklab olindi! (${natija.jamiHujjatlar} ta hujjat)";
+        rang = Colors.green;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(soni > 0
-                ? "Excel yuklab olindi! ($soni ta yozuv)"
-                : "Filtrga mos yozuv topilmadi"),
-            backgroundColor: soni > 0 ? Colors.green : Colors.orange),
+        SnackBar(content: Text(xabar), backgroundColor: rang),
       );
     } catch (e) {
       if (!mounted) return;

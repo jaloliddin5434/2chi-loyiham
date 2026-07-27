@@ -1631,57 +1631,34 @@ Widget _mashinaGrafik() {
   }
 
   Future<void> excelYuklaOl() async {
+    // DIQQAT: rasmiy hisobot (kun/oy/mavsum guruhlangan, har mahsulot
+    // uchun alohida fayl) faqat SANA oralig'i bo'yicha filtrlanadi -
+    // ekrandagi boshqa (mahsulot-tab, matnli qidiruv, holat, firma)
+    // filtrlar bu hisobotga ta'sir qilmaydi, chunki u har doim BARCHA 4
+    // mahsulot uchun to'liq holda generatsiya qilinadi.
     try {
-      // DIQQAT: `filtrlangan` faqat ekranda ALLAQACHON yuklangan
-      // (sahifalangan) ro'yxat ustida ishlaydi - shu sabab eksport uchun
-      // ATAYLAB ishlatilmaydi. Sana/mahsulot filtri backendga
-      // to'g'ridan-to'g'ri uzatiladi (ExcelExportService orqali), shunda
-      // ekranda hali yuklanmagan sahifalardagi mos yozuvlar ham eksportga
-      // kiradi. Qolgan (matnli qidiruv, firma, holat) filtrlar esa TO'LIQ
-      // ro'yxat ustida mahalliy qo'llaniladi.
-      final soni = await ExcelExportService.hujjatlarniEksportQil(
-        mahsulotId: tanlanganMahsulotId == 0 ? null : tanlanganMahsulotId,
+      final natija = await ExcelExportService.hisobotlarniYuklabOl(
         sanaDan: sanadan.isEmpty ? null : sanadan,
         sanaGacha: sanagacha.isEmpty ? null : sanagacha,
-        qoshimchaFiltr: (h) {
-          if (nakladnoyFilter.isNotEmpty &&
-              !(h['raqam'] ?? '')
-                  .toString()
-                  .toLowerCase()
-                  .contains(nakladnoyFilter.toLowerCase())) {
-            return false;
-          }
-          if (qidiruv.isNotEmpty) {
-            final raqam = (h['raqam'] ?? '').toString().toLowerCase();
-            final firma = (h['firma'] ?? '').toString().toLowerCase();
-            final mashina =
-                (h['mashina_raqami'] ?? '').toString().toLowerCase();
-            final shofyor = (h['shofyor'] ?? '').toString().toLowerCase();
-            final q = qidiruv.toLowerCase();
-            if (!(raqam.contains(q) ||
-                firma.contains(q) ||
-                mashina.contains(q) ||
-                shofyor.contains(q))) {
-              return false;
-            }
-          }
-          if (holatFilter != 'hammasi' && h['holat'] != holatFilter) {
-            return false;
-          }
-          if (firmaFilter != 'hammasi' &&
-              (h['firma'] ?? '').toString() != firmaFilter) {
-            return false;
-          }
-          return true;
-        },
       );
       if (mounted) {
+        final xato = natija.xatolar.isNotEmpty;
+        String xabar;
+        Color rang;
+        if (xato) {
+          xabar =
+              "${natija.muvaffaqiyatli}/4 ta fayl yuklandi. Xato: ${natija.xatolar.join('; ')}";
+          rang = Colors.orange;
+        } else if (natija.jamiHujjatlar == 0) {
+          xabar = "Tanlangan sana oralig'ida hujjat topilmadi (fayllar bo'sh)";
+          rang = Colors.orange;
+        } else {
+          xabar =
+              "4 ta Excel fayl yuklab olindi! (${natija.jamiHujjatlar} ta hujjat)";
+          rang = Colors.green;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(soni > 0
-                  ? "Excel yuklab olindi! ($soni ta yozuv)"
-                  : "Filtrga mos yozuv topilmadi"),
-              backgroundColor: soni > 0 ? Colors.green : Colors.orange),
+          SnackBar(content: Text(xabar), backgroundColor: rang),
         );
       }
     } catch (e) {

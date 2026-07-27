@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
@@ -10,6 +10,8 @@ from auth import verify_password, create_access_token, hash_password, get_curren
 from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL
 from utils import konditsion_hisobla
 from datetime import datetime
+import io
+from pathlib import Path
 
 Base.metadata.create_all(bind=engine)
 
@@ -285,6 +287,191 @@ def hujjatlar_royxati(
         "sahifa": sahifa,
         "sahifa_hajmi": sahifa_hajmi,
     }
+
+
+AY_NOMLARI = {
+    1: "Yanvar", 2: "Fevral", 3: "Mart", 4: "Aprel", 5: "May", 6: "Iyun",
+    7: "Iyul", 8: "Avgust", 9: "Sentabr", 10: "Oktabr", 11: "Noyabr", 12: "Dekabr",
+}
+
+_EKSPORT_USTUNLAR = [
+    "№", "№ Naklad", "Mahsulot nomi", "Brutto (kg)", "Tara (kg)",
+    "Netto (kg)", "Kondicion (kg)", "Mashina raqami", "Yuk oluvchi",
+]
+
+
+def _eksport_qator_yoz(ws, qiymatlar, qalin=False, fon=None):
+    ws.append(qiymatlar)
+    qator = ws.max_row
+    for hujayra in ws[qator]:
+        if qalin:
+            hujayra.font = Font(bold=True)
+        if fon:
+            hujayra.fill = PatternFill(start_color=fon, end_color=fon, fill_type="solid")
+    return qator
+
+
+def _eksport_jami_qator(ws, sarlavha, netto, konditsion, konditsiya_bormi, fon):
+    _eksport_qator_yoz(ws, [
+        "", "", "", "", sarlavha,
+        round(netto) if netto else 0,
+        round(konditsion) if (konditsiya_bormi and konditsion) else "",
+        "", "",
+    ], qalin=True, fon=fon)
+
+
+@app.get("/hujjatlar/eksport")
+def hujjatlar_eksport(
+    mahsulot_id: int,
+    sana_dan: str = None,
+    sana_gacha: str = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Bitta mahsulot uchun, sana bo'yicha kun/oy guruhlangan Excel hisoboti -
+    RASMLAR papkasiga saqlanadi VA baytlar sifatida to'g'ridan-to'g'ri
+    qaytariladi (frontend shu baytlardan brauzerda yuklab olishni
+    boshlaydi). Bekor qilingan hujjatlar chiqarib tashlanadi (GET
+    /hujjatlar bilan bir xil standart xatti-harakat).
+
+    DIQQAT: bu route /hujjatlar/{hujjat_id}dan OLDIN ro'yxatga olinishi
+    SHART - FastAPI marshrutlarni ro'yxatga olingan tartibda tekshiradi,
+    aks holda "/hujjatlar/eksport" so'rovi {hujjat_id}="eksport" sifatida
+    quyidagi wildcard route tomonidan tutib qolinadi (xato: 422 int_parsing)."""
+    mahsulot = db.query(Mahsulot).filter(Mahsulot.id == mahsulot_id).first()
+    if not mahsulot:
+        raise HTTPException(status_code=404, detail=f"Mahsulot topilmadi (id={mahsulot_id})")
+
+    so_rov = db.query(Hujjat).filter(
+        Hujjat.mahsulot_id == mahsulot_id,
+        Hujjat.holat != HujjatHolati.BEKOR_QILINDI,
+    )
+    if sana_dan:
+        so_rov = so_rov.filter(Hujjat.created_at >= sana_dan)
+    if sana_gacha:
+        so_rov = so_rov.filter(Hujjat.created_at < sana_gacha)
+    hujjatlar = so_rov.order_by(Hujjat.created_at.asc()).all()
+
+    satrlar = []
+    for h in hujjatlar:
+        olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).order_by(Olchov.id.asc()).all()
+        tara, brutto, netto, konditsion = _olchovlar_jamlangan(olchovlar)
+        satrlar.append({
+            "sana": h.created_at.date(),
+            "raqam": h.raqam,
+            "brutto": brutto, "tara": tara, "netto": netto, "konditsion": konditsion,
+            "mashina_raqami": h.mashina_raqami or "—",
+            "yuk_oluvchi": h.yuk_oluvchi or "—",
+        })
+
+    kunlar = {}
+    for s in satrlar:
+        kunlar.setdefault(s["sana"], []).append(s)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = mahsulot.nom[:31]
+
+    KUN_FON = "D9E8D3"
+    JAMI_FON = "F0D878"
+    OY_FON = "E8A868"
+    MAVSUM_FON = "C05050"
+
+    oy_jami = {}
+    mavsum_netto = 0
+    mavsum_konditsion = 0
+    joriy_oy = None
+
+    def oy_yakunla(oy_kaliti):
+        yil, oy = oy_kaliti
+        j = oy_jami[oy_kaliti]
+        _eksport_jami_qator(
+            ws, f"{AY_NOMLARI[oy]} {yil} - OY JAMI",
+            j["netto"], j["konditsion"], mahsulot.konditsiya_bor, OY_FON)
+
+    for sana in sorted(kunlar.keys()):
+        oy_kaliti = (sana.year, sana.month)
+        if joriy_oy is not None and oy_kaliti != joriy_oy:
+            oy_yakunla(joriy_oy)
+        joriy_oy = oy_kaliti
+        oy_jami.setdefault(oy_kaliti, {"netto": 0, "konditsion": 0})
+
+        boshlangich_qator = ws.max_row + 1
+        _eksport_qator_yoz(ws, [sana.strftime("%Y-%m-%d")], qalin=True, fon=KUN_FON)
+        ws.merge_cells(start_row=boshlangich_qator, start_column=1,
+                        end_row=boshlangich_qator, end_column=len(_EKSPORT_USTUNLAR))
+        _eksport_qator_yoz(ws, _EKSPORT_USTUNLAR, qalin=True)
+
+        kun_netto = 0
+        kun_konditsion = 0
+        for i, s in enumerate(kunlar[sana], start=1):
+            # DIQQAT: "Жами" (va undan yuqori OY/UMUMIY jami) qatorlari
+            # xom (kasr) qiymatlar emas, balki AYNAN shu qatorda ko'rsatilgan
+            # (yaxlitlangan butun) qiymatlar yig'indisidan hisoblanadi - aks
+            # holda "har bir qatorni qo'lda qo'shsam, Жамидан boshqacha
+            # chiqadi" degan (matematik jihatdan to'g'ri, lekin auditor
+            # uchun chalkash) nomuvofiqlik paydo bo'ladi.
+            # Hisoblash uchun (0 - hali yo'q qiymat, yig'indiga ta'sir
+            # qilmasligi kerak) va KO'RSATISH uchun (bo'sh katak - "0"
+            # emas, chunki 0 kg haqiqiy o'lchovdan farqlanishi kerak)
+            # qiymatlar ATAYLAB alohida hisoblanadi.
+            netto_yaxlit = round(s["netto"]) if s["netto"] is not None else 0
+            konditsion_yaxlit = (
+                round(s["konditsion"])
+                if (mahsulot.konditsiya_bor and s["konditsion"] is not None) else 0
+            )
+            _eksport_qator_yoz(ws, [
+                i, s["raqam"], mahsulot.nom,
+                round(s["brutto"]) if s["brutto"] is not None else "",
+                round(s["tara"]) if s["tara"] is not None else "",
+                netto_yaxlit if s["netto"] is not None else "",
+                konditsion_yaxlit
+                if (mahsulot.konditsiya_bor and s["konditsion"] is not None) else "",
+                s["mashina_raqami"], s["yuk_oluvchi"],
+            ])
+            kun_netto += netto_yaxlit
+            if mahsulot.konditsiya_bor:
+                kun_konditsion += konditsion_yaxlit
+
+        _eksport_jami_qator(ws, "Жами:", kun_netto, kun_konditsion, mahsulot.konditsiya_bor, JAMI_FON)
+
+        oy_jami[oy_kaliti]["netto"] += kun_netto
+        oy_jami[oy_kaliti]["konditsion"] += kun_konditsion
+        mavsum_netto += kun_netto
+        mavsum_konditsion += kun_konditsion
+
+    if joriy_oy is not None:
+        oy_yakunla(joriy_oy)
+        _eksport_jami_qator(
+            ws, "UMUMIY JAMI", mavsum_netto, mavsum_konditsion,
+            mahsulot.konditsiya_bor, MAVSUM_FON)
+
+    kengliklar = [6, 16, 20, 12, 12, 12, 14, 16, 22]
+    for i, kenglik in enumerate(kengliklar, start=1):
+        ws.column_dimensions[chr(64 + i)].width = kenglik
+
+    papka = Path("C:/RASMLAR/hisobotlar")
+    papka.mkdir(parents=True, exist_ok=True)
+    davr = f"{sana_dan or 'boshidan'}_{sana_gacha or 'hozirgacha'}"
+    fayl_nomi = f"{mahsulot.nom.replace(' ', '_')}_{davr}.xlsx"
+    wb.save(papka / fayl_nomi)
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{fayl_nomi}"',
+            # Frontend 4 ta faylni ham yuklab bo'lgach, jami nechta hujjat
+            # topilganini shu sarlavhalar orqali bila oladi - shunda bo'sh
+            # (hech qanday hujjat topilmagan) natijani "muvaffaqiyatli
+            # yuklandi" deb noto'g'ri ko'rsatib qo'ymaydi.
+            "X-Hujjatlar-Soni": str(len(satrlar)),
+            "Access-Control-Expose-Headers": "X-Hujjatlar-Soni",
+        },
+    )
+
 
 @app.get("/hujjatlar/{hujjat_id}")
 def hujjat_detail(hujjat_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -1120,6 +1307,7 @@ def excel_qatorga_yoz(hujjat_id, db):
         print(f"Excel ga yozildi: {hujjat.raqam} ({mahsulot_nomi})")
     except Exception as e:
         print(f"Excel xato: {e}")
+
 # ============ SOZLAMALAR ============
 from models import Sozlama
 

@@ -450,14 +450,16 @@ def hujjatlar_eksport(
     for i, kenglik in enumerate(kengliklar, start=1):
         ws.column_dimensions[chr(64 + i)].width = kenglik
 
-    # DIQQAT: eski (barcha mahsulot aralash) avtomatik hisobot ham aynan
-    # shu C:/RASMLAR papkasiga to'g'ridan-to'g'ri saqlanardi (qarang:
-    # excel_qatorga_yoz() dagi "C:/RASMLAR/hisobot_{yil}.xlsx"). Foydalanuvchi
-    # yangi (har mahsulot uchun alohida) fayllarni ANIQ SHU TANISH joyda
-    # topishi uchun, alohida "hisobotlar" pastki papka ISHLATILMAYDI - fayl
-    # nomlari ("Chigit_...", "Patoz_..." va h.k.) "hisobot_" bilan
-    # boshlanmagani uchun eski faylga to'qnashmaydi.
-    papka = Path("C:/RASMLAR")
+    # Har mahsulotning barcha fayllari (rasmlar, avtomatik jurnal va shu
+    # qo'lda eksport) bitta joyda - C:/RASMLAR/{Mahsulot}/ ichida - bo'lishi
+    # uchun bu ham o'sha mahsulot papkasiga saqlanadi (qarang: xuddi shu
+    # papkani excel_qatorga_yoz() ham ishlatadi).
+    # Papka nomi rasmlar/nakladnoy va avtomatik jurnal bilan AYNAN BIR XIL
+    # (probelli, asl mahsulot.nom) bo'lishi SHART - aks holda "Chiganoq
+    # po'chog'i" va "Chiganoq_po'chog'i" kabi ikkita boshqa-boshqa papka
+    # hosil bo'lib, bitta mahsulotning fayllari ikkiga bo'linib qoladi.
+    papka = Path(f"C:/RASMLAR/{mahsulot.nom}")
+    papka.mkdir(parents=True, exist_ok=True)
     davr = f"{sana_dan or 'boshidan'}_{sana_gacha or 'hozirgacha'}"
     fayl_nomi = f"{mahsulot.nom.replace(' ', '_')}_{davr}.xlsx"
     wb.save(papka / fayl_nomi)
@@ -1368,7 +1370,13 @@ def excel_qatorga_yoz(hujjat_id, db):
         # (C:/RASMLAR/hisobot_{yil}.xlsx) endi yangi qator OLMAYDI - u
         # tarixiy arxiv sifatida shu holicha qoladi (ataylab tegilmaydi).
         fayl_nomi_qismi = mahsulot_nomi.replace(" ", "_") or "Nomalum"
-        fayl_yol = f"C:/RASMLAR/hisobot_{fayl_nomi_qismi}_{bugun.year}.xlsx"
+        # Papka nomi rasmlar/nakladnoy bilan AYNAN BIR XIL (probelli, asl
+        # mahsulot_nomi) bo'lishi SHART - aks holda "Chiganoq po'chog'i" va
+        # "Chiganoq_po'chog'i" kabi ikkita boshqa-boshqa papka hosil bo'lib,
+        # bitta mahsulotning fayllari ikkiga bo'linib qoladi.
+        mahsulot_papkasi = Path(f"C:/RASMLAR/{mahsulot_nomi or 'Nomalum'}")
+        mahsulot_papkasi.mkdir(parents=True, exist_ok=True)
+        fayl_yol = str(mahsulot_papkasi / f"hisobot_{fayl_nomi_qismi}_{bugun.year}.xlsx")
 
         # O'qish-o'zgartirish-yozish (read-modify-write) bo'linmas
         # (atomik) bo'lishi uchun shu FAYLGA xos qulf ostida bajariladi -
@@ -1865,7 +1873,7 @@ td.left {{ text-align: left; }}
 </body></html>"""
 
         raqam_papka = (m["mashina_raqami"] or "noma_lum").replace(" ", "_").replace("/", "_")
-        papka = Path(f"C:/RASMLAR/{sana}/{m['mahsulot_nomi']}/{raqam_papka}")
+        papka = Path(f"C:/RASMLAR/{m['mahsulot_nomi']}/{sana}/{raqam_papka}")
         papka.mkdir(parents=True, exist_ok=True)
 
         html_fayl = papka / "nakladnoy.html"
@@ -2036,7 +2044,7 @@ def rasm_ol(data: dict, current_user: dict = Depends(get_current_user)):
         vaqt = datetime.now().strftime("%H-%M-%S")
         raqam = mashina_raqami.replace(" ", "_").replace("/", "_")
         
-        papka = Path(f"C:/RASMLAR/{sana}/{mahsulot_nomi}/{raqam}")
+        papka = Path(f"C:/RASMLAR/{mahsulot_nomi}/{sana}/{raqam}")
         papka.mkdir(parents=True, exist_ok=True)
         
         fayl1 = papka / f"{tur}_cam1_{vaqt}.jpg"

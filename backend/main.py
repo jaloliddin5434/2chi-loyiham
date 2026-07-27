@@ -554,6 +554,7 @@ def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, db: Session = Depends(g
     hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
     if not hujjat:
         raise HTTPException(status_code=404, detail="Hujjat topilmadi!")
+    eski_holat = hujjat.holat
     if data.holat is not None and data.holat != hujjat.holat:
         if not holat_otishi_ruxsatmi(hujjat.holat, data.holat):
             raise HTTPException(
@@ -645,6 +646,18 @@ def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, db: Session = Depends(g
 
     db.commit()
     db.refresh(hujjat)
+
+    # Excel jurnaliga aynan SHU YERDA, hujjat "tugallandi" holatiga
+    # YANGI o'tganda yoziladi (avval POST /olchovlar'da, tara+brutto
+    # saqlanganda yozilardi - lekin o'sha payt dostaverka/qabul_qildi/
+    # yuk_olindi kabi maydonlar hali bo'sh bo'lardi, chunki ular ODATDA
+    # aynan shu "tugallash" amali bilan bir vaqtda to'ldiriladi). Holat
+    # TUGALLANDI - yakuniy (undan boshqa holatga o'tib bo'lmaydi), shu
+    # sabab bu shart bitta hujjat uchun UMRIDA FAQAT BIR MARTA rost
+    # bo'ladi - takroriy qator xavfi yo'q.
+    if eski_holat != HujjatHolati.TUGALLANDI and hujjat.holat == HujjatHolati.TUGALLANDI:
+        excel_qatorga_yoz(hujjat_id, db)
+
     return hujjat
 
 # ============ TAHRIR TARIXI ============
@@ -724,9 +737,11 @@ def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_
     db.add(yangi)
     db.commit()
     db.refresh(yangi)
-    if yangi.brutto and yangi.tara:
-        print(f"Excel ga yozilmoqda: hujjat_id={yangi.hujjat_id}")
-        excel_qatorga_yoz(yangi.hujjat_id, db)
+    # DIQQAT: bu yerda ENDI excel_qatorga_yoz() chaqirilmaydi - dostaverka/
+    # qabul_qildi/yuk_olindi kabi maydonlar hali bo'sh bo'ladi (ular
+    # keyinroq, "tortish yakunlanganda" alohida PUT /hujjatlar/{id} orqali
+    # to'ldiriladi). Yozish endi hujjat_yangilash()da, holat "tugallandi"ga
+    # o'tgan PAYTDA, BARCHA maydon to'liq bo'lganda sodir bo'ladi.
     return yangi
 
 @app.get("/olchovlar/{hujjat_id}")
@@ -802,6 +817,7 @@ def navbat_get(db: Session = Depends(get_db), current_user: dict = Depends(get_c
 def navbat_tugallandi(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from models import Navbat
     navbat = db.query(Navbat).filter(Navbat.hujjat_id == data.get("hujjatId")).first()
+    yangi_tugallangan_hujjat_id = None
     if navbat:
         navbat.tugallandi = True
         navbat.tugallangan_vaqt = datetime.now()
@@ -822,6 +838,14 @@ def navbat_tugallandi(data: dict, db: Session = Depends(get_db), current_user: d
                         ozgartirgan_user_id=current_user.get("id"),
                         ozgartirgan_username=current_user.get("sub"),
                     ))
+                    # Bu - ODATIY, ENG KO'P ISHLATILADIGAN yakunlash yo'li
+                    # (operator "Nakladnoy chop etish"dan oldin navbatni
+                    # tugatganda). Excel jurnaliga aynan shu yerda, holat
+                    # ENDIGINA "tugallandi"ga o'tgan paytda yoziladi - shu
+                    # payt dostaverka/qabul_qildi/yuk_olindi kabi maydonlar
+                    # (odatda shu bilan bir vaqtda, alohida PUT
+                    # /hujjatlar/{id} orqali) allaqachon to'ldirilgan bo'ladi.
+                    yangi_tugallangan_hujjat_id = hujjat.id
                 else:
                     tizim_xatosini_saqla(
                         "navbat_tugallandi",
@@ -831,6 +855,8 @@ def navbat_tugallandi(data: dict, db: Session = Depends(get_db), current_user: d
                     )
 
         db.commit()
+        if yangi_tugallangan_hujjat_id:
+            excel_qatorga_yoz(yangi_tugallangan_hujjat_id, db)
     return {"status": "ok"}
 
 @app.get("/navbat/tugallanganlar")

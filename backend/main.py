@@ -450,8 +450,14 @@ def hujjatlar_eksport(
     for i, kenglik in enumerate(kengliklar, start=1):
         ws.column_dimensions[chr(64 + i)].width = kenglik
 
-    papka = Path("C:/RASMLAR/hisobotlar")
-    papka.mkdir(parents=True, exist_ok=True)
+    # DIQQAT: eski (barcha mahsulot aralash) avtomatik hisobot ham aynan
+    # shu C:/RASMLAR papkasiga to'g'ridan-to'g'ri saqlanardi (qarang:
+    # excel_qatorga_yoz() dagi "C:/RASMLAR/hisobot_{yil}.xlsx"). Foydalanuvchi
+    # yangi (har mahsulot uchun alohida) fayllarni ANIQ SHU TANISH joyda
+    # topishi uchun, alohida "hisobotlar" pastki papka ISHLATILMAYDI - fayl
+    # nomlari ("Chigit_...", "Patoz_..." va h.k.) "hisobot_" bilan
+    # boshlanmagani uchun eski faylga to'qnashmaydi.
+    papka = Path("C:/RASMLAR")
     davr = f"{sana_dan or 'boshidan'}_{sana_gacha or 'hozirgacha'}"
     fayl_nomi = f"{mahsulot.nom.replace(' ', '_')}_{davr}.xlsx"
     wb.save(papka / fayl_nomi)
@@ -1260,51 +1266,131 @@ backup_thread.start()
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
+# excel_qatorga_yoz() har chaqiruvda BUTUN faylni o'qib-qo'shib-qayta
+# yozadi (openpyxl xotirada ishlaydi, qatorma-qator "qo'shish" imkonini
+# bermaydi) - qulflashsiz, ikki so'rov (masalan ikki operator) bir vaqtda
+# SHU BIR XIL mahsulot uchun saqlasa, ikkalasi ham faylni bir xil "eski"
+# holatda o'qib olib, kim OXIRGI saqlasa o'shanikidan boshqasi butunlay
+# yo'qolib qolishi mumkin edi. Har fayl yo'li uchun alohida qulf (lock)
+# shu yo'qotishning oldini oladi - endi bir vaqtda kelgan so'rovlar
+# navbat bilan (ketma-ket) yoziladi, hech biri boshqasini "bosib
+# ketmaydi". `_excel_qulflari_royxat_lock` esa faqat YANGI qulf
+# yaratishni o'zi xavfsiz (atomik) bo'lishini ta'minlaydi.
+_excel_qulflari = {}
+_excel_qulflari_royxat_lock = threading.Lock()
+
+
+def _excel_fayl_qulfi(fayl_yol: str) -> threading.Lock:
+    with _excel_qulflari_royxat_lock:
+        if fayl_yol not in _excel_qulflari:
+            _excel_qulflari[fayl_yol] = threading.Lock()
+        return _excel_qulflari[fayl_yol]
+
+
+_EXCEL_LOG_USTUNLARI = [
+    "№", "№ Naklad", "Mahsulot nomi", "Sana", "Tara (kg)", "Brutto (kg)",
+    "Netto (kg)", "Kondicion (kg)", "Mashina raqami", "Shofyor", "Firma",
+    "Tiket №", "Tuda №", "Terim turi", "Klass", "Sinf", "Seleksiya navi",
+    "Namlik %", "Ifloslik %", "Dostaverka №", "Muddat", "Qabul qildi",
+    "Yuk olindi",
+]
+
+
 def excel_qatorga_yoz(hujjat_id, db):
     try:
         from datetime import date
         bugun = date.today()
-        fayl_yol = f"C:/RASMLAR/hisobot_{bugun.year}.xlsx"
-        
-        try:
-            wb = openpyxl.load_workbook(fayl_yol)
-            ws = wb.active
-        except:
-            wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = "Hisobot"
-            ws.append(["№", "Наклад №", "Маҳсулот", "Тара", "Брутто", "Нетто", "Кондицион", "Машина", "Юк олувчи", "Сана"])
-            for cell in ws[1]:
-                cell.fill = PatternFill(start_color="1A4A08", end_color="1A4A08", fill_type="solid")
-                cell.font = Font(bold=True, color="FFFFFF")
-        
+
         hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
         if not hujjat:
             return
-        
-        mashina = db.query(Mashina).filter(Mashina.id == hujjat.mashina_id).first()
-        olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == hujjat_id).all()
+        # Bekor qilingan hujjatlar bu jurnalga UMUMAN yozilmaydi - "Excel"
+        # tugmasidagi hisobot bilan bir xil qoida. DIQQAT: bu faqat YANGI
+        # qatorni oldini oladi - agar hujjat AVVAL o'lchov bilan saqlanib
+        # (shu bilan logga yozilib) KEYINROQ bekor qilinsa, oldingi qator
+        # ATAYLAB o'zgarmas holda qoladi (jurnal - tarixiy, o'zgarmas
+        # yozuv; joriy holatni har doim "Excel" tugmasi to'g'ri ko'rsatadi).
+        if hujjat.holat == HujjatHolati.BEKOR_QILINDI:
+            return
+
         mahsulot = db.query(Mahsulot).filter(Mahsulot.id == hujjat.mahsulot_id).first()
-        mahsulot_nomi = mahsulot.nom if mahsulot else ""
-        
-        for o in olchovlar:
-            if o.tara and o.brutto:
-                qator_raqam = ws.max_row
-                ws.append([
-                    qator_raqam,
-                    hujjat.raqam,
-                    mahsulot_nomi,
-                    round(o.tara),
-                    round(o.brutto),
-                    round(o.netto) if o.netto else 0,
-                    round(o.konditsion) if o.konditsion else 0,
-                    mashina.davlat_raqami if mashina else "",
-                    mashina.firma if mashina else "",
-                    str(bugun),
-                ])
-        
-        wb.save(fayl_yol)
-        print(f"Excel ga yozildi: {hujjat.raqam} ({mahsulot_nomi})")
+        konditsiya_bormi = mahsulot.konditsiya_bor if mahsulot else False
+
+        # Hujjat darajasidagi barcha maydonlar (mashina/shofyor/firma/tiket/
+        # tuda/terim turi/klass/sinf/seleksiya/namlik/ifloslik/dostaverka/
+        # qabul-yuk qildi) Nakladnoy PDF bilan AYNAN BIR XIL, allaqachon
+        # sinalgan manba (Hujjat->Navbat fallback zanjiri bilan) orqali
+        # olinadi - shu mantiqni ikkinchi marta yozib chiqmaslik uchun.
+        m = nakladnoy_uchun_malumot(db, hujjat_id)
+        if not m:
+            return
+        mahsulot_nomi = m["mahsulot_nomi"]
+
+        # Har mahsulot uchun ALOHIDA fayl (masalan hisobot_Chigit_2026.xlsx) -
+        # "Excel" tugmasidagi yangi hisobot bilan bir xil mahsulot-ajratish
+        # tamoyili. Eski, barcha mahsulot aralash yagona fayl
+        # (C:/RASMLAR/hisobot_{yil}.xlsx) endi yangi qator OLMAYDI - u
+        # tarixiy arxiv sifatida shu holicha qoladi (ataylab tegilmaydi).
+        fayl_nomi_qismi = mahsulot_nomi.replace(" ", "_") or "Nomalum"
+        fayl_yol = f"C:/RASMLAR/hisobot_{fayl_nomi_qismi}_{bugun.year}.xlsx"
+
+        # O'qish-o'zgartirish-yozish (read-modify-write) bo'linmas
+        # (atomik) bo'lishi uchun shu FAYLGA xos qulf ostida bajariladi -
+        # boshqa mahsulot fayliga yozish bilan hech qachon to'sqinlik
+        # qilmaydi, faqat AYNAN shu faylga bir vaqtda yozilishi mumkin
+        # bo'lgan so'rovlar navbatga turadi.
+        with _excel_fayl_qulfi(fayl_yol):
+            try:
+                wb = openpyxl.load_workbook(fayl_yol)
+                ws = wb.active
+            except:
+                wb = openpyxl.Workbook()
+                ws = wb.active
+                ws.title = "Hisobot"
+                ws.append(_EXCEL_LOG_USTUNLARI)
+                for cell in ws[1]:
+                    cell.fill = PatternFill(start_color="1A4A08", end_color="1A4A08", fill_type="solid")
+                    cell.font = Font(bold=True, color="FFFFFF")
+
+            # Har arava uchun bitta qator - m["aravalar"] allaqachon shu
+            # arava_raqam bo'yicha eng oxirgi (NULL bo'lmagan) qiymatlarga
+            # jamlangan (nakladnoy_uchun_malumot ichida), shu sabab bu
+            # yerda alohida Olchov so'rovi kerak emas.
+            for arava_raqam in sorted(m["aravalar"].keys()):
+                a = m["aravalar"][arava_raqam]
+                if a.get("tara") and a.get("brutto"):
+                    qator_raqam = ws.max_row
+                    ws.append([
+                        qator_raqam,
+                        m["raqam"],
+                        mahsulot_nomi,
+                        m["sana"],
+                        round(a["tara"]),
+                        round(a["brutto"]),
+                        round(a["netto"]) if a.get("netto") else 0,
+                        # Kondicion faqat konditsiya_bor=True mahsulotlarda
+                        # (hozircha faqat Chigit) ma'noli - "Excel"
+                        # tugmasidagi yangi hisobot bilan bir xil qoida.
+                        round(a["konditsion"]) if (konditsiya_bormi and a.get("konditsion")) else "",
+                        m["mashina_raqami"],
+                        m["shofyor"],
+                        m["firma"],
+                        m["tiket_raqam"],
+                        m["tuda_raqam"],
+                        m["terim_turi"],
+                        m["klass"],
+                        m["sinf"],
+                        m["seleksiya_navi"],
+                        m["namlik"],
+                        m["ifloslik"],
+                        m["dostaverka"],
+                        m["dostaverka_vaqt"],
+                        m["qabul_qildi"],
+                        m["yuk_olindi"],
+                    ])
+
+            wb.save(fayl_yol)
+        print(f"Excel ga yozildi: {m['raqam']} ({mahsulot_nomi})")
     except Exception as e:
         print(f"Excel xato: {e}")
 

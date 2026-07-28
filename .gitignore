@@ -6,3 +6,7 @@ __pycache__/
 backend/server.log
 frontend/pw_shots/
 backup/
+
+# Cloudflare Tunnel bajariluvchi fayli - tashqi dastur, kodimiz emas
+# (Cloudflare'ning rasmiy GitHub sahifasidan yuklab olingan)
+cloudflared.exe

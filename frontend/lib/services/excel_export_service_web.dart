@@ -1,6 +1,6 @@
-import 'dart:html' as html;
 import 'package:http/http.dart' as http;
 import 'api_service.dart';
+import 'fayl_yuklab_olish.dart';
 
 /// Har bir mahsulot bo'yicha alohida, kun/oy/mavsum guruhlangan rasmiy
 /// Excel hisobotini yuklab olish natijasi.
@@ -59,15 +59,11 @@ class ExcelExportService {
         jamiHujjatlar +=
             int.tryParse(response.headers['x-hujjatlar-soni'] ?? '') ?? 0;
 
-        final blob = html.Blob(
-          [response.bodyBytes],
+        faylniYuklabOl(
+          response.bodyBytes,
+          '${mahsulot.value}.xlsx',
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         );
-        final url = html.Url.createObjectUrlFromBlob(blob);
-        html.AnchorElement(href: url)
-          ..setAttribute('download', '${mahsulot.value}.xlsx')
-          ..click();
-        html.Url.revokeObjectUrl(url);
         muvaffaqiyatli++;
       } catch (e) {
         xatolar.add('${mahsulot.value}: $e');

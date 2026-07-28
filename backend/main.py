@@ -1695,6 +1695,22 @@ def nakladnoy_uchun_malumot(db: Session, hujjat_id: int) -> dict:
             if qiymat is not None:
                 a[maydon] = qiymat
 
+    # DIQQAT (vaqt-bog'liq xato tuzatildi): yuqoridagi tsikl netto/namlik/
+    # ifloslik/konditsion'ni BIR-BIRIDAN MUSTAQIL ravishda ("oxirgi
+    # NULL-bo'lmagan qiymat") oladi - agar bu maydonlar turli Olchov
+    # qatorlarida turli vaqtda yozilgan bo'lsa (masalan keyinroq faqat
+    # namlik/ifloslik tuzatilsa), saqlangan "konditsion" ESKI, mos
+    # kelmaydigan qiymatda qolib ketishi mumkin edi. Shu sabab bu yerda
+    # konditsion HAR DOIM yakuniy (yig'ilgan) netto/namlik/ifloslikdan
+    # QAYTA hisoblanadi - Nakladnoy (va shu funksiyaga tayanadigan barcha
+    # boshqa joy: QR-ko'rish, Excel jurnal) doim izchil qiymat ko'rsatadi.
+    for a in aravalar.values():
+        netto = a["netto"]
+        if netto is None and a["tara"] is not None and a["brutto"] is not None:
+            netto = a["brutto"] - a["tara"]
+        if netto is not None and a["namlik"] is not None and a["ifloslik"] is not None:
+            a["konditsion"] = konditsion_hisobla(netto, a["namlik"], a["ifloslik"])
+
     # Kirgan vaqt = tara BIRINCHI o'lchangan payt, chiqqan vaqt = brutto
     # OXIRGI o'lchangan payt - Navbat qatoriga bog'liq emas (ba'zi
     # hujjatlarda Navbat qatori umuman bo'lmasligi mumkin), shu sabab
@@ -1736,6 +1752,134 @@ def nakladnoy_uchun_malumot(db: Session, hujjat_id: int) -> dict:
     }
 
 
+_NAKLADNOY_STIL = """
+* { box-sizing: border-box; }
+body { font-family: Arial, sans-serif; font-size: 13px; margin: 0; padding: 0; background: white; color: #0D1B2A; }
+.sahifa { padding: 10mm 12mm; position: relative; }
+.nusxa-badge { background: #0D1B2A; color: white; text-align: center; padding: 6px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 1px; margin-bottom: 8px; }
+.sarlavha { text-align: center; font-size: 16px; font-weight: 700; color: #0F6E56; margin: 4px 0 2px 0; }
+.subtitle { text-align: center; font-size: 11px; color: #607080; margin-bottom: 10px; }
+.karta { background: white; border: 1px solid #D8EDD0; border-radius: 8px; padding: 8px 14px; margin-bottom: 8px; }
+.maydon { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }
+.label { color: #607080; }
+.qiymat { font-weight: 600; text-align: right; }
+.info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 16px; }
+table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+th { background: #0F6E56; color: white; padding: 8px 6px; font-size: 11px; }
+td { border: 1px solid #D8EDD0; padding: 8px 6px; text-align: center; font-size: 12px; }
+.jami td { font-weight: 700; background: #EAF6F0; }
+.dostaverka-box { background: #EAF6F0; border: 1px solid #B8E0C8; border-radius: 6px; padding: 8px 12px; margin-top: 8px; display: flex; justify-content: space-between; font-size: 12px; }
+.imzo-grid { display: grid; grid-template-columns: repeat(4, 1fr) 70px; gap: 14px; margin-top: 18px; align-items: end; font-size: 10px; color: #607080; text-align: center; }
+.imzo-line { border-bottom: 1px solid #0D1B2A; height: 22px; margin-bottom: 4px; }
+.imzo-label { font-size: 9px; color: #9AC080; }
+.muhr { width: 60px; height: 60px; border-radius: 50%; border: 2px solid #D8EDD0; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #9AC080; margin: 0 auto; }
+.qr-burchak { position: absolute; top: 6mm; right: 8mm; text-align: center; }
+.qr-burchak img { width: 80px; height: 80px; }
+.qr-burchak div { font-size: 8px; color: #607080; margin-top: 2px; }
+"""
+
+
+def _nakladnoy_nusxa_html(m: dict, sana: str, nusxa_nomi: str, qr_base64: str,
+                           sahifa_uzilishi: bool = False) -> str:
+    """Bitta Nakladnoy nusxasining (Zavod/Shofyor/Ohrana) HTML qismini
+    quradi - ilova UI'sidagi karta-asosidagi ko'rinishga mos (brend
+    yashili #0F6E56), 3 nusxa uchun ham AYNAN shu funksiya qayta
+    ishlatiladi (faqat nusxa_nomi farqlanadi). [sahifa_uzilishi]=True
+    bo'lsa, bu nusxa YANGI PDF sahifasidan boshlanadi (1-nusxada FALSE,
+    2- va 3-nusxada TRUE bo'lishi kerak)."""
+    uzilish_uslub = ' style="page-break-before: always;"' if sahifa_uzilishi else ""
+    def arava_qatori(n):
+        a = m["aravalar"].get(n)
+        if not a or not a.get("tara"):
+            return ""
+        tara = a.get("tara") or 0
+        brutto = a.get("brutto") or 0
+        netto = a.get("netto")
+        if netto is None:
+            netto = brutto - tara
+        kond = a.get("konditsion")
+        kond_str = str(round(kond)) if kond is not None else "—"
+        return (f"<tr><td>{n}-арава</td><td>{round(tara)}</td><td>{round(brutto)}</td>"
+                f"<td>{round(netto)}</td><td>{kond_str}</td></tr>")
+
+    aravalar_qatorlari = "".join(arava_qatori(n) for n in (1, 2, 3))
+
+    jami_tara = sum((m["aravalar"].get(n) or {}).get("tara") or 0 for n in (1, 2, 3))
+    jami_brutto = sum((m["aravalar"].get(n) or {}).get("brutto") or 0 for n in (1, 2, 3))
+    jami_netto = jami_brutto - jami_tara
+    jami_konditsion = sum((m["aravalar"].get(n) or {}).get("konditsion") or 0 for n in (1, 2, 3))
+
+    namlik = m["namlik"] if m["namlik"] != "" else "—"
+    ifloslik = m["ifloslik"] if m["ifloslik"] != "" else "—"
+    qr_html = (
+        f'<div class="qr-burchak"><img src="data:image/png;base64,{qr_base64}"/>'
+        f'<div>Onlayn ko&#39;rish</div></div>'
+    ) if qr_base64 else ""
+
+    return f"""
+<div class="sahifa"{uzilish_uslub}>
+  {qr_html}
+  <div class="nusxa-badge">{nusxa_nomi}</div>
+  <div class="sarlavha">ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № {m['raqam']}</div>
+  <div class="subtitle">Ишлаб чиқаришдан қабул қилинган маҳсулотларни ташиш учун &nbsp;·&nbsp; {sana} &nbsp;·&nbsp; {m['mashina_turi']} {m['mashina_raqami']}</div>
+
+  <div class="karta">
+    <div class="maydon"><span class="label">Юк жўнатувчи</span><span class="qiymat">"Ҳазорасп текстил" МЧЖга қарашли пахта тозалаш заводи</span></div>
+    <div class="maydon"><span class="label">Юк олувчи</span><span class="qiymat">{m['firma']}</span></div>
+  </div>
+
+  <div class="karta">
+    <div class="info-grid">
+      <div><span class="label">Тикет №</span><br><span class="qiymat">{m['tiket_raqam'] or '—'}</span></div>
+      <div><span class="label">Туда №</span><br><span class="qiymat">{m['tuda_raqam'] or '—'}</span></div>
+      <div><span class="label">Класс</span><br><span class="qiymat">{m['klass'] or '—'}</span></div>
+      <div><span class="label">Селексия нави</span><br><span class="qiymat">{m['seleksiya_navi'] or '—'}</span></div>
+      <div><span class="label">Терим тури</span><br><span class="qiymat">{m['terim_turi'] or '—'}</span></div>
+      <div><span class="label">Намлик %</span><br><span class="qiymat">{namlik}</span></div>
+      <div><span class="label">Ифлослик %</span><br><span class="qiymat">{ifloslik}</span></div>
+      <div><span class="label">Шофёр</span><br><span class="qiymat">{m['shofyor']}</span></div>
+    </div>
+  </div>
+
+  <table>
+    <tr>
+      <th>Юкнинг номи</th>
+      <th>Тара (Урама), кг</th>
+      <th>Брутто (Урама б/н), кг</th>
+      <th>Нетто (Соф), кг</th>
+      <th>Кондицион вазн, кг</th>
+    </tr>
+    {aravalar_qatorlari}
+    <tr class="jami">
+      <td>Жами:</td>
+      <td>{round(jami_tara)}</td>
+      <td>{round(jami_brutto)}</td>
+      <td>{round(jami_netto)}</td>
+      <td>{round(jami_konditsion)}</td>
+    </tr>
+  </table>
+
+  <div class="dostaverka-box">
+    <span><b>Доставерна № {m['dostaverka']}</b></span>
+    <span>Муддат: {m['dostaverka_vaqt']}</span>
+  </div>
+
+  <div class="karta">
+    <div class="maydon"><span class="label">Қабул қилди</span><span class="qiymat">{m['qabul_qildi'] or '—'} ___________</span></div>
+    <div class="maydon"><span class="label">Юк олинди</span><span class="qiymat">{m['yuk_olindi'] or '—'} ___________</span></div>
+  </div>
+
+  <div class="imzo-grid">
+    <div><div class="imzo-line"></div>Раҳбар<div class="imzo-label">ИМЗО</div></div>
+    <div><div class="imzo-line"></div>Шофёр<div class="imzo-label">ИМЗО</div></div>
+    <div><div class="imzo-line"></div>Юк олиб кетувчи<div class="imzo-label">ИМЗО</div></div>
+    <div><div class="imzo-line"></div>Тарозибон<div class="imzo-label">ИМЗО</div></div>
+    <div class="muhr">М.Ў.</div>
+  </div>
+</div>
+"""
+
+
 @app.post("/nakladnoy/saqlash")
 def nakladnoy_saqlash(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
@@ -1769,110 +1913,15 @@ def nakladnoy_saqlash(data: dict, db: Session = Depends(get_db), current_user: d
 
         sana = data.get("sana") or datetime.now().strftime("%Y-%m-%d")
 
-        def arava_qatori(n):
-            a = m["aravalar"].get(n)
-            if not a or not a.get("tara"):
-                return ""
-            tara = a.get("tara") or 0
-            brutto = a.get("brutto") or 0
-            netto = a.get("netto")
-            if netto is None:
-                netto = brutto - tara
-            kond = a.get("konditsion")
-            kond_str = str(round(kond)) if kond is not None else "-"
-            return f"<tr><td>{n}-arava</td><td>{round(tara)}</td><td>{round(brutto)}</td><td>{round(netto)}</td><td>{kond_str}</td></tr>"
-
-        arava1_qator = arava_qatori(1)
-        arava2_qator = arava_qatori(2)
-        arava3_qator = arava_qatori(3)
-
-        jami_tara = sum((m["aravalar"].get(n) or {}).get("tara") or 0 for n in (1, 2, 3))
-        jami_brutto = sum((m["aravalar"].get(n) or {}).get("brutto") or 0 for n in (1, 2, 3))
-        jami_netto = jami_brutto - jami_tara
-        jami_konditsion = sum((m["aravalar"].get(n) or {}).get("konditsion") or 0 for n in (1, 2, 3))
-
-        namlik = m["namlik"] if m["namlik"] != "" else "—"
-        ifloslik = m["ifloslik"] if m["ifloslik"] != "" else "—"
-
+        # 3 nusxa - Zavod/Shofyor/Ohrana - AYNAN bir xil kontent, faqat
+        # sarlavha nomi farqlanadi. QR kod har uchalasida ham bor (barcha
+        # jismoniy nusxa mustaqil tekshirilishi mumkin bo'lishi uchun).
         html_content = f"""<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
-<style>
-body {{ font-family: Arial; font-size: 16px; margin: 20px; }}
-h2 {{ text-align: center; font-size: 18px; margin: 10px 0; }}
-h3 {{ text-align: center; font-size: 16px; margin: 8px 0; }}
-p {{ margin: 8px 0; }}
-table {{ width: 100%; border-collapse: collapse; margin: 12px 0; }}
-th, td {{ border: 1px solid black; padding: 12px 15px; line-height: 1.6; }}
-th {{ background: #1A4A08; color: white; text-align: center; }}
-td {{ text-align: center; }}
-td.left {{ text-align: left; }}
-.jami {{ font-weight: bold; }}
-.imzo {{ border: none; padding: 12px 0; }}
-.qr-burchak {{ position: absolute; top: 15px; right: 20px; text-align: center; }}
-.qr-burchak img {{ width: 90px; height: 90px; }}
-.qr-burchak div {{ font-size: 9px; color: #444; margin-top: 2px; }}
-</style></head>
+<html><head><meta charset="UTF-8"><style>{_NAKLADNOY_STIL}</style></head>
 <body>
-{f'<div class="qr-burchak"><img src="data:image/png;base64,{qr_base64}"/><div>Onlayn ko&#39;rish</div></div>' if qr_base64 else ''}
-<h2>ЗАВОД НУСХАСИ</h2>
-<h2>ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № {m['raqam']} &nbsp;&nbsp; Тикет №: {m['tiket_raqam']}</h2>
-<h3>Ishlab chiqarishdan qabul qilingan mahsulotlarni tashish uchun</h3>
-<p style="text-align:center">Sana: {sana} &nbsp;&nbsp; Mashina turi: {m['mashina_turi']} &nbsp;&nbsp; Raqam: {m['mashina_raqami']}</p>
-<table style="margin-bottom:8px">
-<tr><td class="left"><b>Юк жўнатувчи:</b> "Ҳазорасп текстил" МЧЖга қарашли пахта тозалаш завод</td></tr>
-<tr><td class="left"><b>Юк олувчи:</b> {m['firma']}</td></tr>
-</table>
-<table style="margin-bottom:8px">
-<tr>
-  <td class="left"><b>Тикет №:</b> {m['tiket_raqam']}</td>
-  <td class="left"><b>Сана:</b> {sana}</td>
-  <td class="left"><b>Туда №:</b> {m['tuda_raqam']}</td>
-</tr>
-<tr>
-  <td class="left"><b>Терим тури:</b> {m['terim_turi']}</td>
-  <td class="left"><b>Класс:</b> {m['klass']}</td>
-  <td class="left"><b>Селексия нави:</b> {m['seleksiya_navi']}</td>
-</tr>
-<tr>
-  <td class="left"><b>Намлик %:</b> {namlik}</td>
-  <td class="left"><b>Ифлослик %:</b> {ifloslik}</td>
-  <td class="left"><b>Шофёр:</b> {m['shofyor']}</td>
-</tr>
-</table>
-<table>
-<tr>
-  <th>Юкнинг номи</th>
-  <th>Тара (Урама), кг</th>
-  <th>Брутто (Урама б/н), кг</th>
-  <th>Нетто (Соф), кг</th>
-  <th>Кондицион вазн, кг</th>
-</tr>
-{arava1_qator}
-{arava2_qator}
-{arava3_qator}
-<tr class="jami">
-  <td>Жами:</td>
-  <td>{round(jami_tara)}</td>
-  <td>{round(jami_brutto)}</td>
-  <td>{round(jami_netto)}</td>
-  <td>{round(jami_konditsion)}</td>
-</tr>
-</table>
-<p style="margin-top:8px"><b>Доставерна № {m['dostaverka']}</b> &nbsp;&nbsp; Муддат: {m['dostaverka_vaqt']}</p>
-<table style="margin-top:10px;border:none">
-<tr>
-  <td class="imzo">Қабул қилди: {m['qabul_qildi']} ___________</td>
-  <td class="imzo">Юк олинди: {m['yuk_olindi']} ___________</td>
-</tr>
-<tr>
-  <td class="imzo">Раҳбар ИМЗО ___________</td>
-  <td class="imzo">Шофёр ИМЗО ___________</td>
-</tr>
-<tr>
-  <td class="imzo">Юк олиб кетувчи ИМЗО ___________</td>
-  <td class="imzo">Таразбон ИМЗО ___________</td>
-</tr>
-</table>
+{_nakladnoy_nusxa_html(m, sana, "ЗАВОД НУСХАСИ", qr_base64)}
+{_nakladnoy_nusxa_html(m, sana, "ШОФЁР НУСХАСИ", qr_base64, sahifa_uzilishi=True)}
+{_nakladnoy_nusxa_html(m, sana, "ОХРАНА НУСХАСИ", qr_base64, sahifa_uzilishi=True)}
 </body></html>"""
 
         raqam_papka = (m["mashina_raqami"] or "noma_lum").strip().replace(" ", "_").replace("/", "_")
@@ -1887,16 +1936,21 @@ td.left {{ text-align: left; }}
         from playwright.sync_api import sync_playwright
         with sync_playwright() as p:
             browser = p.chromium.launch()
-            # Sahifa kengligi A4 landscape'ga teng (297mm), lekin balandligi
-            # HAR SAFAR haqiqiy kontent balandligiga moslab hisoblanadi -
-            # shunda bitta-arava hujjatlarda ortiqcha bo'sh joy qolmaydi va
-            # 2-3 aravali hujjatlarda qator kesilib qolmaydi.
+            # Sahifa kengligi A4 landscape'ga teng (297mm). Balandlik esa
+            # BITTA nusxaning haqiqiy kontent balandligiga moslab
+            # hisoblanadi (uchala nusxa ham bir xil tuzilishga ega, shu
+            # sabab birinchisini o'lchash yetarli) - shu o'lcham PDF
+            # sahifa balandligi qilib beriladi, natijada har bir
+            # `.sahifa` (CSS page-break-before bilan) aynan bitta PDF
+            # sahifasiga to'g'ri keladi - 3 ta ALOHIDA sahifa (nusxa)
+            # hosil bo'ladi (bitta uzun sahifa emas).
             kenglik_mm = 297
             kenglik_px = round(kenglik_mm * 96 / 25.4)
             page = browser.new_page(
-                viewport={"width": kenglik_px, "height": 1600})
+                viewport={"width": kenglik_px, "height": 4800})
             page.goto(html_fayl.absolute().as_uri())
-            kontent_px = page.evaluate("document.body.scrollHeight")
+            kontent_px = page.evaluate(
+                "document.querySelector('.sahifa').scrollHeight")
             balandlik_mm = kontent_px * 25.4 / 96 + 8
             page.pdf(path=str(pdf_fayl), width=f"{kenglik_mm}mm",
                      height=f"{balandlik_mm}mm", print_background=True,
@@ -1904,7 +1958,22 @@ td.left {{ text-align: left; }}
                              "left": "0mm", "right": "0mm"})
             browser.close()
 
-        return {"status": "ok", "fayl": str(pdf_fayl)}
+        # Fayl diskka (arxiv uchun, C:/RASMLAR/...) saqlanishda qoladi -
+        # BUNDAN TASHQARI endi PDF baytlarining o'zi ham javob sifatida
+        # qaytariladi, shunda frontend uni to'g'ridan-to'g'ri yuklab olishi
+        # mumkin (Excel eksportidagi kabi - blob + anchor + download,
+        # yangi oyna/tab OCHILMAYDI). Diskka yozish bilan bir vaqtda ishlagan
+        # 3 ta chaqiruvchi (ekran tugmasi, offline-sinxronizatsiya, tortish
+        # yakunlanganda avtomatik arxivlash) javob tanasini tekshirmaydi -
+        # faqat status-kodga qaraydi, shu sabab bu o'zgarish ularga
+        # ta'sir qilmaydi.
+        pdf_baytlar = pdf_fayl.read_bytes()
+        fayl_nomi = f"Nakladnoy_{m['raqam'].replace('/', '-')}.pdf"
+        return Response(
+            content=pdf_baytlar,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{fayl_nomi}"'},
+        )
     except HTTPException:
         raise
     except Exception as e:

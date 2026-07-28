@@ -111,6 +111,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   static const Color blueBg = Color(0xFFE8F0FC);
   static const Color blueBorder = Color(0xFFA0C0E8);
   static const Color redColor = Color(0xFFC03030);
+  // "Oylik" xulosa kartasi uchun (statistika_paneli.dart bilan bir xil)
+  static const Color oylikRang = Color(0xFF7B5EA7);
   static const Color bgPage = Color(0xFFF4F8F0);
 
   @override
@@ -2878,24 +2880,46 @@ Widget _mashinaGrafik() {
               Icons.scale, goldColor)),
         ]),
         const SizedBox(height: 12),
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(
-              child: _mahsulotXulosaKartasi(
-                  "Bugun — $tanlanganStatMahsulot",
-                  Icons.today,
-                  brandGreen,
-                  (kunlikStat[_statMahsulotKaliti(tanlanganStatMahsulot)]
-                          as Map<String, dynamic>?) ??
-                      {})),
-          const SizedBox(width: 10),
-          Expanded(
-              child: _mahsulotXulosaKartasi(
-                  "Mavsum — $tanlanganStatMahsulot",
-                  Icons.calendar_month,
-                  blueColor,
-                  (mavsumStat[_statMahsulotKaliti(tanlanganStatMahsulot)]
-                          as Map<String, dynamic>?) ??
-                      {})),
+        Column(children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+                child: _mahsulotXulosaKartasi(
+                    "Bugun — $tanlanganStatMahsulot",
+                    Icons.today,
+                    brandGreen,
+                    (kunlikStat[_statMahsulotKaliti(tanlanganStatMahsulot)]
+                            as Map<String, dynamic>?) ??
+                        {})),
+            const SizedBox(width: 10),
+            Expanded(
+                child: _mahsulotXulosaKartasi(
+                    "Haftalik — $tanlanganStatMahsulot",
+                    Icons.date_range,
+                    goldColor,
+                    (haftalikStat[_statMahsulotKaliti(tanlanganStatMahsulot)]
+                            as Map<String, dynamic>?) ??
+                        {})),
+          ]),
+          const SizedBox(height: 10),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+                child: _mahsulotXulosaKartasi(
+                    "Oylik — $tanlanganStatMahsulot",
+                    Icons.calendar_view_month,
+                    oylikRang,
+                    (oylikStat[_statMahsulotKaliti(tanlanganStatMahsulot)]
+                            as Map<String, dynamic>?) ??
+                        {})),
+            const SizedBox(width: 10),
+            Expanded(
+                child: _mahsulotXulosaKartasi(
+                    "Mavsum — $tanlanganStatMahsulot",
+                    Icons.calendar_month,
+                    blueColor,
+                    (mavsumStat[_statMahsulotKaliti(tanlanganStatMahsulot)]
+                            as Map<String, dynamic>?) ??
+                        {})),
+          ]),
         ]),
         const SizedBox(height: 12),
         if (grafikDetalYuklanmoqda)

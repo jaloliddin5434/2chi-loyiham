@@ -974,6 +974,7 @@ def haftalik_statistika(db: Session = Depends(get_db), current_user: dict = Depe
         Hujjat.mahsulot_id,
         func.count(func.distinct(Hujjat.id)).label('soni'),
         func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
     ).outerjoin(
         Olchov, Olchov.hujjat_id == Hujjat.id
     ).filter(
@@ -985,10 +986,11 @@ def haftalik_statistika(db: Session = Depends(get_db), current_user: dict = Depe
         natija[row.mahsulot_id] = {
             "soni": row.soni,
             "tonnaj": round(row.jami_netto / 1000, 2),
+            "konditsion": round(row.jami_konditsion / 1000, 2),
         }
     jami_tonnaj = round(sum(row.jami_netto for row in natijalar) / 1000, 2)
 
-    bosh = {"soni": 0, "tonnaj": 0.0}
+    bosh = {"soni": 0, "tonnaj": 0.0, "konditsion": 0.0}
 
     return {
         "dan": str(hafta_boshi),
@@ -997,8 +999,9 @@ def haftalik_statistika(db: Session = Depends(get_db), current_user: dict = Depe
         "tugallanganlar_soni": tugallangan_soni,
         "bekor_soni": bekor_soni,
         "chigit": natija.get(1, bosh),
-        "chiganoq": natija.get(2, bosh),
-        "pochog": natija.get(3, bosh),
+        "chiganoq": {"soni": natija.get(2, bosh)["soni"], "tonnaj": natija.get(2, bosh)["tonnaj"]},
+        "pochog": {"soni": natija.get(3, bosh)["soni"], "tonnaj": natija.get(3, bosh)["tonnaj"]},
+        "patoz": {"soni": natija.get(4, bosh)["soni"], "tonnaj": natija.get(4, bosh)["tonnaj"]},
         "jami_tonnaj": jami_tonnaj,
     }
 

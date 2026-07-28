@@ -24,6 +24,8 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
   static const Color goldColor = Color(0xFFC89020);
   // Brend rangi (kirish oqimi, operator va admin paneli bilan izchil)
   static const Color brandGreen = Color(0xFF0F6E56);
+  // "Oylik" xulosa kartasi uchun (admin_panel_screen.dart bilan bir xil)
+  static const Color oylikRang = Color(0xFF7B5EA7);
 
   static const List<String> _mahsulotlar = [
     'Chigit', 'Chiganoq', "Chiganoq po'chog'i", 'Patoz'
@@ -375,16 +377,30 @@ class _StatistikaPaneliState extends State<StatistikaPaneli> {
             child: Center(child: Text(xato!, style: const TextStyle(color: Colors.red))),
           )
         else
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-                child: _xulosaKartasi("Bugun — $tanlanganMahsulot",
-                    Icons.today, brandGreen,
-                    (kunlikStat[joriyKalit] as Map<String, dynamic>?) ?? {})),
-            const SizedBox(width: 10),
-            Expanded(
-                child: _xulosaKartasi("Mavsum — $tanlanganMahsulot",
-                    Icons.calendar_month, asosiyRang,
-                    (mavsumStat[joriyKalit] as Map<String, dynamic>?) ?? {})),
+          Column(children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                  child: _xulosaKartasi("Bugun — $tanlanganMahsulot",
+                      Icons.today, brandGreen,
+                      (kunlikStat[joriyKalit] as Map<String, dynamic>?) ?? {})),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: _xulosaKartasi("Haftalik — $tanlanganMahsulot",
+                      Icons.date_range, goldColor,
+                      (haftalikStat[joriyKalit] as Map<String, dynamic>?) ?? {})),
+            ]),
+            const SizedBox(height: 10),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                  child: _xulosaKartasi("Oylik — $tanlanganMahsulot",
+                      Icons.calendar_view_month, oylikRang,
+                      (oylikStat[joriyKalit] as Map<String, dynamic>?) ?? {})),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: _xulosaKartasi("Mavsum — $tanlanganMahsulot",
+                      Icons.calendar_month, asosiyRang,
+                      (mavsumStat[joriyKalit] as Map<String, dynamic>?) ?? {})),
+            ]),
           ]),
         const SizedBox(height: 12),
         if (grafikYuklanmoqda)

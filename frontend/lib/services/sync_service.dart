@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:html' as html;
 import 'package:http/http.dart' as http;
 import 'offline_service.dart';
 import 'api_service.dart';
@@ -12,7 +11,7 @@ class SyncService {
 
   static void boshlash() {
     _syncTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
-      final online = html.window.navigator.onLine ?? true;
+      final online = await OfflineService.internetBormi();
       if (online) _syncQil();
     });
   }
@@ -65,7 +64,7 @@ class SyncService {
         }
       }
       if (qolganNakladnoylar.length != nakladnoylar.length) {
-        html.window.localStorage['kutayotgan_nakladnoy'] = jsonEncode(qolganNakladnoylar);
+        await OfflineService.nakladnoylarSaqla(qolganNakladnoylar);
       }
       // Rasmlarni sync qilish
       final rasmlar = await OfflineService.rasmlarOl();
@@ -83,7 +82,7 @@ class SyncService {
         }
       }
       if (qolganRasmlar.length != rasmlar.length) {
-        html.window.localStorage['kutayotgan_rasmlar'] = jsonEncode(qolganRasmlar);
+        await OfflineService.rasmlarSaqla(qolganRasmlar);
       }
       print('✅ Sync tugadi');
     } catch (e) {

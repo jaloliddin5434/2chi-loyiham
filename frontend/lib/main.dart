@@ -6,7 +6,7 @@ import 'services/offline_queue_bootstrap.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  OfflineQueueBootstrap.ishgaTushirish();
+  await OfflineQueueBootstrap.ishgaTushirish();
   SyncService.boshlash();
   runApp(const MyApp());
 }

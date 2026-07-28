@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -1785,16 +1786,17 @@ Widget _mashinaGrafik() {
             ),
           ),
           const Spacer(),
-          ElevatedButton.icon(
-            onPressed: excelYuklaOl,
-            icon: const Icon(Icons.table_chart, size: 14),
-            label: const Text("Excel", style: TextStyle(fontSize: 11)),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF217346),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-          ),
+          if (kIsWeb)
+            ElevatedButton.icon(
+              onPressed: excelYuklaOl,
+              icon: const Icon(Icons.table_chart, size: 14),
+              label: const Text("Excel", style: TextStyle(fontSize: 11)),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF217346),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            ),
           const SizedBox(width: 6),
           ElevatedButton.icon(
             onPressed: hujjatlarniYukla,
@@ -3925,8 +3927,10 @@ Widget _mashinaGrafik() {
             IconButton(
               icon: const Icon(Icons.logout,
                   color: Colors.redAccent, size: 16),
-              onPressed: () => Navigator.popUntil(
-                  context, (route) => route.isFirst),
+              onPressed: () {
+                ApiService.chiqish();
+                Navigator.popUntil(context, (route) => route.isFirst);
+              },
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/excel_export_service.dart';
@@ -264,20 +265,21 @@ class _HujjatlarRoyxatiPaneliState extends State<HujjatlarRoyxatiPaneli> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             ),
-            ElevatedButton.icon(
-              onPressed: eksportQilinmoqda ? null : excelYuklaOl,
-              icon: eksportQilinmoqda
-                  ? const SizedBox(
-                      width: 12, height: 12,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.table_chart, size: 14),
-              label: const Text("Excel", style: TextStyle(fontSize: 11)),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF217346),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-            ),
+            if (kIsWeb)
+              ElevatedButton.icon(
+                onPressed: eksportQilinmoqda ? null : excelYuklaOl,
+                icon: eksportQilinmoqda
+                    ? const SizedBox(
+                        width: 12, height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.table_chart, size: 14),
+                label: const Text("Excel", style: TextStyle(fontSize: 11)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF217346),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              ),
           ]),
         ),
         const SizedBox(height: 8),

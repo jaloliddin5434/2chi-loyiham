@@ -48,6 +48,14 @@ static const String baseUrl = "http://10.112.30.77:8001";
     navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
   }
 
+  /// Foydalanuvchi "Chiqish"ni bosganda chaqiriladi - saqlangan tokenni
+  /// tozalaydi, shunda login ekraniga qaytilgandan keyin ham eski token
+  /// bilan so'rovlar yubormaydi (avval faqat ekran almashtirilar edi,
+  /// token xotirada saqlanib qolardi).
+  static void chiqish() {
+    _token = null;
+  }
+
   static void _check401(http.Response response) {
     if (response.statusCode == 401) {
       _tokenTugadi();

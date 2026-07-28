@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'dart:html' as html;
 import '../services/api_service.dart';
 import '../services/offline_service.dart';
 import '../services/offline_queue_service.dart';
+import '../services/nakladnoy_html_ochish.dart';
 
 class NakladnoyScreen extends StatefulWidget {
   final String mashinaRaqami;
@@ -133,15 +133,17 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
         // Backend endi hujjat_id orqali bazadan (Hujjat+Navbat+Olchov) hamma
         // narsani o'zi to'liq o'qiydi - shu sababli bu yerdan faqat hujjat_id
         // va sana yuboriladi, ekran holatidagi boshqa maydonlar yuborilmaydi.
-        await html.HttpRequest.request(
-          '${ApiService.baseUrl}/nakladnoy/saqlash',
-          method: 'POST',
-          requestHeaders: ApiService.authHeaders(),
-          sendData: jsonEncode({
+        final javob = await http.post(
+          Uri.parse('${ApiService.baseUrl}/nakladnoy/saqlash'),
+          headers: ApiService.authHeaders(),
+          body: jsonEncode({
             'hujjat_id': widget.hujjatId,
             'sana': sana,
           }),
         );
+        if (javob.statusCode != 200) {
+          throw Exception('status ${javob.statusCode}');
+        }
       } catch (e) {
         await OfflineService.nakladnoyQosh({
           'mashina_raqami': widget.mashinaRaqami,
@@ -156,11 +158,8 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
         });
       }
       
-      // Brauzerda ochish
-      final blob = html.Blob([htmlContent], 'text/html');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      html.window.open(url, '_blank');
-      html.Url.revokeObjectUrl(url);
+      // Brauzerda ochish (faqat veb - qarang: nakladnoy_html_ochish.dart)
+      nakladnoyHtmlniOch(htmlContent);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

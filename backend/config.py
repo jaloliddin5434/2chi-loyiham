@@ -26,5 +26,16 @@ KAMERA_PAROL = os.getenv("KAMERA_PAROL")
 # faqat shu WiFi'ga ulangan qurilmalar ocha oladi).
 SERVER_ASOSIY_URL = os.getenv("SERVER_ASOSIY_URL", "http://10.112.30.77:8001")
 
+# CORS - brauzerdan so'rov yuborishga ruxsat berilgan manzillar ro'yxati
+# (vergul bilan ajratilgan). Kelajakda domen/reverse-proxy qo'shilganda
+# faqat shu .env qiymatini yangilash kifoya - kodga tegish shart emas.
+ALLOWED_ORIGINS = [
+    manzil.strip()
+    for manzil in os.getenv(
+        "ALLOWED_ORIGINS", "http://10.112.30.77:8080,http://localhost:8080"
+    ).split(",")
+    if manzil.strip()
+]
+
 if not DATABASE_URL or not SECRET_KEY:
     raise RuntimeError(".env faylida DATABASE_URL yoki SECRET_KEY topilmadi!")

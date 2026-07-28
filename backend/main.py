@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Response
+from fastapi import FastAPI, Depends, HTTPException, status, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
@@ -7,11 +7,14 @@ from database import engine, get_db, Base, SessionLocal
 from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi
 from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
-from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL
-from utils import konditsion_hisobla
+from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS
+from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
 from datetime import datetime
 import io
 from pathlib import Path
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 Base.metadata.create_all(bind=engine)
 
@@ -19,11 +22,32 @@ app = FastAPI(title="Hazorasp Tekstil Tarozi Tizimi", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=ALLOWED_ORIGINS,
+    # Ilova cookie emas, Authorization: Bearer sarlavhasidan foydalanadi -
+    # shuning uchun credentials=True kerak emas (bu faqat cookie-asosidagi
+    # oqimlarga tegishli), False qilib qo'yish keraksiz xavfni yopadi.
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _mijoz_ip(request: Request) -> str:
+    """IP-boshiga tezlik cheklovi uchun haqiqiy mijoz IP'sini aniqlaydi.
+    Hozircha backend to'g'ridan-to'g'ri (proxysiz) ishlaydi, lekin
+    kelajakda reverse-proxy (Cloudflare Tunnel/Caddy) orqasiga o'tganda
+    barcha so'rovlar bitta (proxy) IP'dan kelib qolmasligi uchun
+    ATAYLAB avval `X-Forwarded-For` sarlavhasiga qaraladi."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "noma-lum"
+
+
+limiter = Limiter(key_func=_mijoz_ip)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # ============ ASOSIY ============
 
@@ -36,11 +60,17 @@ def health():
     return {"status": "ok"}
 
 @app.post("/login", response_model=Token)
-def login(user_data: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, user_data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(
         User.username == user_data.username,
-        User.role == user_data.role
+        User.role == user_data.role,
+        User.is_active == True,  # noqa: E712 - SQLAlchemy filtrida `is` emas `==` kerak
     ).first()
+    # DIQQAT: o'chirilgan (is_active=False) hisob ham AYNAN shu umumiy
+    # "Login yoki parol noto'g'ri" xabarini olishi kerak - alohida xabar
+    # (masalan "hisob o'chirilgan") hisob mavjudligini oshkor qilib
+    # qo'yadi (username enumeration).
     if not user or not verify_password(user_data.password, user.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -458,7 +488,7 @@ def hujjatlar_eksport(
     # (probelli, asl mahsulot.nom) bo'lishi SHART - aks holda "Chiganoq
     # po'chog'i" va "Chiganoq_po'chog'i" kabi ikkita boshqa-boshqa papka
     # hosil bo'lib, bitta mahsulotning fayllari ikkiga bo'linib qoladi.
-    papka = Path(f"C:/RASMLAR/{mahsulot.nom.strip()}")
+    papka = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(mahsulot.nom)}")
     papka.mkdir(parents=True, exist_ok=True)
     davr = f"{sana_dan or 'boshidan'}_{sana_gacha or 'hozirgacha'}"
     fayl_nomi = f"{mahsulot.nom.replace(' ', '_')}_{davr}.xlsx"
@@ -1377,7 +1407,7 @@ def excel_qatorga_yoz(hujjat_id, db):
         # mahsulot_nomi) bo'lishi SHART - aks holda "Chiganoq po'chog'i" va
         # "Chiganoq_po'chog'i" kabi ikkita boshqa-boshqa papka hosil bo'lib,
         # bitta mahsulotning fayllari ikkiga bo'linib qoladi.
-        mahsulot_papkasi = Path(f"C:/RASMLAR/{(mahsulot_nomi or 'Nomalum').strip()}")
+        mahsulot_papkasi = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(mahsulot_nomi)}")
         mahsulot_papkasi.mkdir(parents=True, exist_ok=True)
         fayl_yol = str(mahsulot_papkasi / f"hisobot_{fayl_nomi_qismi}_{bugun.year}.xlsx")
 
@@ -1911,7 +1941,7 @@ def nakladnoy_saqlash(data: dict, db: Session = Depends(get_db), current_user: d
         except Exception as qr_xato:
             print(f"QR kod generatsiya qilinmadi: {qr_xato}")
 
-        sana = data.get("sana") or datetime.now().strftime("%Y-%m-%d")
+        sana = xavfsiz_sana(data.get("sana") or datetime.now().strftime("%Y-%m-%d"))
 
         # 3 nusxa - Zavod/Shofyor/Ohrana - AYNAN bir xil kontent, faqat
         # sarlavha nomi farqlanadi. QR kod har uchalasida ham bor (barcha
@@ -1924,8 +1954,9 @@ def nakladnoy_saqlash(data: dict, db: Session = Depends(get_db), current_user: d
 {_nakladnoy_nusxa_html(m, sana, "ОХРАНА НУСХАСИ", qr_base64, sahifa_uzilishi=True)}
 </body></html>"""
 
-        raqam_papka = (m["mashina_raqami"] or "noma_lum").strip().replace(" ", "_").replace("/", "_")
-        papka = Path(f"C:/RASMLAR/{m['mahsulot_nomi'].strip()}/{sana}/{raqam_papka}")
+        raqam_papka = xavfsiz_papka_nomi(
+            (m["mashina_raqami"] or "noma_lum").replace(" ", "_"), "noma_lum")
+        papka = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(m['mahsulot_nomi'])}/{sana}/{raqam_papka}")
         papka.mkdir(parents=True, exist_ok=True)
 
         html_fayl = papka / "nakladnoy.html"
@@ -2122,9 +2153,9 @@ def rasm_ol(data: dict, current_user: dict = Depends(get_current_user)):
 
         sana = datetime.now().strftime("%Y-%m-%d")
         vaqt = datetime.now().strftime("%H-%M-%S")
-        raqam = mashina_raqami.replace(" ", "_").replace("/", "_")
-        
-        papka = Path(f"C:/RASMLAR/{mahsulot_nomi}/{sana}/{raqam}")
+        raqam = xavfsiz_papka_nomi(mashina_raqami.replace(" ", "_"), "noma_lum")
+
+        papka = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(mahsulot_nomi, 'Chigit')}/{sana}/{raqam}")
         papka.mkdir(parents=True, exist_ok=True)
         
         fayl1 = papka / f"{tur}_cam1_{vaqt}.jpg"

@@ -3,3 +3,4 @@ pytest
 httpx
 qrcode[pil]
 playwright
+slowapi

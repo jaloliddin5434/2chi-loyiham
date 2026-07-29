@@ -1339,9 +1339,15 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         // natijada bitta hujjat uchun jurnalda ikki marta bir xil qator
         // paydo bo'lardi. Endi FAQAT pastdagi, to'g'ri kutiladigan (await)
         // va minimal ma'lumot yuboradigan chaqiruv qoladi.
-        NavbatService.tugallandiQosh(tug);
+        // DIQQAT: NavbatService.tugallandiQosh(tug) ATAYLAB
+        // ApiService.navbatTugallandi() MUVAFFAQIYATLI/offline-navbatga
+        // qo'yilgandan KEYIN chaqiriladi (avval bu yerdan OLDIN
+        // chaqirilardi) - agar backend aniq rad etsa (404/409, masalan
+        // navbat topilmadi yoki hujjat holati mos kelmadi), tug hali
+        // faol navbat ro'yxatidan olib tashlanmagan bo'ladi va operator
+        // xatoni ko'rib, muammoni hal qilgach qayta urinishi mumkin.
         try {
-         await ApiService.navbatTugallandi({
+          await ApiService.navbatTugallandi({
             'hujjatId': tug.hujjatId,
             'aravalar': {
               '1': {
@@ -1364,7 +1370,16 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
               },
             },
           });
-        } catch (e) {}
+        } catch (e) {
+          // Server aniq rad etdi (masalan navbat topilmadi yoki hujjat
+          // holati mos kelmadi) - operator to'xtatiladi, "Tugallandi"
+          // hisoblanmaydi, tanlanganNavbat saqlanib qoladi.
+          _xabar(
+              "❌ Xatolik: navbat tugallanmadi — ${e.toString().replaceFirst('Exception: ', '')}");
+          _qoldiqTimer();
+          return;
+        }
+        NavbatService.tugallandiQosh(tug);
         setState(() {
           bugunMashinalar++;
           final netto = jamiNetto();

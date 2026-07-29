@@ -849,46 +849,57 @@ def navbat_get(db: Session = Depends(get_db), current_user: dict = Depends(get_c
 def navbat_tugallandi(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from models import Navbat
     navbat = db.query(Navbat).filter(Navbat.hujjat_id == data.get("hujjatId")).first()
+    if not navbat:
+        raise HTTPException(status_code=404, detail="Navbat topilmadi!")
+
+    # DIQQAT: hujjat-holat o'tishi navbat/aravalar maydonlarini
+    # SAQLASHDAN OLDIN tekshiriladi va rad etilsa shu yerda 404/409
+    # bilan to'xtaydi (hali db.commit() chaqirilmagani uchun bu
+    # so'rovda qilingan HECH BIR o'zgarish saqlanmaydi) - shu bilan
+    # operatorga "tugallandi" degan yolg'on natija hech qachon
+    # qaytmaydi, na navbat, na hujjat holati yarim-yo'lda qolmaydi.
     yangi_tugallangan_hujjat_id = None
-    if navbat:
-        navbat.tugallandi = True
-        navbat.tugallangan_vaqt = datetime.now()
-        navbat.aravalar_json = json.dumps(data.get("aravalar", {}))
+    if navbat.hujjat_id:
+        hujjat = db.query(Hujjat).filter(Hujjat.id == navbat.hujjat_id).first()
+        if hujjat and hujjat.holat != HujjatHolati.TUGALLANDI:
+            if not holat_otishi_ruxsatmi(hujjat.holat, HujjatHolati.TUGALLANDI):
+                tizim_xatosini_saqla(
+                    "navbat_tugallandi",
+                    f"Hujjat {hujjat.raqam} (id={hujjat.id}) '{hujjat.holat.value}' holatida edi, "
+                    f"operator navbatda tugatdi, lekin avtomatik 'tugallandi'ga o'tkazilmadi "
+                    f"(ruxsat etilmagan holat o'tishi)."
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Hujjat '{hujjat.holat.value}' holatida - avtomatik tugallanmaydi",
+                )
+            eski_holat = hujjat.holat.value
+            hujjat.holat = HujjatHolati.TUGALLANDI
+            db.add(TahrirTarixi(
+                hujjat_id=hujjat.id,
+                maydon="holat",
+                eski_qiymat=eski_holat,
+                yangi_qiymat=HujjatHolati.TUGALLANDI.value,
+                sabab="Operator tomonidan navbatda avtomatik tugallandi",
+                ozgartirgan_user_id=current_user.get("id"),
+                ozgartirgan_username=current_user.get("sub"),
+            ))
+            # Bu - ODATIY, ENG KO'P ISHLATILADIGAN yakunlash yo'li
+            # (operator "Nakladnoy chop etish"dan oldin navbatni
+            # tugatganda). Excel jurnaliga aynan shu yerda, holat
+            # ENDIGINA "tugallandi"ga o'tgan paytda yoziladi - shu
+            # payt dostaverka/qabul_qildi/yuk_olindi kabi maydonlar
+            # (odatda shu bilan bir vaqtda, alohida PUT
+            # /hujjatlar/{id} orqali) allaqachon to'ldirilgan bo'ladi.
+            yangi_tugallangan_hujjat_id = hujjat.id
 
-        if navbat.hujjat_id:
-            hujjat = db.query(Hujjat).filter(Hujjat.id == navbat.hujjat_id).first()
-            if hujjat and hujjat.holat != HujjatHolati.TUGALLANDI:
-                if holat_otishi_ruxsatmi(hujjat.holat, HujjatHolati.TUGALLANDI):
-                    eski_holat = hujjat.holat.value
-                    hujjat.holat = HujjatHolati.TUGALLANDI
-                    db.add(TahrirTarixi(
-                        hujjat_id=hujjat.id,
-                        maydon="holat",
-                        eski_qiymat=eski_holat,
-                        yangi_qiymat=HujjatHolati.TUGALLANDI.value,
-                        sabab="Operator tomonidan navbatda avtomatik tugallandi",
-                        ozgartirgan_user_id=current_user.get("id"),
-                        ozgartirgan_username=current_user.get("sub"),
-                    ))
-                    # Bu - ODATIY, ENG KO'P ISHLATILADIGAN yakunlash yo'li
-                    # (operator "Nakladnoy chop etish"dan oldin navbatni
-                    # tugatganda). Excel jurnaliga aynan shu yerda, holat
-                    # ENDIGINA "tugallandi"ga o'tgan paytda yoziladi - shu
-                    # payt dostaverka/qabul_qildi/yuk_olindi kabi maydonlar
-                    # (odatda shu bilan bir vaqtda, alohida PUT
-                    # /hujjatlar/{id} orqali) allaqachon to'ldirilgan bo'ladi.
-                    yangi_tugallangan_hujjat_id = hujjat.id
-                else:
-                    tizim_xatosini_saqla(
-                        "navbat_tugallandi",
-                        f"Hujjat {hujjat.raqam} (id={hujjat.id}) '{hujjat.holat.value}' holatida edi, "
-                        f"operator navbatda tugatdi, lekin avtomatik 'tugallandi'ga o'tkazilmadi "
-                        f"(ruxsat etilmagan holat o'tishi)."
-                    )
+    navbat.tugallandi = True
+    navbat.tugallangan_vaqt = datetime.now()
+    navbat.aravalar_json = json.dumps(data.get("aravalar", {}))
 
-        db.commit()
-        if yangi_tugallangan_hujjat_id:
-            excel_qatorga_yoz(yangi_tugallangan_hujjat_id, db)
+    db.commit()
+    if yangi_tugallangan_hujjat_id:
+        excel_qatorga_yoz(yangi_tugallangan_hujjat_id, db)
     return {"status": "ok"}
 
 @app.get("/navbat/tugallanganlar")

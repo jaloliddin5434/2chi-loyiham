@@ -301,18 +301,40 @@ static const String baseUrl = "http://10.112.30.77:8001";
   static Future<void> navbatTugallandi(Map<String, dynamic> mashina) async {
     final ochirilgan = _yerliIdlarniOchir(mashina, ['hujjatId', 'mashinaId']);
     if (!ochirilgan.kutilmoqda) {
+      http.Response? response;
       try {
-        final response = await http.post(
+        response = await http.post(
           Uri.parse('$baseUrl/navbat/tugallandi'),
           headers: _headers(),
           body: jsonEncode(mashina),
         );
+      } catch (e) {
+        response = null;
+      }
+      if (response != null) {
         _check401(response);
         if (response.statusCode == 200) return;
-      } catch (e) {}
+        if (response.statusCode != 401) {
+          // Server javob berdi, lekin rad etdi (masalan 404 - navbat
+          // topilmadi, 409 - hujjat holati mos kelmadi). Qayta urinish
+          // bu holatni o'zgartirmaydi, shu sabab offline navbatga
+          // QO'YILMAYDI - xato to'g'ridan-to'g'ri chaqiruvchiga
+          // uzatiladi (operator to'xtatilishi kerak).
+          String xabar = "Navbat tugallanmadi (status ${response.statusCode})";
+          try {
+            final tanasi = jsonDecode(utf8.decode(response.bodyBytes));
+            if (tanasi is Map && tanasi['detail'] != null) {
+              xabar = tanasi['detail'].toString();
+            }
+          } catch (_) {}
+          throw Exception(xabar);
+        }
+        // 401 - token tugagan; pastdagi offline navbatga tushadi, qayta
+        // login qilingach keyingi sinxronizatsiyada avtomatik qayta uriniladi.
+      }
     }
-    // Server bilan aloqa bo'lmadi (yoki hujjat/mashina hali
-    // sinxronlanmagan) - tortish yakunlanganini bildiruvchi yozuv
+    // Server bilan aloqa bo'lmadi, token tugagan (401) yoki hujjat/mashina
+    // hali sinxronlanmagan - tortish yakunlanganini bildiruvchi yozuv
     // YO'QOLMASIN uchun offline navbatga qo'yamiz.
     await OfflineQueueService.qoshish('navbat_tugallandi', ochirilgan.malumot);
   }

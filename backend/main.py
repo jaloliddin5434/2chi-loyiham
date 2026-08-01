@@ -8,7 +8,7 @@ from database import engine, get_db, Base, SessionLocal
 from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi
 from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
-from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS, DATABASE_URL
+from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL
 from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
 from datetime import datetime
 import io
@@ -1374,6 +1374,46 @@ def avtomatik_telegram_hisobot():
 
 
 BACKUP_SOZLAMA_KALIT = "oxirgi_backup_sanasi"
+TARMOQ_BACKUP_SOZLAMA_KALIT = "oxirgi_tarmoq_backup_sanasi"
+
+
+def tarmoqqa_backup_yubor(backup_dir: str) -> bool:
+    """Lokal backup papkasini (barcha .sql fayllar) ikkinchi kompyuterdagi
+    SMB ulashuvga robocopy bilan nusxalaydi. Robocopy manba/manzilda mos
+    (bir xil hajm+sana) fayllarni o'tkazib yuboradi, shuning uchun butun
+    papkani har safar qayta yuborish arzon - faqat yangi/etishmayotgan
+    fayllar ko'chadi, hech narsa o'chirilmaydi (/MIR ishlatilmaydi)."""
+    import subprocess
+    unc_yol = fr"\\{TARMOQ_BACKUP_IP}\{TARMOQ_BACKUP_SHARE}"
+    try:
+        # Ulanish - ikkinchi komp bir muddat oldin ulangan bo'lsa ham
+        # xavfsiz (Windows mavjud seansni qayta tasdiqlaydi).
+        # errors="replace": net use/robocopy chiqishi tizim konsoli
+        # kodировkasida (masalan cp1251) har doim ham to'g'ri
+        # dekodlanavermaydi (masalan xato xabari boshqa kodировkada
+        # kelsa) - shu sabab dekodlash xatosi butun urinishni
+        # (returncode allaqachon to'g'ri bo'lsa ham) buzib qo'ymasin.
+        subprocess.run(
+            ["net", "use", unc_yol, TARMOQ_BACKUP_PAROL,
+             f"/user:{TARMOQ_BACKUP_FOYDALANUVCHI}"],
+            capture_output=True, text=True, errors="replace", timeout=30
+        )
+        natija = subprocess.run(
+            ["robocopy", backup_dir, unc_yol, "*.sql", "/R:2", "/W:5"],
+            capture_output=True, text=True, errors="replace", timeout=90
+        )
+        # Robocopy: 0-7 = muvaffaqiyat (ba'zilari hech narsa ko'chirilmadi
+        # yoki manzilda ortiqcha fayl bor degani, xato emas), 8+ = xato.
+        if natija.returncode >= 8:
+            tizim_xatosini_saqla(
+                "tarmoq_backup",
+                f"robocopy xato kod bilan tugadi: {natija.returncode}")
+            return False
+        return True
+    except Exception as e:
+        tizim_xatosini_saqla("tarmoq_backup", str(e))
+        return False
+
 
 def avtomatik_backup():
     import time
@@ -1386,16 +1426,19 @@ def avtomatik_backup():
     # qolib, avtomatik zaxira jimgina (faqat tizim_xatolari jadvalida)
     # ishlamay qolar edi.
     db_url = make_url(DATABASE_URL)
+    tarmoq_sozlangan = bool(
+        TARMOQ_BACKUP_IP and TARMOQ_BACKUP_FOYDALANUVCHI and TARMOQ_BACKUP_PAROL)
     while True:
         db = SessionLocal()
         try:
             bugun = date.today()
+            backup_dir = r"C:\hazorasp_tarozi\backup"
+            os.makedirs(backup_dir, exist_ok=True)
+
             sozlama = db.query(Sozlama).filter(
                 Sozlama.kalit == BACKUP_SOZLAMA_KALIT).first()
             bugun_bajarilgan = sozlama is not None and sozlama.qiymat == str(bugun)
             if not bugun_bajarilgan:
-                backup_dir = r"C:\hazorasp_tarozi\backup"
-                os.makedirs(backup_dir, exist_ok=True)
                 sana = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 backup_fayl = os.path.join(backup_dir, f"backup_{sana}.sql")
                 pg_dump = PG_DUMP_YOL
@@ -1416,6 +1459,27 @@ def avtomatik_backup():
                     xato = f"pg_dump xato kod bilan tugadi: {natija.returncode}"
                     print(f"Backup xato: {xato}")
                     tizim_xatosini_saqla("backup", xato)
+
+            # Ikkinchi kompyuterga ko'chirish - lokal backup shu kunga
+            # bajarilgan-bajarilmaganidan qat'i nazar, alohida kuzatiladi:
+            # tarmoq muvaffaqiyatsiz bo'lsa ham bazani qayta dump qilish
+            # shart emas, faqat ko'chirish keyingi tsikllarda qayta sinaladi.
+            if tarmoq_sozlangan:
+                tarmoq_sozlama = db.query(Sozlama).filter(
+                    Sozlama.kalit == TARMOQ_BACKUP_SOZLAMA_KALIT).first()
+                tarmoq_bugun_bajarilgan = (
+                    tarmoq_sozlama is not None and tarmoq_sozlama.qiymat == str(bugun))
+                if not tarmoq_bugun_bajarilgan:
+                    if tarmoqqa_backup_yubor(backup_dir):
+                        if tarmoq_sozlama:
+                            tarmoq_sozlama.qiymat = str(bugun)
+                            tarmoq_sozlama.updated_at = datetime.now()
+                        else:
+                            db.add(Sozlama(kalit=TARMOQ_BACKUP_SOZLAMA_KALIT, qiymat=str(bugun)))
+                        db.commit()
+                        print("Tarmoq backup: ikkinchi kompyuterga muvaffaqiyatli ko'chirildi")
+                    else:
+                        print("Tarmoq backup xato, keyingi urinishda qayta sinaladi")
         except Exception as e:
             print(f"Backup xato: {e}")
             tizim_xatosini_saqla("backup", str(e))

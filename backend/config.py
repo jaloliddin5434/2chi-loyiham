@@ -16,6 +16,14 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 PG_DUMP_YOL = os.getenv("PG_DUMP_YOL")
 
+# Ikkinchi kompyuterga (bir xil LAN'dagi tashqi zaxira) backup nusxasini
+# ko'chirish uchun SMB ulanish ma'lumotlari. Barchasi to'ldirilmaguncha
+# (IP, foydalanuvchi, parol) tarmoqqa ko'chirish urinilmaydi.
+TARMOQ_BACKUP_IP = os.getenv("TARMOQ_BACKUP_IP", "")
+TARMOQ_BACKUP_SHARE = os.getenv("TARMOQ_BACKUP_SHARE", "Backup")
+TARMOQ_BACKUP_FOYDALANUVCHI = os.getenv("TARMOQ_BACKUP_FOYDALANUVCHI", "")
+TARMOQ_BACKUP_PAROL = os.getenv("TARMOQ_BACKUP_PAROL", "")
+
 KAMERA_1_IP = os.getenv("KAMERA_1_IP")
 KAMERA_2_IP = os.getenv("KAMERA_2_IP")
 KAMERA_LOGIN = os.getenv("KAMERA_LOGIN")

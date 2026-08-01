@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
 from database import engine, get_db, Base, SessionLocal
 from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi
-from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate
+from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
 from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS
 from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
@@ -118,6 +118,46 @@ def setup(db: Session = Depends(get_db)):
         db.add(m)
     db.commit()
     return {"message": "Tizim sozlandi!"}
+
+# ============ FOYDALANUVCHILAR ============
+
+@app.get("/users")
+def users_royxati(db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+    foydalanuvchilar = db.query(User).order_by(User.id).all()
+    return [
+        {
+            "id": f.id,
+            "username": f.username,
+            "role": f.role,
+            "is_active": f.is_active,
+        }
+        for f in foydalanuvchilar
+    ]
+
+@app.post("/users")
+def user_qoshish(user: UserCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+    mavjud = db.query(User).filter(User.username == user.username).first()
+    if mavjud:
+        raise HTTPException(status_code=409, detail=f"'{user.username}' logini allaqachon band!")
+    yangi = User(
+        username=user.username,
+        password=hash_password(user.password),
+        role=user.role,
+        is_active=True,
+    )
+    db.add(yangi)
+    db.commit()
+    db.refresh(yangi)
+    return {"id": yangi.id, "username": yangi.username, "role": yangi.role, "is_active": yangi.is_active}
+
+@app.put("/users/{user_id}/parol")
+def user_parolini_yangilash(user_id: int, data: UserParolYangilash, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+    foydalanuvchi = db.query(User).filter(User.id == user_id).first()
+    if not foydalanuvchi:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi!")
+    foydalanuvchi.password = hash_password(data.yangi_parol)
+    db.commit()
+    return {"status": "ok"}
 
 # ============ MASHINALAR ============
 

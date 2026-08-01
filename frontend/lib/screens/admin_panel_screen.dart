@@ -75,18 +75,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   final yangiParolCtrl = TextEditingController();
   String yangiRol = 'operator';
 
-  List<Map<String, dynamic>> foydalanuvchilar = [
-    {
-      'login': 'admin',
-      'rol': 'Admin',
-      'oxirgiKirish': '04.07.2026 08:00',
-    },
-    {
-      'login': 'operator',
-      'rol': 'Operator',
-      'oxirgiKirish': '04.07.2026 08:15',
-    },
-  ];
+  List<dynamic> foydalanuvchilar = [];
+  bool foydalanuvchilarYuklanmoqda = false;
 
   Map<String, dynamic> serverHolati = {
     'cpu': 45,
@@ -2489,6 +2479,27 @@ Widget _mashinaGrafik() {
     );
   }
 
+  Future<void> foydalanuvchilarniYukla() async {
+    setState(() => foydalanuvchilarYuklanmoqda = true);
+    try {
+      final javob = await http.get(
+        Uri.parse('${ApiService.baseUrl}/users'),
+        headers: ApiService.authHeaders(),
+      );
+      if (javob.statusCode == 200) {
+        final natija = jsonDecode(utf8.decode(javob.bodyBytes));
+        if (!mounted) return;
+        setState(() {
+          foydalanuvchilar = natija;
+          foydalanuvchilarYuklanmoqda = false;
+        });
+        return;
+      }
+    } catch (e) {}
+    if (!mounted) return;
+    setState(() => foydalanuvchilarYuklanmoqda = false);
+  }
+
   Future<void> tahrirTarixiniYukla() async {
     setState(() => tahrirTarixiYuklanmoqda = true);
     final natija = await ApiService.getBarchaTahrirTarixi(limit: 100);
@@ -3005,15 +3016,61 @@ Widget _mashinaGrafik() {
             ),
           ]),
           const SizedBox(height: 14),
-          ...foydalanuvchilar.map((f) => _foydalanuvchiKarta(f)),
+          if (foydalanuvchilarYuklanmoqda)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (foydalanuvchilar.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(child: Text("Foydalanuvchilar topilmadi",
+                  style: TextStyle(color: muted, fontSize: 12))),
+            )
+          else
+            ...foydalanuvchilar.map((f) => _foydalanuvchiKarta(f)),
         ]),
       ),
     );
   }
 
+  String _rolYorligi(String rol) {
+    switch (rol) {
+      case 'admin':
+        return 'Admin';
+      case 'hisobchi':
+        return 'Hisobchi';
+      default:
+        return 'Operator';
+    }
+  }
+
+  String _rolBoshHarflari(String rol) {
+    switch (rol) {
+      case 'admin':
+        return 'AD';
+      case 'hisobchi':
+        return 'HI';
+      default:
+        return 'OP';
+    }
+  }
+
+  Color _rolRangi(String rol) {
+    switch (rol) {
+      case 'admin':
+        return blueColor;
+      case 'hisobchi':
+        return goldColor;
+      default:
+        return greenLight;
+    }
+  }
+
   Widget _foydalanuvchiKarta(Map<String, dynamic> f) {
     final parolCtrl2 = TextEditingController();
     final parol2Ctrl = TextEditingController();
+    final String rol = f['role'] ?? 'operator';
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
@@ -3024,9 +3081,8 @@ Widget _mashinaGrafik() {
       child: Row(children: [
         CircleAvatar(
           radius: 22,
-          backgroundColor:
-              f['rol'] == 'Admin' ? blueColor : greenLight,
-          child: Text(f['rol'] == 'Admin' ? "AD" : "OP",
+          backgroundColor: _rolRangi(rol),
+          child: Text(_rolBoshHarflari(rol),
               style: const TextStyle(
                   color: Colors.white,
                   fontSize: 12,
@@ -3036,14 +3092,12 @@ Widget _mashinaGrafik() {
         Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-          Text(f['rol'], style: const TextStyle(
+          Text(_rolYorligi(rol), style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
               color: Color(0xFF0D1B2A))),
-          Text("Login: ${f['login']}",
+          Text("Login: ${f['username']}",
               style: const TextStyle(fontSize: 11, color: muted)),
-          Text("Oxirgi kirish: ${f['oxirgiKirish']}",
-              style: const TextStyle(fontSize: 10, color: muted)),
         ])),
         ElevatedButton.icon(
           onPressed: () async {
@@ -3052,7 +3106,7 @@ Widget _mashinaGrafik() {
               builder: (ctx) => AlertDialog(
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
-                title: Text("${f['rol']} parolini o'zgartirish",
+                title: Text("${_rolYorligi(rol)} parolini o'zgartirish",
                     style: const TextStyle(
                         color: Color(0xFF0D1B2A), fontSize: 14)),
                 content: Column(
@@ -3085,8 +3139,9 @@ Widget _mashinaGrafik() {
                       onPressed: () => Navigator.pop(ctx),
                       child: const Text("Bekor")),
                   ElevatedButton(
-                    onPressed: () {
-                      if (parolCtrl2.text != parol2Ctrl.text) {
+                    onPressed: () async {
+                      if (parolCtrl2.text.isEmpty ||
+                          parolCtrl2.text != parol2Ctrl.text) {
                         ScaffoldMessenger.of(ctx).showSnackBar(
                           const SnackBar(
                               content:
@@ -3095,11 +3150,48 @@ Widget _mashinaGrafik() {
                         );
                         return;
                       }
+                      if (parolCtrl2.text.length < 6) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(
+                              content: Text(
+                                  "Parol kamida 6 belgidan iborat bo'lishi kerak!"),
+                              backgroundColor: Colors.red),
+                        );
+                        return;
+                      }
+                      bool muvaffaqiyatli = false;
+                      String? xatoMatni;
+                      try {
+                        final javob = await http.put(
+                          Uri.parse(
+                              '${ApiService.baseUrl}/users/${f['id']}/parol'),
+                          headers: ApiService.authHeaders(),
+                          body: jsonEncode({'yangi_parol': parolCtrl2.text}),
+                        );
+                        muvaffaqiyatli = javob.statusCode == 200;
+                        if (!muvaffaqiyatli) {
+                          try {
+                            final govda =
+                                jsonDecode(utf8.decode(javob.bodyBytes));
+                            final detail = govda['detail'];
+                            if (detail is String) xatoMatni = detail;
+                          } catch (_) {}
+                        }
+                      } catch (e) {}
+                      if (!muvaffaqiyatli) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          SnackBar(
+                              content: Text(xatoMatni ??
+                                  "Parolni o'zgartirishda xatolik yuz berdi!"),
+                              backgroundColor: Colors.red),
+                        );
+                        return;
+                      }
                       Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                             content: Text(
-                                "${f['rol']} paroli o'zgartirildi!"),
+                                "${_rolYorligi(rol)} paroli o'zgartirildi!"),
                             backgroundColor: Colors.green),
                       );
                     },
@@ -3176,6 +3268,9 @@ Widget _mashinaGrafik() {
                     value: 'operator',
                     child: Text("Operator")),
                 DropdownMenuItem(
+                    value: 'hisobchi',
+                    child: Text("Hisobchi")),
+                DropdownMenuItem(
                     value: 'admin',
                     child: Text("Admin")),
               ],
@@ -3188,7 +3283,7 @@ Widget _mashinaGrafik() {
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text("Bekor")),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 if (yangiLoginCtrl.text.trim().isEmpty ||
                     yangiParolCtrl.text.trim().isEmpty) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
@@ -3199,16 +3294,56 @@ Widget _mashinaGrafik() {
                   );
                   return;
                 }
-                setState(() {
-                  foydalanuvchilar.add({
-                    'login': yangiLoginCtrl.text,
-                    'rol': yangiRol == 'admin'
-                        ? 'Admin'
-                        : 'Operator',
-                    'oxirgiKirish': '—',
-                  });
-                });
+                if (yangiParolCtrl.text.length < 6) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                        content: Text(
+                            "Parol kamida 6 belgidan iborat bo'lishi kerak!"),
+                        backgroundColor: Colors.red),
+                  );
+                  return;
+                }
+                bool muvaffaqiyatli = false;
+                String? xatoMatni;
+                try {
+                  final javob = await http.post(
+                    Uri.parse('${ApiService.baseUrl}/users'),
+                    headers: ApiService.authHeaders(),
+                    body: jsonEncode({
+                      'username': yangiLoginCtrl.text.trim(),
+                      'password': yangiParolCtrl.text,
+                      'role': yangiRol,
+                    }),
+                  );
+                  muvaffaqiyatli = javob.statusCode == 200;
+                  if (!muvaffaqiyatli) {
+                    try {
+                      final govda =
+                          jsonDecode(utf8.decode(javob.bodyBytes));
+                      final detail = govda['detail'];
+                      if (detail is String) {
+                        xatoMatni = detail;
+                      } else if (detail is List && detail.isNotEmpty) {
+                        xatoMatni = detail
+                            .map((d) => d is Map
+                                ? (d['msg'] ?? d.toString())
+                                : d.toString())
+                            .join(', ');
+                      }
+                    } catch (_) {}
+                  }
+                } catch (e) {}
+                if (!muvaffaqiyatli) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(
+                        content: Text(xatoMatni ??
+                            "Foydalanuvchi qo'shishda xatolik yuz berdi!"),
+                        backgroundColor: Colors.red),
+                  );
+                  return;
+                }
                 Navigator.pop(ctx);
+                await foydalanuvchilarniYukla();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                       content: Text("Foydalanuvchi qo'shildi!"),
@@ -3981,7 +4116,8 @@ Widget _mashinaGrafik() {
                 _sidebarIcon(Icons.bar_chart, 2, "Statistika",
                     onExtraTap: grafikDetalniYukla),
                 _sidebarIcon(
-                    Icons.people_outline, 3, "Foydalanuvchilar"),
+                    Icons.people_outline, 3, "Foydalanuvchilar",
+                    onExtraTap: foydalanuvchilarniYukla),
                 _sidebarIcon(Icons.settings, 4, "Sozlamalar"),
                 _sidebarIcon(Icons.scale, 5, "Tarozi"),
                 _sidebarIcon(Icons.history, 6, "Tahrirlar tarixi",

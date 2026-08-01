@@ -3,10 +3,45 @@ from typing import Optional
 from datetime import datetime
 from models import HujjatHolati
 
+RUXSAT_ETILGAN_ROLLAR = ("admin", "operator", "hisobchi")
+
 class UserCreate(BaseModel):
     username: str
     password: str
     role: str
+
+    @field_validator('username')
+    @classmethod
+    def username_tekshiruv(cls, qiymat):
+        if not qiymat or not qiymat.strip():
+            raise ValueError("Login bo'sh bo'lishi mumkin emas!")
+        return qiymat.strip()
+
+    @field_validator('password')
+    @classmethod
+    def password_tekshiruv(cls, qiymat):
+        if not qiymat or len(qiymat) < 6:
+            raise ValueError("Parol kamida 6 belgidan iborat bo'lishi kerak!")
+        return qiymat
+
+    @field_validator('role')
+    @classmethod
+    def role_tekshiruv(cls, qiymat):
+        if qiymat not in RUXSAT_ETILGAN_ROLLAR:
+            raise ValueError(
+                f"Rol faqat quyidagilardan biri bo'lishi kerak: {', '.join(RUXSAT_ETILGAN_ROLLAR)}"
+            )
+        return qiymat
+
+class UserParolYangilash(BaseModel):
+    yangi_parol: str
+
+    @field_validator('yangi_parol')
+    @classmethod
+    def parol_tekshiruv(cls, qiymat):
+        if not qiymat or len(qiymat) < 6:
+            raise ValueError("Parol kamida 6 belgidan iborat bo'lishi kerak!")
+        return qiymat
 
 class UserLogin(BaseModel):
     username: str

@@ -382,13 +382,99 @@ def _eksport_qator_yoz(ws, qiymatlar, qalin=False, fon=None):
     return qator
 
 
-def _eksport_jami_qator(ws, sarlavha, netto, konditsion, konditsiya_bormi, fon):
-    _eksport_qator_yoz(ws, [
-        "", "", "", "", sarlavha,
-        round(netto) if netto else 0,
-        round(konditsion) if (konditsiya_bormi and konditsion) else "",
-        "", "",
-    ], qalin=True, fon=fon)
+def _eksport_jami_qator(ws, sarlavha, netto, konditsion, konditsiya_bormi, fon,
+                         ustunlar_soni, sarlavha_ustun, netto_ustun, konditsion_ustun):
+    """Jami (kunlik/oylik/mavsumiy) qatorni yozadi - ustun soni va
+    sarlavha/netto/konditsion QAYSI ustunda chiqishi chaqiruvchi tomonidan
+    beriladi, shu sabab bu bir nechta har xil ustun-tuzilishidagi
+    hisobotlar (qo'lda eksport - 9 ustun, avtomatik jurnal - 10 yoki 23
+    ustun) uchun QAYTA ISHLATILADI."""
+    qator = [""] * ustunlar_soni
+    qator[sarlavha_ustun - 1] = sarlavha
+    qator[netto_ustun - 1] = round(netto) if netto else 0
+    if konditsion_ustun and konditsiya_bormi:
+        qator[konditsion_ustun - 1] = round(konditsion) if konditsion else ""
+    _eksport_qator_yoz(ws, qator, qalin=True, fon=fon)
+
+
+# Kun/oy sarlavhalari va jami qatorlarining fon ranglari - qo'lda eksport
+# va avtomatik jurnal ikkalasida ham bir xil (vizual izchillik uchun).
+_KUN_FON = "D9E8D3"
+_JAMI_FON = "F0D878"
+_OY_FON = "E8A868"
+_MAVSUM_FON = "C05050"
+
+
+def _kun_oy_guruhlab_yoz(ws, itemlar, konditsiya_bormi, qator_yozuvchi,
+                          ustunlar_soni, sarlavha_ustun, netto_ustun,
+                          konditsion_ustun, ustunlar_royxati):
+    """Sana bo'yicha kun sarlavhalari + kunlik jami, oy oxirida "OY JAMI"
+    va yakunda "UMUMIY JAMI" qatorlarini yozadi - qo'lda eksport
+    (hujjatlar_eksport) va avtomatik jurnal (excel_qatorga_yoz)
+    ikkalasida ham AYNAN BIR XIL mantiq ishlatilishi uchun umumiy
+    funksiyaga chiqarilgan.
+
+    `itemlar` - har birida "sana" (date obyekti) kaliti bo'lgan dict'lar
+    ro'yxati (tartib muhim emas - bu yerning o'zi kun bo'yicha guruhlab,
+    xronologik tartiblaydi).
+    `qator_yozuvchi(ws, item, kun_ichidagi_tartib_raqami)` - har bir item
+    uchun asosiy ma'lumot qatori(lari)ni yozadi va shu item qo'shgan
+    (netto, konditsion) yig'indisini qaytaradi - bitta itemda bir nechta
+    qator bo'lishi mumkin (masalan bir nechta arava), shu sabab qaytarilgan
+    qiymat "necha qator yozildi"ga emas, "netto/konditsion yig'indisi"ga
+    bog'liq.
+    """
+    kunlar = {}
+    for item in itemlar:
+        kunlar.setdefault(item["sana"], []).append(item)
+
+    oy_jami = {}
+    mavsum_netto = 0
+    mavsum_konditsion = 0
+    joriy_oy = None
+
+    def oy_yakunla(oy_kaliti):
+        yil, oy = oy_kaliti
+        j = oy_jami[oy_kaliti]
+        _eksport_jami_qator(
+            ws, f"{AY_NOMLARI[oy]} {yil} - OY JAMI",
+            j["netto"], j["konditsion"], konditsiya_bormi, _OY_FON,
+            ustunlar_soni, sarlavha_ustun, netto_ustun, konditsion_ustun)
+
+    for sana in sorted(kunlar.keys()):
+        oy_kaliti = (sana.year, sana.month)
+        if joriy_oy is not None and oy_kaliti != joriy_oy:
+            oy_yakunla(joriy_oy)
+        joriy_oy = oy_kaliti
+        oy_jami.setdefault(oy_kaliti, {"netto": 0, "konditsion": 0})
+
+        boshlangich_qator = ws.max_row + 1
+        _eksport_qator_yoz(ws, [sana.strftime("%Y-%m-%d")], qalin=True, fon=_KUN_FON)
+        ws.merge_cells(start_row=boshlangich_qator, start_column=1,
+                        end_row=boshlangich_qator, end_column=ustunlar_soni)
+        _eksport_qator_yoz(ws, ustunlar_royxati, qalin=True)
+
+        kun_netto = 0
+        kun_konditsion = 0
+        for i, item in enumerate(kunlar[sana], start=1):
+            netto_qoshimcha, konditsion_qoshimcha = qator_yozuvchi(ws, item, i)
+            kun_netto += netto_qoshimcha
+            kun_konditsion += konditsion_qoshimcha
+
+        _eksport_jami_qator(
+            ws, "Жами:", kun_netto, kun_konditsion, konditsiya_bormi, _JAMI_FON,
+            ustunlar_soni, sarlavha_ustun, netto_ustun, konditsion_ustun)
+
+        oy_jami[oy_kaliti]["netto"] += kun_netto
+        oy_jami[oy_kaliti]["konditsion"] += kun_konditsion
+        mavsum_netto += kun_netto
+        mavsum_konditsion += kun_konditsion
+
+    if joriy_oy is not None:
+        oy_yakunla(joriy_oy)
+        _eksport_jami_qator(
+            ws, "UMUMIY JAMI", mavsum_netto, mavsum_konditsion, konditsiya_bormi, _MAVSUM_FON,
+            ustunlar_soni, sarlavha_ustun, netto_ustun, konditsion_ustun)
 
 
 @app.get("/hujjatlar/eksport")
@@ -435,87 +521,43 @@ def hujjatlar_eksport(
             "yuk_oluvchi": h.yuk_oluvchi or "—",
         })
 
-    kunlar = {}
-    for s in satrlar:
-        kunlar.setdefault(s["sana"], []).append(s)
-
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = mahsulot.nom[:31]
 
-    KUN_FON = "D9E8D3"
-    JAMI_FON = "F0D878"
-    OY_FON = "E8A868"
-    MAVSUM_FON = "C05050"
+    def _eksport_qator_yozuvchi(ws, s, i):
+        # DIQQAT: "Жами" (va undan yuqori OY/UMUMIY jami) qatorlari
+        # xom (kasr) qiymatlar emas, balki AYNAN shu qatorda ko'rsatilgan
+        # (yaxlitlangan butun) qiymatlar yig'indisidan hisoblanadi - aks
+        # holda "har bir qatorni qo'lda qo'shsam, Жамидан boshqacha
+        # chiqadi" degan (matematik jihatdan to'g'ri, lekin auditor
+        # uchun chalkash) nomuvofiqlik paydo bo'ladi.
+        # Hisoblash uchun (0 - hali yo'q qiymat, yig'indiga ta'sir
+        # qilmasligi kerak) va KO'RSATISH uchun (bo'sh katak - "0"
+        # emas, chunki 0 kg haqiqiy o'lchovdan farqlanishi kerak)
+        # qiymatlar ATAYLAB alohida hisoblanadi.
+        netto_yaxlit = round(s["netto"]) if s["netto"] is not None else 0
+        konditsion_yaxlit = (
+            round(s["konditsion"])
+            if (mahsulot.konditsiya_bor and s["konditsion"] is not None) else 0
+        )
+        _eksport_qator_yoz(ws, [
+            i, s["raqam"], mahsulot.nom,
+            round(s["brutto"]) if s["brutto"] is not None else "",
+            round(s["tara"]) if s["tara"] is not None else "",
+            netto_yaxlit if s["netto"] is not None else "",
+            konditsion_yaxlit
+            if (mahsulot.konditsiya_bor and s["konditsion"] is not None) else "",
+            s["mashina_raqami"], s["yuk_oluvchi"],
+        ])
+        return netto_yaxlit, (konditsion_yaxlit if mahsulot.konditsiya_bor else 0)
 
-    oy_jami = {}
-    mavsum_netto = 0
-    mavsum_konditsion = 0
-    joriy_oy = None
-
-    def oy_yakunla(oy_kaliti):
-        yil, oy = oy_kaliti
-        j = oy_jami[oy_kaliti]
-        _eksport_jami_qator(
-            ws, f"{AY_NOMLARI[oy]} {yil} - OY JAMI",
-            j["netto"], j["konditsion"], mahsulot.konditsiya_bor, OY_FON)
-
-    for sana in sorted(kunlar.keys()):
-        oy_kaliti = (sana.year, sana.month)
-        if joriy_oy is not None and oy_kaliti != joriy_oy:
-            oy_yakunla(joriy_oy)
-        joriy_oy = oy_kaliti
-        oy_jami.setdefault(oy_kaliti, {"netto": 0, "konditsion": 0})
-
-        boshlangich_qator = ws.max_row + 1
-        _eksport_qator_yoz(ws, [sana.strftime("%Y-%m-%d")], qalin=True, fon=KUN_FON)
-        ws.merge_cells(start_row=boshlangich_qator, start_column=1,
-                        end_row=boshlangich_qator, end_column=len(_EKSPORT_USTUNLAR))
-        _eksport_qator_yoz(ws, _EKSPORT_USTUNLAR, qalin=True)
-
-        kun_netto = 0
-        kun_konditsion = 0
-        for i, s in enumerate(kunlar[sana], start=1):
-            # DIQQAT: "Жами" (va undan yuqori OY/UMUMIY jami) qatorlari
-            # xom (kasr) qiymatlar emas, balki AYNAN shu qatorda ko'rsatilgan
-            # (yaxlitlangan butun) qiymatlar yig'indisidan hisoblanadi - aks
-            # holda "har bir qatorni qo'lda qo'shsam, Жамидан boshqacha
-            # chiqadi" degan (matematik jihatdan to'g'ri, lekin auditor
-            # uchun chalkash) nomuvofiqlik paydo bo'ladi.
-            # Hisoblash uchun (0 - hali yo'q qiymat, yig'indiga ta'sir
-            # qilmasligi kerak) va KO'RSATISH uchun (bo'sh katak - "0"
-            # emas, chunki 0 kg haqiqiy o'lchovdan farqlanishi kerak)
-            # qiymatlar ATAYLAB alohida hisoblanadi.
-            netto_yaxlit = round(s["netto"]) if s["netto"] is not None else 0
-            konditsion_yaxlit = (
-                round(s["konditsion"])
-                if (mahsulot.konditsiya_bor and s["konditsion"] is not None) else 0
-            )
-            _eksport_qator_yoz(ws, [
-                i, s["raqam"], mahsulot.nom,
-                round(s["brutto"]) if s["brutto"] is not None else "",
-                round(s["tara"]) if s["tara"] is not None else "",
-                netto_yaxlit if s["netto"] is not None else "",
-                konditsion_yaxlit
-                if (mahsulot.konditsiya_bor and s["konditsion"] is not None) else "",
-                s["mashina_raqami"], s["yuk_oluvchi"],
-            ])
-            kun_netto += netto_yaxlit
-            if mahsulot.konditsiya_bor:
-                kun_konditsion += konditsion_yaxlit
-
-        _eksport_jami_qator(ws, "Жами:", kun_netto, kun_konditsion, mahsulot.konditsiya_bor, JAMI_FON)
-
-        oy_jami[oy_kaliti]["netto"] += kun_netto
-        oy_jami[oy_kaliti]["konditsion"] += kun_konditsion
-        mavsum_netto += kun_netto
-        mavsum_konditsion += kun_konditsion
-
-    if joriy_oy is not None:
-        oy_yakunla(joriy_oy)
-        _eksport_jami_qator(
-            ws, "UMUMIY JAMI", mavsum_netto, mavsum_konditsion,
-            mahsulot.konditsiya_bor, MAVSUM_FON)
+    _kun_oy_guruhlab_yoz(
+        ws, satrlar, mahsulot.konditsiya_bor, _eksport_qator_yozuvchi,
+        ustunlar_soni=len(_EKSPORT_USTUNLAR),
+        sarlavha_ustun=5, netto_ustun=6, konditsion_ustun=7,
+        ustunlar_royxati=_EKSPORT_USTUNLAR,
+    )
 
     kengliklar = [6, 16, 20, 12, 12, 12, 14, 16, 22]
     for i, kenglik in enumerate(kengliklar, start=1):
@@ -1428,35 +1470,126 @@ _EXCEL_LOG_USTUNLARI_QISQA = [
 ]
 
 
+def _oy_jurnal_malumotlarini_ol(db, mahsulot_id: int, yil: int) -> list:
+    """Bitta mahsulot+yil uchun barcha (bekor qilinmagan) hujjatlarning
+    to'liq ma'lumotini BATCH (N+1 so'rov muammosisiz) tarzda yig'ib
+    beradi - nakladnoy_uchun_malumot() bilan bir xil mantiq (Hujjat->
+    Navbat fallback zanjiri, arava-darajasida oxirgi-NULL-bo'lmagan
+    qiymat, konditsion qayta hisoblash), lekin bitta hujjat o'rniga
+    BUTUN yil uchun atigi 3 ta so'rovda (Hujjat, Olchov IN(...), Navbat
+    IN(...)) - shu bilan excel_qatorga_yoz() mavsum davomida sekinlashib
+    bormaydi (avval har hujjat uchun alohida so'rov yuborilgan
+    bo'lardi)."""
+    from models import Navbat
+
+    hujjatlar = db.query(Hujjat).filter(
+        Hujjat.mahsulot_id == mahsulot_id,
+        Hujjat.holat != HujjatHolati.BEKOR_QILINDI,
+        func.extract('year', Hujjat.created_at) == yil,
+    ).order_by(Hujjat.created_at.asc()).all()
+    if not hujjatlar:
+        return []
+
+    hujjat_idlar = [h.id for h in hujjatlar]
+
+    olchovlar_dict = {}
+    for o in db.query(Olchov).filter(Olchov.hujjat_id.in_(hujjat_idlar)).order_by(Olchov.id.asc()).all():
+        olchovlar_dict.setdefault(o.hujjat_id, []).append(o)
+
+    navbat_dict = {
+        n.hujjat_id: n
+        for n in db.query(Navbat).filter(Navbat.hujjat_id.in_(hujjat_idlar)).all()
+    }
+
+    def hn(hujjat_qiymat, navbat, maydon_nomi):
+        if not _boshmi(hujjat_qiymat):
+            return hujjat_qiymat
+        if navbat is not None:
+            navbat_qiymat = getattr(navbat, maydon_nomi)
+            if not _boshmi(navbat_qiymat):
+                return navbat_qiymat
+        return ""
+
+    natija = []
+    for h in hujjatlar:
+        navbat = navbat_dict.get(h.id)
+
+        aravalar = {}
+        for o in olchovlar_dict.get(h.id, []):
+            a = aravalar.setdefault(o.arava_raqam, {
+                "tara": None, "brutto": None, "netto": None,
+                "namlik": None, "ifloslik": None, "konditsion": None,
+            })
+            for maydon in ("tara", "brutto", "netto", "namlik", "ifloslik", "konditsion"):
+                qiymat = getattr(o, maydon)
+                if qiymat is not None:
+                    a[maydon] = qiymat
+        # Konditsion HAR DOIM yakuniy (yig'ilgan) netto/namlik/ifloslikdan
+        # QAYTA hisoblanadi - nakladnoy_uchun_malumot() bilan bir xil
+        # qoida, izchillik uchun.
+        for a in aravalar.values():
+            netto = a["netto"]
+            if netto is None and a["tara"] is not None and a["brutto"] is not None:
+                netto = a["brutto"] - a["tara"]
+            if netto is not None and a["namlik"] is not None and a["ifloslik"] is not None:
+                a["konditsion"] = konditsion_hisobla(netto, a["namlik"], a["ifloslik"])
+            a["netto"] = netto
+
+        natija.append({
+            "sana": h.created_at.date() if h.created_at else None,
+            "raqam": h.raqam,
+            "mashina_raqami": h.mashina_raqami or "",
+            "shofyor": h.shofyor or "",
+            "firma": h.firma or "",
+            "tuda_raqam": hn(h.tuda_raqam, navbat, "tuda_raqam"),
+            "tiket_raqam": hn(h.tiket_raqam, navbat, "tiket_raqam"),
+            "klass": hn(h.klass, navbat, "klass"),
+            "sinf": hn(h.sinf, navbat, "sinf"),
+            "seleksiya_navi": hn(h.seleksiya_navi, navbat, "seleksiya_navi"),
+            "terim_turi": hn(h.terim_turi, navbat, "terim_turi"),
+            "namlik": (navbat.namlik if navbat and not _boshmi(navbat.namlik)
+                       else aravalar.get(1, {}).get("namlik")) or "",
+            "ifloslik": (navbat.ifloslik if navbat and not _boshmi(navbat.ifloslik)
+                         else aravalar.get(1, {}).get("ifloslik")) or "",
+            "qabul_qildi": h.qabul_qildi or "",
+            "yuk_olindi": h.yuk_olindi or "",
+            "dostaverka": h.dostaverka or "",
+            "dostaverka_vaqt": h.dostaverka_vaqt or "",
+            "aravalar": aravalar,
+        })
+    return natija
+
+
 def excel_qatorga_yoz(hujjat_id, db):
     try:
-        from datetime import date
-        bugun = date.today()
-
         hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
         if not hujjat:
             return
         # Bekor qilingan hujjatlar bu jurnalga UMUMAN yozilmaydi - "Excel"
-        # tugmasidagi hisobot bilan bir xil qoida. DIQQAT: bu faqat YANGI
-        # qatorni oldini oladi - agar hujjat AVVAL o'lchov bilan saqlanib
-        # (shu bilan logga yozilib) KEYINROQ bekor qilinsa, oldingi qator
-        # ATAYLAB o'zgarmas holda qoladi (jurnal - tarixiy, o'zgarmas
-        # yozuv; joriy holatni har doim "Excel" tugmasi to'g'ri ko'rsatadi).
+        # tugmasidagi hisobot bilan bir xil qoida.
         if hujjat.holat == HujjatHolati.BEKOR_QILINDI:
+            return
+        if not hujjat.created_at:
             return
 
         mahsulot = db.query(Mahsulot).filter(Mahsulot.id == hujjat.mahsulot_id).first()
-        konditsiya_bormi = mahsulot.konditsiya_bor if mahsulot else False
-
-        # Hujjat darajasidagi barcha maydonlar (mashina/shofyor/firma/tiket/
-        # tuda/terim turi/klass/sinf/seleksiya/namlik/ifloslik/dostaverka/
-        # qabul-yuk qildi) Nakladnoy PDF bilan AYNAN BIR XIL, allaqachon
-        # sinalgan manba (Hujjat->Navbat fallback zanjiri bilan) orqali
-        # olinadi - shu mantiqni ikkinchi marta yozib chiqmaslik uchun.
-        m = nakladnoy_uchun_malumot(db, hujjat_id)
-        if not m:
+        if not mahsulot:
             return
-        mahsulot_nomi = m["mahsulot_nomi"]
+        konditsiya_bormi = mahsulot.konditsiya_bor
+        mahsulot_nomi = mahsulot.nom
+        yil = hujjat.created_at.year
+
+        # DIQQAT: jurnal endi APPEND emas - har safar SHU MAHSULOT+YIL
+        # uchun BUTUN ma'lumot bazadan qayta yig'iladi va fayl to'liq
+        # qayta quriladi (kun sarlavhalari, kunlik jami, oy oxirida
+        # "OY JAMI" qatori bilan - "Excel" tugmasidagi hisobot bilan bir
+        # xil, _kun_oy_guruhlab_yoz() umumiy funksiyasi orqali). Bu
+        # eskirgan (guruhlanmagan) yozuvlarni ham RETROSPEKTIV to'g'ri
+        # guruhlaydi - ataylab shunday (baza o'zgarmaydi, faqat hisobot
+        # qayta hisoblanadi, xavfsiz).
+        itemlar = _oy_jurnal_malumotlarini_ol(db, hujjat.mahsulot_id, yil)
+        if not itemlar:
+            return
 
         # Har mahsulot uchun ALOHIDA fayl (masalan hisobot_Chigit_2026.xlsx) -
         # "Excel" tugmasidagi yangi hisobot bilan bir xil mahsulot-ajratish
@@ -1470,50 +1603,43 @@ def excel_qatorga_yoz(hujjat_id, db):
         # bitta mahsulotning fayllari ikkiga bo'linib qoladi.
         mahsulot_papkasi = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(mahsulot_nomi)}")
         mahsulot_papkasi.mkdir(parents=True, exist_ok=True)
-        fayl_yol = str(mahsulot_papkasi / f"hisobot_{fayl_nomi_qismi}_{bugun.year}.xlsx")
+        fayl_yol = str(mahsulot_papkasi / f"hisobot_{fayl_nomi_qismi}_{yil}.xlsx")
 
-        # O'qish-o'zgartirish-yozish (read-modify-write) bo'linmas
-        # (atomik) bo'lishi uchun shu FAYLGA xos qulf ostida bajariladi -
-        # boshqa mahsulot fayliga yozish bilan hech qachon to'sqinlik
-        # qilmaydi, faqat AYNAN shu faylga bir vaqtda yozilishi mumkin
-        # bo'lgan so'rovlar navbatga turadi.
-        with _excel_fayl_qulfi(fayl_yol):
-            try:
-                wb = openpyxl.load_workbook(fayl_yol)
-                ws = wb.active
-            except:
-                wb = openpyxl.Workbook()
-                ws = wb.active
-                ws.title = "Hisobot"
-                ustunlar = (
-                    _EXCEL_LOG_USTUNLARI_TOLIQ if konditsiya_bormi
-                    else _EXCEL_LOG_USTUNLARI_QISQA
-                )
-                ws.append(ustunlar)
-                for cell in ws[1]:
-                    cell.fill = PatternFill(start_color="1A4A08", end_color="1A4A08", fill_type="solid")
-                    cell.font = Font(bold=True, color="FFFFFF")
+        ustunlar = (
+            _EXCEL_LOG_USTUNLARI_TOLIQ if konditsiya_bormi
+            else _EXCEL_LOG_USTUNLARI_QISQA
+        )
+        ustunlar_soni = len(ustunlar)
 
+        def _jurnal_qator_yozuvchi(ws, m, tartib_raqami):
             # Har arava uchun bitta qator - m["aravalar"] allaqachon shu
             # arava_raqam bo'yicha eng oxirgi (NULL bo'lmagan) qiymatlarga
-            # jamlangan (nakladnoy_uchun_malumot ichida), shu sabab bu
-            # yerda alohida Olchov so'rovi kerak emas.
+            # jamlangan. Bitta hujjatning barcha arava-qatorlari BIR XIL
+            # tartib_raqami (kun ichidagi shu hujjatning tartibi) bilan
+            # chiqadi - shunda bitta mashinaning bir necha aravasi
+            # jadvalda vizual ravishda birga guruhlanadi.
+            netto_jami = 0
+            konditsion_jami = 0
             for arava_raqam in sorted(m["aravalar"].keys()):
                 a = m["aravalar"][arava_raqam]
                 if a.get("tara") and a.get("brutto"):
-                    qator_raqam = ws.max_row
+                    netto_yaxlit = round(a["netto"]) if a.get("netto") else 0
+                    konditsion_yaxlit = (
+                        round(a["konditsion"])
+                        if (konditsiya_bormi and a.get("konditsion")) else 0
+                    )
                     asosiy = [
-                        qator_raqam,
+                        tartib_raqami,
                         m["raqam"],
                         mahsulot_nomi,
-                        m["sana"],
+                        m["sana"].strftime("%Y-%m-%d"),
                         round(a["tara"]),
                         round(a["brutto"]),
-                        round(a["netto"]) if a.get("netto") else 0,
+                        netto_yaxlit if a.get("netto") else "",
                     ]
                     if konditsiya_bormi:
                         qator = asosiy + [
-                            round(a["konditsion"]) if a.get("konditsion") else "",
+                            konditsion_yaxlit if a.get("konditsion") else "",
                             m["mashina_raqami"],
                             m["shofyor"],
                             m["firma"],
@@ -1537,9 +1663,30 @@ def excel_qatorga_yoz(hujjat_id, db):
                             m["firma"],
                         ]
                     ws.append(qator)
+                    netto_jami += netto_yaxlit
+                    konditsion_jami += konditsion_yaxlit
+            return netto_jami, konditsion_jami
+
+        # O'qish-o'zgartirish-yozish (read-modify-write) bo'linmas
+        # (atomik) bo'lishi uchun shu FAYLGA xos qulf ostida bajariladi -
+        # boshqa mahsulot fayliga yozish bilan hech qachon to'sqinlik
+        # qilmaydi, faqat AYNAN shu faylga bir vaqtda yozilishi mumkin
+        # bo'lgan so'rovlar navbatga turadi.
+        with _excel_fayl_qulfi(fayl_yol):
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Hisobot"
+
+            _kun_oy_guruhlab_yoz(
+                ws, itemlar, konditsiya_bormi, _jurnal_qator_yozuvchi,
+                ustunlar_soni=ustunlar_soni,
+                sarlavha_ustun=3, netto_ustun=7,
+                konditsion_ustun=8 if konditsiya_bormi else None,
+                ustunlar_royxati=ustunlar,
+            )
 
             wb.save(fayl_yol)
-        print(f"Excel ga yozildi: {m['raqam']} ({mahsulot_nomi})")
+        print(f"Excel jurnal qayta qurildi: {mahsulot_nomi} ({yil}-yil, {len(itemlar)} hujjat)")
     except Exception as e:
         print(f"Excel xato: {e}")
 

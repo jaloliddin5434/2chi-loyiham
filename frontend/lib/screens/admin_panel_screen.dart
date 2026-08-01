@@ -46,6 +46,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   bool kechagiRejim = false;
   bool serverUlangan = true;
   bool ekranQulflangan = false;
+  bool qulfTekshirilmoqda = false;
   final qulfParolCtrl = TextEditingController();
   List<dynamic> hujjatlar = [];
   int _joriySahifa = 1;
@@ -147,6 +148,33 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 
   void _faolatBildirildi() => _ekranQulfiTikladir();
+
+  /// Qulf ekranidagi parolni QATTIQ YOZILGAN standart qiymatlarga emas,
+  /// joriy foydalanuvchining HAQIQIY (bazadagi) paroliga tekshiradi -
+  /// shu login/rol bilan haqiqiy /login so'rovi yuborish orqali. Bu
+  /// yo'l bilan admin parolini o'zgartirsa (Foydalanuvchilar bo'limi
+  /// orqali), qulf ekrani ham darhol yangi parolni talab qiladi.
+  Future<void> _qulfniOchishgaUrin() async {
+    setState(() => qulfTekshirilmoqda = true);
+    try {
+      await ApiService.login(widget.username, qulfParolCtrl.text, 'admin');
+      if (!mounted) return;
+      setState(() {
+        ekranQulflangan = false;
+        qulfTekshirilmoqda = false;
+        qulfParolCtrl.clear();
+      });
+      _ekranQulfiTikladir();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => qulfTekshirilmoqda = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text("Noto'g'ri parol!"),
+            backgroundColor: Colors.red),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -3814,30 +3842,22 @@ Widget _mashinaGrafik() {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    if (qulfParolCtrl.text == 'admin123' ||
-                        qulfParolCtrl.text == 'operator123') {
-                      setState(() {
-                        ekranQulflangan = false;
-                        qulfParolCtrl.clear();
-                      });
-                      _ekranQulfiTikladir();
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text("Noto'g'ri parol!"),
-                            backgroundColor: Colors.red),
-                      );
-                    }
-                  },
+                  onPressed: qulfTekshirilmoqda ? null : _qulfniOchishgaUrin,
                   style: ElevatedButton.styleFrom(
                       backgroundColor: greenLight,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10))),
-                  child: const Text("Kirish",
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700)),
+                  child: qulfTekshirilmoqda
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2.5),
+                        )
+                      : const Text("Kirish",
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700)),
                 ),
               ),
             ]),
@@ -4161,7 +4181,19 @@ Widget _mashinaGrafik() {
     if (ekranQulflangan) {
       return Stack(children: [
         kontent,
-        Positioned.fill(child: _ekranQulfiWidget()),
+        // Material(type: transparency) - qulf ekrani `kontent`
+        // (Scaffold) tashqarisida, birodar sifatida qo'shiladi, shu
+        // sabab o'zining TextField/ElevatedButton'lari uchun Material
+        // ajdodi yo'q edi ("No Material widget found" xatosi har safar
+        // qulf ekrani ko'ringanda otilar edi). Bu Material o'zi hech
+        // qanday vizual narsa (rang/soya) qo'shmaydi, faqat kerakli
+        // Material kontekstini ta'minlaydi.
+        Positioned.fill(
+          child: Material(
+            type: MaterialType.transparency,
+            child: _ekranQulfiWidget(),
+          ),
+        ),
       ]);
     }
 

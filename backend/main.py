@@ -3,11 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
+from sqlalchemy.engine import make_url
 from database import engine, get_db, Base, SessionLocal
 from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi
 from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
-from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS
+from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS, DATABASE_URL
 from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
 from datetime import datetime
 import io
@@ -1202,13 +1203,15 @@ def backup_qilish(current_user: dict = Depends(require_role("admin"))):
         backup_fayl = os.path.join(backup_dir, f"backup_{sana}.sql")
 
         pg_dump = PG_DUMP_YOL
+        db_url = make_url(DATABASE_URL)
 
         import subprocess
         result = subprocess.run(
-    [pg_dump, "-U", "postgres", "-p", "5433", "-d", "hazorasp_tarozi", "-f", backup_fayl],
-    capture_output=True, text=True,
-    env={**os.environ, "PGPASSWORD": "Xorazm2026"}
-)
+            [pg_dump, "-U", db_url.username, "-p", str(db_url.port),
+             "-d", db_url.database, "-f", backup_fayl],
+            capture_output=True, text=True,
+            env={**os.environ, "PGPASSWORD": db_url.password}
+        )
         
         if result.returncode == 0:
             size = os.path.getsize(backup_fayl)
@@ -1335,6 +1338,12 @@ def avtomatik_backup():
     import subprocess
     from datetime import date
     from models import Sozlama
+    # Baza ulanish ma'lumotlari (foydalanuvchi/parol/port/nom) FAQAT
+    # .envdagi DATABASE_URL'dan olinadi - bu yerda ikkinchi marta qo'lda
+    # yozilmaydi. Aks holda parol o'zgartirilganda shu joy unutilib
+    # qolib, avtomatik zaxira jimgina (faqat tizim_xatolari jadvalida)
+    # ishlamay qolar edi.
+    db_url = make_url(DATABASE_URL)
     while True:
         db = SessionLocal()
         try:
@@ -1349,8 +1358,9 @@ def avtomatik_backup():
                 backup_fayl = os.path.join(backup_dir, f"backup_{sana}.sql")
                 pg_dump = PG_DUMP_YOL
                 natija = subprocess.run(
-                    [pg_dump, "-U", "postgres", "-p", "5433", "-d", "hazorasp_tarozi", "-f", backup_fayl],
-                    env={**os.environ, "PGPASSWORD": "Xorazm2026"}
+                    [pg_dump, "-U", db_url.username, "-p", str(db_url.port),
+                     "-d", db_url.database, "-f", backup_fayl],
+                    env={**os.environ, "PGPASSWORD": db_url.password}
                 )
                 if natija.returncode == 0:
                     if sozlama:
@@ -1542,6 +1552,12 @@ def sozlamalar_olish(db: Session = Depends(get_db), current_user: dict = Depends
     natija = {}
     for s in sozlamalar:
         natija[s.kalit] = s.qiymat
+    # Operator ekrani ham shu endpointdan (tuda_raqam/klass/sinf va
+    # h.k. standart qiymatlar uchun) foydalanadi, shu sabab butun
+    # endpoint admin-only qilinmaydi - faqat sezgir maydon (Telegram bot
+    # tokeni) admin/hisobchi bo'lmagan rollardan yashiriladi.
+    if current_user.get("role") not in ("admin", "hisobchi"):
+        natija.pop("telegram_token", None)
     return natija
 
 @app.post("/sozlamalar")
@@ -2189,44 +2205,52 @@ def bir_kameradan_rasm_ol(cam_ip, fayl_yol):
 
 @app.post("/kamera/rasm")
 def rasm_ol(data: dict, current_user: dict = Depends(get_current_user)):
-    try:
-        # DIQQAT: bu qiymatlar operator ekranidagi JONLI matn maydonidan
-        # (raqamiCtrl.text) keladi va oxirida bo'sh joy qolib ketishi
-        # mumkin (masalan avtomatik to'ldirish/bosish natijasida) - .strip()
-        # QILINMASA, xuddi shu mashina uchun keyinroq (Hujjat.mashina_raqami
-        # orqali, allaqachon tozalangan holda) yaratiladigan nakladnoy
-        # papkasidan BOSHQA papka hosil bo'lib qoladi (masalan "90_90_90"
-        # va "90_90_90_" - ikkita alohida papka, rasmlar va nakladnoy
-        # ajralib qoladi).
-        mashina_raqami = data.get("mashina_raqami", "noma_lum").strip()
-        mahsulot_nomi = data.get("mahsulot_nomi", "Chigit").strip()
-        tur = data.get("tur", "tara")
+    # DIQQAT: bu qiymatlar operator ekranidagi JONLI matn maydonidan
+    # (raqamiCtrl.text) keladi va oxirida bo'sh joy qolib ketishi
+    # mumkin (masalan avtomatik to'ldirish/bosish natijasida) - .strip()
+    # QILINMASA, xuddi shu mashina uchun keyinroq (Hujjat.mashina_raqami
+    # orqali, allaqachon tozalangan holda) yaratiladigan nakladnoy
+    # papkasidan BOSHQA papka hosil bo'lib qoladi (masalan "90_90_90"
+    # va "90_90_90_" - ikkita alohida papka, rasmlar va nakladnoy
+    # ajralib qoladi).
+    mashina_raqami = data.get("mashina_raqami", "noma_lum").strip()
+    mahsulot_nomi = data.get("mahsulot_nomi", "Chigit").strip()
+    tur = data.get("tur", "tara")
 
-        sana = datetime.now().strftime("%Y-%m-%d")
-        vaqt = datetime.now().strftime("%H-%M-%S")
-        raqam = xavfsiz_papka_nomi(mashina_raqami.replace(" ", "_"), "noma_lum")
+    sana = datetime.now().strftime("%Y-%m-%d")
+    vaqt = datetime.now().strftime("%H-%M-%S")
+    raqam = xavfsiz_papka_nomi(mashina_raqami.replace(" ", "_"), "noma_lum")
 
-        papka = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(mahsulot_nomi, 'Chigit')}/{sana}/{raqam}")
-        papka.mkdir(parents=True, exist_ok=True)
-        
-        fayl1 = papka / f"{tur}_cam1_{vaqt}.jpg"
-        fayl2 = papka / f"{tur}_cam2_{vaqt}.jpg"
-        
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            future1 = executor.submit(bir_kameradan_rasm_ol, KAMERA_1_IP, fayl1)
-            future2 = executor.submit(bir_kameradan_rasm_ol, KAMERA_2_IP, fayl2)
-            natija1 = future1.result()
-            natija2 = future2.result()
-        
-        return {
-            "status": "ok",
-            "vaqt": vaqt,
-            "kamera1": natija1,
-            "kamera2": natija2,
-            "papka": str(papka)
-        }
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    papka = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(mahsulot_nomi, 'Chigit')}/{sana}/{raqam}")
+    papka.mkdir(parents=True, exist_ok=True)
+
+    fayl1 = papka / f"{tur}_cam1_{vaqt}.jpg"
+    fayl2 = papka / f"{tur}_cam2_{vaqt}.jpg"
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        future1 = executor.submit(bir_kameradan_rasm_ol, KAMERA_1_IP, fayl1)
+        future2 = executor.submit(bir_kameradan_rasm_ol, KAMERA_2_IP, fayl2)
+        natija1 = future1.result()
+        natija2 = future2.result()
+
+    # Ikkala kamera ham muvaffaqiyatsiz bo'lsa - bu haqiqiy "yuqori oqim"
+    # (kamera qurilmasi) xatosi, frontend buni ANIQ ko'rishi va offline
+    # qayta-urinish navbatiga QO'YMASLIGI kerak (qayta urinish kamera
+    # holatini o'zgartirmaydi). Faqat bitta kamera ishlamasa - bu qisman
+    # muvaffaqiyat (bitta rasm baribir olindi), 200 bilan qoladi.
+    if natija1["status"] == "error" and natija2["status"] == "error":
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ikkala kamera ham javob bermadi: {natija1['message']} / {natija2['message']}",
+        )
+
+    return {
+        "status": "ok",
+        "vaqt": vaqt,
+        "kamera1": natija1,
+        "kamera2": natija2,
+        "papka": str(papka)
+    }
 
 # ============ GRAFIK MA'LUMOTLAR ============
 

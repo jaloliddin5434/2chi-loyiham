@@ -69,8 +69,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   final telegramTokenCtrl = TextEditingController();
   final zavodNomiCtrl = TextEditingController(
       text: '"Hazorasp tekstil" MChJ');
-  final narxCtrl = TextEditingController();
-  double konditsionNarx = 0;
 
   final yangiLoginCtrl = TextEditingController();
   final yangiParolCtrl = TextEditingController();
@@ -184,7 +182,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     qulfParolCtrl.dispose();
     telegramTokenCtrl.dispose();
     zavodNomiCtrl.dispose();
-    narxCtrl.dispose();
     yangiLoginCtrl.dispose();
     yangiParolCtrl.dispose();
     NavbatService.navbat.removeListener(_yangilandi);
@@ -238,10 +235,6 @@ Future<void> _sozlamalarYukla() async {
     try {
       final sozlamalar = await ApiService.sozlamalarOl();
       setState(() {
-        if (sozlamalar['konditsion_narx'] != null) {
-          konditsionNarx = double.tryParse(sozlamalar['konditsion_narx'].toString()) ?? 0;
-          narxCtrl.text = sozlamalar['konditsion_narx'].toString();
-        }
         if (sozlamalar['telegram_token'] != null) {
           telegramTokenCtrl.text = sozlamalar['telegram_token'].toString();
         }
@@ -3517,78 +3510,6 @@ Widget _mashinaGrafik() {
                     style: TextStyle(fontSize: 11)),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: greenLight,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8))),
-              ),
-            ]),
-          ]),
-        ),
-        const SizedBox(height: 12),
-
-        // NARX TIZIMI
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-              color: cardColor,
-              border: Border.all(color: cardBorder),
-              borderRadius: BorderRadius.circular(16)),
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-            cardLabel(Icons.attach_money, "NARX TIZIMI",
-                color: goldColor),
-            const SizedBox(height: 12),
-            _sozlamaField(
-                "1 tonna konditsion narxi (so'm)", narxCtrl,
-                hint: "Masalan: 4500000",
-                type: TextInputType.number),
-            const SizedBox(height: 8),
-            if (konditsionNarx > 0)
-              Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                    color: goldBg,
-                    border: Border.all(color: goldBorder),
-                    borderRadius: BorderRadius.circular(8)),
-                child: Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
-                    children: [
-                  const Text("Joriy narx:",
-                      style: TextStyle(
-                          fontSize: 12, color: goldColor)),
-                  Text(
-                      "${konditsionNarx.toStringAsFixed(0)} so'm/t",
-                      style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: goldColor)),
-                ]),
-              ),
-            Row(mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-              ElevatedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    konditsionNarx =
-                        double.tryParse(narxCtrl.text) ?? 0;
-                 });
-                  ApiService.sozlamaSaqla({
-                    'konditsion_narx': narxCtrl.text,
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text("Narx saqlandi!"),
-                        backgroundColor: Colors.green),
-                  );
-                },
-                icon: const Icon(Icons.save, size: 14),
-                label: const Text("Saqlash",
-                    style: TextStyle(fontSize: 11)),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: goldColor,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8))),

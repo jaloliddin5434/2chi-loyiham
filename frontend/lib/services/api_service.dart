@@ -475,8 +475,9 @@ static const String baseUrl = "http://10.112.30.77:8001";
     required String mahsulotNomi,
     required String tur,
   }) async {
+    http.Response? response;
     try {
-      final response = await http.post(
+      response = await http.post(
         Uri.parse('$baseUrl/kamera/rasm'),
         headers: _headers(),
         body: jsonEncode({
@@ -485,14 +486,29 @@ static const String baseUrl = "http://10.112.30.77:8001";
           'tur': tur,
         }),
       );
-      _check401(response);
-   } catch (e) {
-      await OfflineService.rasmQosh({
-        'mashina_raqami': mashinaRaqami,
-        'mahsulot_nomi': mahsulotNomi,
-        'tur': tur,
-      });
+    } catch (e) {
+      response = null;
     }
+    if (response != null) {
+      _check401(response);
+      if (response.statusCode == 200) return;
+      if (response.statusCode != 401) {
+        // Server javob berdi, lekin rad etdi (masalan 502 - ikkala
+        // kamera ham javob bermadi). Qayta urinish kamera holatini
+        // o'zgartirmaydi, shu sabab offline navbatga QO'YILMAYDI -
+        // backend allaqachon tizim_xatolari jadvaliga yozgan.
+        return;
+      }
+      // 401 - token tugagan; pastdagi offline navbatga tushadi, qayta
+      // login qilingach keyingi sinxronizatsiyada avtomatik qayta uriniladi.
+    }
+    // Server bilan aloqa bo'lmadi yoki token tugagan (401) - offline
+    // navbatga qo'yamiz.
+    await OfflineService.rasmQosh({
+      'mashina_raqami': mashinaRaqami,
+      'mahsulot_nomi': mahsulotNomi,
+      'tur': tur,
+    });
   }
 
  static Future<void> sozlamaSaqla(Map<String, dynamic> data) async {

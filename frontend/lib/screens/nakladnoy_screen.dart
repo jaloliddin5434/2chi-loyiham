@@ -107,22 +107,51 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
       // narsani o'zi to'liq o'qiydi VA javob sifatida tayyor PDF baytlarini
       // qaytaradi - shu sababli bu yerdan faqat hujjat_id va sana
       // yuboriladi, ekran holatidagi boshqa maydonlar yuborilmaydi.
-      final javob = await http.post(
-        Uri.parse('${ApiService.baseUrl}/nakladnoy/saqlash'),
-        headers: ApiService.authHeaders(),
-        body: jsonEncode({
-          'hujjat_id': widget.hujjatId,
-          'sana': sana,
-        }),
-      );
-      if (javob.statusCode != 200) {
-        throw Exception('status ${javob.statusCode}');
+      http.Response? javob;
+      try {
+        javob = await http.post(
+          Uri.parse('${ApiService.baseUrl}/nakladnoy/saqlash'),
+          headers: ApiService.authHeaders(),
+          body: jsonEncode({
+            'hujjat_id': widget.hujjatId,
+            'sana': sana,
+          }),
+        );
+      } catch (e) {
+        javob = null;
       }
-      final raqamQismi =
-          (widget.hujjatRaqam.isNotEmpty ? widget.hujjatRaqam : widget.tiketRaqam)
-              .replaceAll('/', '-');
-      faylniYuklabOl(javob.bodyBytes, 'Nakladnoy_$raqamQismi.pdf', 'application/pdf');
-    } catch (e) {
+
+      if (javob != null && javob.statusCode == 200) {
+        final raqamQismi =
+            (widget.hujjatRaqam.isNotEmpty ? widget.hujjatRaqam : widget.tiketRaqam)
+                .replaceAll('/', '-');
+        faylniYuklabOl(javob.bodyBytes, 'Nakladnoy_$raqamQismi.pdf', 'application/pdf');
+        return;
+      }
+
+      if (javob != null && (javob.statusCode == 400 || javob.statusCode == 404)) {
+        // Doimiy xato (hujjat_id yo'q/topilmadi) - vaqt o'tishi bilan
+        // o'zgarmaydi, offline navbatga qo'yish foydasiz - operatorga
+        // to'g'ridan-to'g'ri, aniq xato ko'rsatiladi.
+        String xabar = "Hujjat topilmadi — administratorga murojaat qiling";
+        try {
+          final tanasi = jsonDecode(utf8.decode(javob.bodyBytes));
+          if (tanasi is Map && tanasi['detail'] != null) {
+            xabar = tanasi['detail'].toString();
+          }
+        } catch (_) {}
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("❌ $xabar"), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
+
+      // Bu yergacha yetib kelsa: haqiqiy tarmoq xatosi, 401 (token
+      // tugagan) yoki 500 (PDF generatsiya - vaqtinchalik bo'lishi
+      // mumkin) - offline navbatga qo'yiladi, fon-sinxronizatsiya
+      // keyinroq avtomatik qayta uradi.
       await OfflineService.nakladnoyQosh({
         'mashina_raqami': widget.mashinaRaqami,
         'mahsulot_nomi': widget.mahsulotNomi,
@@ -135,12 +164,11 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
         'mashina_turi': widget.mashinaTuri,
       });
       if (mounted) {
+        final xabar = (javob != null && javob.statusCode == 500)
+            ? "⚠️ Nakladnoy yaratishda serverda xatolik — birozdan so'ng avtomatik qayta urinilyapti."
+            : "⏳ Internet aloqasi yo'q — hujjat navbatga qo'yildi, aloqa tiklangach avtomatik yaratiladi.";
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                "⏳ Internet aloqasi yo'q — hujjat navbatga qo'yildi, aloqa tiklangach avtomatik yaratiladi."),
-            backgroundColor: Colors.orange,
-          ),
+          SnackBar(content: Text(xabar), backgroundColor: Colors.orange),
         );
       }
     } finally {

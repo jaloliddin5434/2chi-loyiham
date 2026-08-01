@@ -58,7 +58,17 @@ class SyncService {
             headers: ApiService.authHeaders(),
             body: jsonEncode(n),
           );
-          if (res.statusCode != 200) qolganNakladnoylar.add(n);
+          if (res.statusCode == 200) continue;
+          if (res.statusCode == 400 || res.statusCode == 404) {
+            // Hujjat_id noto'g'ri/topilmadi - vaqt o'tishi bilan
+            // o'zgarmaydi, qayta urinish foydasiz - navbatdan olib
+            // tashlanadi (faqat konsolga log qilinadi).
+            print('❌ Nakladnoy sync: doimiy xato (status ${res.statusCode}), navbatdan olib tashlandi: $n');
+            continue;
+          }
+          // 401 (token tugagan) yoki 500 (PDF generatsiya - vaqtinchalik
+          // bo'lishi mumkin) - qayta urinishga arziydi.
+          qolganNakladnoylar.add(n);
         } catch (e) {
           qolganNakladnoylar.add(n);
         }
@@ -73,10 +83,21 @@ class SyncService {
         try {
           final res = await http.post(
             Uri.parse('${ApiService.baseUrl}/kamera/rasm'),
-            headers: {'Content-Type': 'application/json'},
+            headers: ApiService.authHeaders(),
             body: jsonEncode(r),
           );
-          if (res.statusCode != 200) qolganRasmlar.add(r);
+          if (res.statusCode == 200) continue;
+          if (res.statusCode != 401) {
+            // Server javob berdi, lekin rad etdi (masalan 502 - ikkala
+            // kamera ham javob bermadi). Qayta urinish kamera holatini
+            // o'zgartirmaydi - navbatdan olib tashlanadi (faqat
+            // konsolga log qilinadi; backend allaqachon tizim_xatolari
+            // jadvaliga yozgan).
+            print('❌ Rasm sync: doimiy xato (status ${res.statusCode}), navbatdan olib tashlandi: $r');
+            continue;
+          }
+          // 401 - token tugagan, qayta urinishga arziydi.
+          qolganRasmlar.add(r);
         } catch (e) {
           qolganRasmlar.add(r);
         }

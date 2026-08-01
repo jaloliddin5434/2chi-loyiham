@@ -2023,7 +2023,13 @@ def nakladnoy_saqlash(data: dict, db: Session = Depends(get_db), current_user: d
 
         raqam_papka = xavfsiz_papka_nomi(
             (m["mashina_raqami"] or "noma_lum").replace(" ", "_"), "noma_lum")
-        papka = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(m['mahsulot_nomi'])}/{sana}/{raqam_papka}")
+        # {yil-oy}/{sana} - papkalar oy bo'yicha ham guruhlanadi (masalan
+        # "2026-08/2026-08-01/"), shu bilan bitta mahsulot papkasi
+        # ichida yiliga minglab kunlik papka to'planib qolmaydi. Excel
+        # jurnali (excel_qatorga_yoz) va qo'lda eksport BUNGA kirmaydi -
+        # ular ataylab faqat mahsulot darajasida (sana segmentisiz)
+        # qoladi.
+        papka = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(m['mahsulot_nomi'])}/{sana[:7]}/{sana}/{raqam_papka}")
         papka.mkdir(parents=True, exist_ok=True)
 
         html_fayl = papka / "nakladnoy.html"
@@ -2221,7 +2227,11 @@ def rasm_ol(data: dict, current_user: dict = Depends(get_current_user)):
     vaqt = datetime.now().strftime("%H-%M-%S")
     raqam = xavfsiz_papka_nomi(mashina_raqami.replace(" ", "_"), "noma_lum")
 
-    papka = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(mahsulot_nomi, 'Chigit')}/{sana}/{raqam}")
+    # {yil-oy}/{sana} - nakladnoydagi bilan bir xil tuzilish (qarang:
+    # nakladnoy_saqlash) - shu ikkalasi ALOHIDA joyda hisoblansada,
+    # bitta mahsulot+sana+mashina uchun AYNAN bir xil papkaga tushishi
+    # SHART, aks holda rasmlar va nakladnoy ikkiga bo'linib qoladi.
+    papka = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(mahsulot_nomi, 'Chigit')}/{sana[:7]}/{sana}/{raqam}")
     papka.mkdir(parents=True, exist_ok=True)
 
     fayl1 = papka / f"{tur}_cam1_{vaqt}.jpg"

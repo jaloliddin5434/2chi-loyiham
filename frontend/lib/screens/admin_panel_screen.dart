@@ -1550,8 +1550,10 @@ Widget _mashinaGrafik() {
         TextEditingController(text: hujjat['qabul_qildi'] ?? '');
     final yukCtrl =
         TextEditingController(text: hujjat['yuk_olindi'] ?? '');
-    final namlikCtrl = TextEditingController();
-    final ifloslikCtrl = TextEditingController();
+    final namlikCtrl =
+        TextEditingController(text: hujjat['namlik']?.toString() ?? '');
+    final ifloslikCtrl =
+        TextEditingController(text: hujjat['ifloslik']?.toString() ?? '');
     final sababCtrl = TextEditingController();
     String yangiHolat = hujjat['holat'] ?? 'jarayon';
 

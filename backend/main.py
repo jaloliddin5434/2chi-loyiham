@@ -518,6 +518,24 @@ def _olchovlar_jamlangan(olchovlar):
     return jami_tara, jami_brutto, jami_netto, jami_konditsion
 
 
+def _hujjat_navbat_fallback(hujjat_qiymat, navbat, maydon_nomi):
+    """Operator ekrani klass/sinf/seleksiya_navi/terim_turi/tiket_raqam/
+    tuda_raqam ni to'g'ridan-to'g'ri Hujjat'ga emas, alohida Navbat
+    jadvaliga saqlaydi (qarang: nakladnoy_uchun_malumot() boshidagi
+    izoh) - Hujjat'ning o'z qiymati bo'sh bo'lsa, Navbat'dagi mos
+    maydonga fallback qilinadi. Excel jurnal va Nakladnoy PDF bu
+    fallback'ni allaqachon qo'llaydi - bu yerda xuddi shu naqsh
+    GET /hujjatlar va GET /hujjatlar/{id}ga (demak admin "Tuzat"
+    oynasiga) ham qo'llaniladi."""
+    if not _boshmi(hujjat_qiymat):
+        return hujjat_qiymat
+    if navbat is not None:
+        navbat_qiymat = getattr(navbat, maydon_nomi)
+        if not _boshmi(navbat_qiymat):
+            return navbat_qiymat
+    return None
+
+
 @app.get("/hujjatlar")
 def hujjatlar_royxati(
     mahsulot_id: int = None,
@@ -546,6 +564,17 @@ def hujjatlar_royxati(
         .limit(sahifa_hajmi) \
         .all()
 
+    # Operator ekrani klass/sinf/seleksiya_navi/terim_turi/tiket_raqam/
+    # tuda_raqam ni Hujjat'ga emas, Navbat'ga saqlagani uchun (qarang:
+    # _hujjat_navbat_fallback()) - shu sahifadagi barcha hujjat uchun
+    # Navbat qatorlarini BIR so'rovda (N+1 qilmasdan) oldindan olamiz.
+    from models import Navbat
+    hujjat_idlar = [h.id for h in hujjatlar]
+    navbat_dict = {
+        n.hujjat_id: n
+        for n in db.query(Navbat).filter(Navbat.hujjat_id.in_(hujjat_idlar)).all()
+    }
+
     natija = []
     for h in hujjatlar:
         olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).order_by(Olchov.id.asc()).all()
@@ -560,6 +589,7 @@ def hujjatlar_royxati(
                 namlik = o.namlik
             if o.ifloslik is not None:
                 ifloslik = o.ifloslik
+        navbat = navbat_dict.get(h.id)
         natija.append({
             "id": h.id,
             "raqam": h.raqam,
@@ -569,12 +599,12 @@ def hujjatlar_royxati(
             "firma": h.firma or "—",
             "mahsulot_id": h.mahsulot_id,
             "aravalar_soni": h.aravalar_soni,
-            "tuda_raqam": h.tuda_raqam,
-            "tiket_raqam": h.tiket_raqam,
-            "klass": h.klass,
-            "sinf": h.sinf,
-            "seleksiya_navi": h.seleksiya_navi,
-            "terim_turi": h.terim_turi,
+            "tuda_raqam": _hujjat_navbat_fallback(h.tuda_raqam, navbat, "tuda_raqam"),
+            "tiket_raqam": _hujjat_navbat_fallback(h.tiket_raqam, navbat, "tiket_raqam"),
+            "klass": _hujjat_navbat_fallback(h.klass, navbat, "klass"),
+            "sinf": _hujjat_navbat_fallback(h.sinf, navbat, "sinf"),
+            "seleksiya_navi": _hujjat_navbat_fallback(h.seleksiya_navi, navbat, "seleksiya_navi"),
+            "terim_turi": _hujjat_navbat_fallback(h.terim_turi, navbat, "terim_turi"),
             "qabul_qildi": h.qabul_qildi,
             "yuk_olindi": h.yuk_olindi,
             "holat": h.holat,
@@ -833,13 +863,37 @@ def hujjat_detail(hujjat_id: int, db: Session = Depends(get_db), current_user: d
     hujjat = db.query(Hujjat).filter(Hujjat.id == hujjat_id).first()
     if not hujjat:
         raise HTTPException(status_code=404, detail="Hujjat topilmadi!")
-    olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == hujjat.id).all()
+    olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == hujjat.id).order_by(Olchov.id.asc()).all()
     jami_tara, jami_brutto, jami_netto, jami_konditsion = _olchovlar_jamlangan(olchovlar)
+    # namlik/ifloslik Hujjatda emas, Olchov qatorlarida saqlanadi - eng
+    # oxirgi NULL bo'lmagan qiymat olinadi (hujjatlar_royxati() bilan
+    # bir xil mantiq).
+    namlik = None
+    ifloslik = None
+    for o in olchovlar:
+        if o.namlik is not None:
+            namlik = o.namlik
+        if o.ifloslik is not None:
+            ifloslik = o.ifloslik
+
+    from models import Navbat
+    navbat = db.query(Navbat).filter(Navbat.hujjat_id == hujjat_id).first()
+
     natija = {c.name: getattr(hujjat, c.name) for c in Hujjat.__table__.columns}
     natija["tara"] = jami_tara
     natija["brutto"] = jami_brutto
     natija["netto"] = jami_netto
     natija["konditsion"] = jami_konditsion
+    # Hujjat jadvalida namlik/ifloslik ustuni yo'q (faqat Olchov'da bor) -
+    # yuqoridagi generic column-loop bu kalitlarni hosil qilmagan, shu
+    # sabab alohida qo'shiladi.
+    natija["namlik"] = namlik
+    natija["ifloslik"] = ifloslik
+    # Operator ekrani klass/sinf/seleksiya_navi/terim_turi/tiket_raqam/
+    # tuda_raqam ni Hujjat'ga emas, Navbat'ga saqlaydi - shu sabab
+    # Hujjat'ning o'zida bo'sh bo'lsa Navbat'dan to'ldiramiz.
+    for maydon in ("tuda_raqam", "tiket_raqam", "klass", "sinf", "seleksiya_navi", "terim_turi"):
+        natija[maydon] = _hujjat_navbat_fallback(natija[maydon], navbat, maydon)
     return natija
 
 RUXSAT_ETILGAN_OTISHLAR = {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
 import '../services/offline_service.dart';
@@ -79,7 +80,11 @@ class NakladnoyScreen extends StatefulWidget {
 class _NakladnoyScreenState extends State<NakladnoyScreen> {
   bool _yuklanmoqda = false;
 
-  Future<void> _pdfYuklab() async {
+  /// "Yuklab olish" va "Chop etish" ikkalasi ham bir xil oqim (hujjat_id
+  /// orqali backenddan PDF baytlarini olish, offline navbat/xato ishlash)
+  /// dan foydalanadi - faqat PDF muvaffaqiyatli olingandan keyingi YAKUNIY
+  /// amal ([amal] callback) farq qiladi.
+  Future<void> _pdfOlish(void Function(Uint8List baytlar, String raqamQismi) amal) async {
     // Ikkinchi-qatlam himoya: odatda operator_panel_screen.dart'dagi
     // hujjatOch() bu ekranga hujjatId hali mahalliy (manfiy, serverga
     // sinxronlanmagan) bo'lganda umuman o'tkazmaydi - lekin kelajakda
@@ -125,7 +130,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
         final raqamQismi =
             (widget.hujjatRaqam.isNotEmpty ? widget.hujjatRaqam : widget.tiketRaqam)
                 .replaceAll('/', '-');
-        faylniYuklabOl(javob.bodyBytes, 'Nakladnoy_$raqamQismi.pdf', 'application/pdf');
+        amal(javob.bodyBytes, raqamQismi);
         return;
       }
 
@@ -175,6 +180,14 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
       if (mounted) setState(() => _yuklanmoqda = false);
     }
   }
+
+  Future<void> _pdfYuklab() => _pdfOlish((baytlar, raqamQismi) {
+        faylniYuklabOl(baytlar, 'Nakladnoy_$raqamQismi.pdf', 'application/pdf');
+      });
+
+  Future<void> _pdfChopEt() => _pdfOlish((baytlar, raqamQismi) {
+        pdfniChopEtish(baytlar);
+      });
 
   int tanlanganNusxa = 0;
 
@@ -244,6 +257,17 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF1976D2)))
                 : const Icon(Icons.download, size: 18, color: Color(0xFF1976D2)),
             label: const Text("Yuklab olish", style: TextStyle(color: Color(0xFF1976D2))),
+          ),
+          const SizedBox(width: 4),
+          TextButton.icon(
+            onPressed: _yuklanmoqda ? null : _pdfChopEt,
+            icon: _yuklanmoqda
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF1976D2)))
+                : const Icon(Icons.print, size: 18, color: Color(0xFF1976D2)),
+            label: const Text("Chop etish", style: TextStyle(color: Color(0xFF1976D2))),
           ),
           const SizedBox(width: 8),
         ],

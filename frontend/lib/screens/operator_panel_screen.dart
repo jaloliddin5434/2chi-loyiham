@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'nakladnoy_screen.dart';
 import 'hujjatlar_royxati_paneli.dart';
@@ -112,6 +114,61 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   int qoldiqSoniya = 0;
   int tanlanganArava = 1;
   int aravalarSoni = 1;
+
+  // Kamera bo'limida DARHOL ko'rsatiladigan, faqat vaqtinchalik
+  // (xotirada, doimiy saqlanmaydigan) suratlar - eng oxirgi Tara/Brutto
+  // amali uchun. Asl, to'liq sifatli suratlar allaqachon backend
+  // tomonidan diskka saqlanadi - bu yerdagilar shunchaki "mana, rasmga
+  // olindi" deb operatorga ko'rsatish uchun.
+  //
+  // Tashqi kalit - hujjatId: zavodda bir vaqtning o'zida bir nechta
+  // mashina navbatda (Tara olingan, Brutto kutilmoqda) turishi odatiy
+  // holat, shuning uchun har bir hujjat/mashina o'z suratlarini ALOHIDA
+  // saqlaydi - bitta umumiy "so'nggi surat" joyi emas.
+  final Map<int, Map<String, Uint8List?>> kameraRasmlari = {};
+
+  /// Hozir ekranda ko'rsatilayotgan (joriy tanlangan) mashinaning
+  /// hujjatId'si - kod bo'ylab boshqa joylarda ham ishlatiladigan
+  /// naqsh bilan bir xil.
+  int? get _joriyKameraHujjatId => tanlanganNavbat?.hujjatId ?? hujjatId;
+
+  Uint8List? _kameraRasmi(String kalit) =>
+      kameraRasmlari[_joriyKameraHujjatId]?[kalit];
+
+  /// [tur] - "tara" yoki "brutto". Rasm olishni ishga tushiradi, lekin
+  /// `await` QILMAYDI (fire-and-forget) - kamera sekin javob bersa
+  /// (5 soniyagacha) ham asosiy saqlash oqimi (Tara/Brutto/Olchov)
+  /// buning uchun to'xtab qolmaydi. Rasm(lar) kelgach, `.then()` ichida
+  /// ekran yangilanadi. Maqsad hujjatId chaqiruv PAYTIDA saqlab
+  /// qo'yiladi - shunda operator javob kutilayotgan payt boshqa
+  /// mashinaga o'tib ketsa ham, rasm noto'g'ri mashinaga yozilmaydi.
+  void _kameraRasmOl(String tur) {
+    final maqsadHujjatId = _joriyKameraHujjatId;
+    ApiService.rasmOl(
+      mashinaRaqami: raqamiCtrl.text,
+      mahsulotNomi: widget.mahsulotNomi,
+      tur: tur,
+    ).then((natija) {
+      if (natija == null || !mounted || maqsadHujjatId == null) return;
+      final kamera1 = natija['kamera1'] as Map<String, dynamic>?;
+      final kamera2 = natija['kamera2'] as Map<String, dynamic>?;
+      setState(() {
+        final joy = kameraRasmlari.putIfAbsent(maqsadHujjatId, () => {});
+        if (kamera1 != null && kamera1['rasm_base64'] != null) {
+          try {
+            joy['${tur}_cam1'] =
+                base64Decode(kamera1['rasm_base64'] as String);
+          } catch (_) {}
+        }
+        if (kamera2 != null && kamera2['rasm_base64'] != null) {
+          try {
+            joy['${tur}_cam2'] =
+                base64Decode(kamera2['rasm_base64'] as String);
+          } catch (_) {}
+        }
+      });
+    });
+  }
   bool kechagiRejim = false;
   String hozirgiSoat = '';
   String xabarMatni = '';
@@ -804,7 +861,14 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       _xabar("✅ Mashina bekor qilindi!");
       if (tanlanganNavbat?.hujjatId ==
           mashina.hujjatId) {
-        setState(() => tanlanganNavbat = null);
+        setState(() {
+          tanlanganNavbat = null;
+          // Bu mashina butunlay bekor qilindi - Brutto endi hech
+          // qachon bo'lmaydi, shuning uchun (odatiy "Keyingi
+          // mashina"dan farqli) shu mashinaning suratlari shu yerda
+          // tozalanadi (boshqa navbatdagi mashinalarga tegilmaydi).
+          kameraRasmlari.remove(mashina.hujjatId);
+        });
         await _tozala();
       }
     }
@@ -834,6 +898,14 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     saqlanmoqda = false;
     qoldiqSoniya = 0;
    mashinaKelganVaqt = null;
+    // DIQQAT: kameraRasmlari ATAYLAB bu yerda tozalanmaydi!
+    // `_tozala()` "Keyingi mashina" bosilganda ham chaqiriladi - bu esa
+    // odatda mashinani Tara bilan NAVBATGA yuborish (Brutto keyinroq,
+    // navbatdan qayta tanlab bajariladi) degani. Agar shu yerda
+    // tozalasak, Brutto saqlangan payt Tara suratlari allaqachon
+    // yo'qolgan bo'lardi (4 tasi birga ko'rinmasdi). Suratlar o'rniga
+    // YANGI Tara boshlanganda (haqiqiy yangi mashina/arava) tozalanadi -
+    // qarang: tara saqlash oqimidagi tegishli izoh.
   }
   
   Future<void> _sozlamalarYukla() async {
@@ -1272,11 +1344,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       });
 
       // Kamera rasm olish
-      ApiService.rasmOl(
-        mashinaRaqami: raqamiCtrl.text,
-        mahsulotNomi: widget.mahsulotNomi,
-        tur: 'brutto',
-      );
+      _kameraRasmOl('brutto');
 
     try {
         print('hujjatId: $hujjatId, navbat: ${tanlanganNavbat?.hujjatId}');
@@ -1422,6 +1490,17 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       if (tanlanganArava == 3) taraSaqlangan3 = true;
       saqlanmoqda = true;
       qoldiqSoniya = 10;
+      // Chinakam YANGI mashina/arava uchun Tara boshlanmoqda (bu yerga
+      // faqat `taraS == false` bo'lganda, ya'ni birinchi marta
+      // yetib kelamiz, va shu paytda `hujjatId` allaqachon YANGI
+      // hujjat uchun `_bazagaSaqla()` orqali yangilangan bo'ladi) -
+      // shu yangi hujjatId uchun eski qoldiq bo'lsa (bo'lmasligi kerak,
+      // ehtiyot chorasi) tozalab, toza holatdan boshlaymiz. Boshqa
+      // navbatdagi mashinalarning suratlariga bu tegmaydi.
+      // "Keyingi mashina" (navbatga yuborish) esa BU YERDA tozalanmaydi -
+      // Tara suratlari Brutto saqlangunga qadar saqlanib turishi kerak
+      // (qarang: _tozala()dagi izoh).
+      if (hujjatId != null) kameraRasmlari.remove(hujjatId);
     });
 try {
       await ApiService.olchovSaqlash(
@@ -1436,11 +1515,7 @@ try {
    }
 
     // Kamera rasm olish
-    ApiService.rasmOl(
-      mashinaRaqami: raqamiCtrl.text,
-      mahsulotNomi: widget.mahsulotNomi,
-      tur: 'tara',
-    );
+    _kameraRasmOl('tara');
 
     final keyingi = _keyingiTaraSizArava();
     _xabar(keyingi != null
@@ -1978,10 +2053,11 @@ try {
     );
   }
 
-  Widget camFrame(String label) {
+  Widget camFrame(String label, {Uint8List? rasm}) {
     return AspectRatio(
       aspectRatio: 1,
       child: Container(
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: kechagiRejim
               ? Colors.black.withValues(alpha: 0.5)
@@ -1995,26 +2071,45 @@ try {
           borderRadius: BorderRadius.circular(12),
         ),
         child: Stack(children: [
-          Center(
-              child: Column(
-                  mainAxisAlignment:
-                      MainAxisAlignment.center,
-                  children: [
-            Icon(Icons.camera_alt_outlined,
-                size: 32,
-                color: kechagiRejim
-                    ? brandGreenLight
-                        .withValues(alpha: 0.6)
-                    : const Color(0xFFA0C0A0)),
-            const SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 10,
-                    color: kechagiRejim
-                        ? brandGreenLight
-                            .withValues(alpha: 0.6)
-                        : mutedText)),
-          ])),
+          if (rasm != null)
+            Positioned.fill(
+                child: Image.memory(rasm, fit: BoxFit.cover))
+          else
+            Center(
+                child: Column(
+                    mainAxisAlignment:
+                        MainAxisAlignment.center,
+                    children: [
+              Icon(Icons.camera_alt_outlined,
+                  size: 32,
+                  color: kechagiRejim
+                      ? brandGreenLight
+                          .withValues(alpha: 0.6)
+                      : const Color(0xFFA0C0A0)),
+              const SizedBox(height: 4),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 10,
+                      color: kechagiRejim
+                          ? brandGreenLight
+                              .withValues(alpha: 0.6)
+                          : mutedText)),
+            ])),
+          if (rasm != null)
+            Positioned(
+              bottom: 4,
+              left: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(6)),
+                child: Text(label,
+                    style: const TextStyle(
+                        fontSize: 9, color: Colors.white)),
+              ),
+            ),
           Positioned(
               top: 8,
               right: 8,
@@ -2791,12 +2886,22 @@ try {
                       const SizedBox(height: 10),
                       Row(children: [
                         Expanded(
-                            child:
-                                camFrame("CAM-01")),
+                            child: camFrame("Tara CAM-1",
+                                rasm: kameraRasmlari['tara_cam1'])),
                         const SizedBox(width: 10),
                         Expanded(
-                            child:
-                                camFrame("CAM-02")),
+                            child: camFrame("Tara CAM-2",
+                                rasm: kameraRasmlari['tara_cam2'])),
+                      ]),
+                      const SizedBox(height: 10),
+                      Row(children: [
+                        Expanded(
+                            child: camFrame("Brutto CAM-1",
+                                rasm: kameraRasmlari['brutto_cam1'])),
+                        const SizedBox(width: 10),
+                        Expanded(
+                            child: camFrame("Brutto CAM-2",
+                                rasm: kameraRasmlari['brutto_cam2'])),
                       ]),
                       const SizedBox(height: 10),
                       SizedBox(

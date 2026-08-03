@@ -2701,6 +2701,28 @@ th {{ background: #1A4A08; color: white; font-weight: 600; }}
 # ============ KAMERA ============
 import concurrent.futures
 
+def _kichik_rasm_base64(rasm_baytlari: bytes) -> str:
+    """Operator ekranida DARHOL ko'rsatish uchun kichik, siqilgan JPEG
+    nusxa yaratadi (asl rasm hajmidan qat'i nazar, ~400px kenglik,
+    sifat ~55%) - faqat vaqtinchalik vizual tasdiqlash uchun, hech
+    qayerga saqlanmaydi. Kichik hajm tarmoq orqali tez kelishi va
+    Flutter tomonida dekodlash ekранni "qotirmasligi" uchun muhim -
+    asl (to'liq sifatli) rasm bundan mustaqil, alohida diskka
+    saqlanadi (qarang: bir_kameradan_rasm_ol())."""
+    import base64
+    from PIL import Image
+    rasm = Image.open(io.BytesIO(rasm_baytlari))
+    if rasm.mode != "RGB":
+        rasm = rasm.convert("RGB")
+    kenglik_maksimal = 400
+    if rasm.width > kenglik_maksimal:
+        nisbat = kenglik_maksimal / rasm.width
+        rasm = rasm.resize((kenglik_maksimal, round(rasm.height * nisbat)))
+    buffer = io.BytesIO()
+    rasm.save(buffer, format="JPEG", quality=55)
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
 def bir_kameradan_rasm_ol(cam_ip, fayl_yol):
     try:
         url = f"http://{cam_ip}/ISAPI/Streaming/channels/101/picture"
@@ -2712,7 +2734,15 @@ def bir_kameradan_rasm_ol(cam_ip, fayl_yol):
         if response.status_code == 200:
             with open(fayl_yol, "wb") as f:
                 f.write(response.content)
-            return {"status": "ok", "fayl": str(fayl_yol)}
+            natija = {"status": "ok", "fayl": str(fayl_yol)}
+            # Kichraytirish muvaffaqiyatsiz bo'lsa ham (masalan kutilmagan
+            # rasm formati) asosiy natija ("fayl saqlandi") o'zgarmasligi
+            # kerak - faqat operator ekranida ko'rsatib bo'lmaydi, xolos.
+            try:
+                natija["rasm_base64"] = _kichik_rasm_base64(response.content)
+            except Exception:
+                pass
+            return natija
         else:
             xabar = f"Kamera {cam_ip} javob bermadi"
             tizim_xatosini_saqla("kamera", xabar)

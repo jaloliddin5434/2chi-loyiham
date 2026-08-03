@@ -2,5 +2,6 @@ python-dotenv
 pytest
 httpx
 qrcode[pil]
+Pillow
 playwright
 slowapi

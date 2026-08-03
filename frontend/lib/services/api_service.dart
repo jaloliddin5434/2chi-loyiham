@@ -596,7 +596,13 @@ static const String baseUrl = "http://10.112.30.77:8001";
 
   static Future<Map<String, dynamic>> getMavsumStat() => _statistikaOl('mavsum');
 
-  static Future<void> rasmOl({
+  /// Muvaffaqiyatli bo'lsa backend javobini (kamera1/kamera2 ichida
+  /// operator ekranida DARHOL ko'rsatish uchun kichik "rasm_base64"
+  /// bilan) qaytaradi; aks holda `null`. Chaqiruvchi buni `await`
+  /// QILMASLIGI kerak (fire-and-forget, `.then()` bilan) - aks holda
+  /// kamera sekin javob bersa (5 soniyagacha) operator ekrani shuncha
+  /// vaqt kutib qolar edi.
+  static Future<Map<String, dynamic>?> rasmOl({
     required String mashinaRaqami,
     required String mahsulotNomi,
     required String tur,
@@ -617,24 +623,28 @@ static const String baseUrl = "http://10.112.30.77:8001";
     }
     if (response != null) {
       _check401(response);
-      if (response.statusCode == 200) return;
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
       if (response.statusCode != 401) {
         // Server javob berdi, lekin rad etdi (masalan 502 - ikkala
         // kamera ham javob bermadi). Qayta urinish kamera holatini
         // o'zgartirmaydi, shu sabab offline navbatga QO'YILMAYDI -
         // backend allaqachon tizim_xatolari jadvaliga yozgan.
-        return;
+        return null;
       }
       // 401 - token tugagan; pastdagi offline navbatga tushadi, qayta
       // login qilingach keyingi sinxronizatsiyada avtomatik qayta uriniladi.
     }
     // Server bilan aloqa bo'lmadi yoki token tugagan (401) - offline
-    // navbatga qo'yamiz.
+    // navbatga qo'yamiz. Bu holatda rasm ko'rsatib bo'lmaydi (hali
+    // olinmagan), shuning uchun `null` qaytariladi.
     await OfflineService.rasmQosh({
       'mashina_raqami': mashinaRaqami,
       'mahsulot_nomi': mahsulotNomi,
       'tur': tur,
     });
+    return null;
   }
 
  static Future<void> sozlamaSaqla(Map<String, dynamic> data) async {

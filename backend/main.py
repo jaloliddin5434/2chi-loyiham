@@ -6,7 +6,7 @@ from sqlalchemy import func, cast, Date
 from sqlalchemy.engine import make_url
 from database import engine, get_db, Base, SessionLocal
 from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi
-from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash
+from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash, UserHolatYangilash
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
 from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL
 from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
@@ -160,6 +160,43 @@ def user_parolini_yangilash(user_id: int, data: UserParolYangilash, db: Session 
     foydalanuvchi.password = hash_password(data.yangi_parol)
     db.commit()
     return {"status": "ok"}
+
+@app.put("/users/{user_id}/holat")
+def user_holatini_yangilash(user_id: int, data: UserHolatYangilash, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+    foydalanuvchi = db.query(User).filter(User.id == user_id).first()
+    if not foydalanuvchi:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi!")
+
+    if not data.is_active:
+        # 1-himoya: admin o'zini-o'zi faolsizlantira olmaydi - aks holda
+        # tizimga umuman kira olmay qolishi mumkin.
+        if foydalanuvchi.id == current_user.get("id"):
+            raise HTTPException(status_code=400, detail="O'zingizni faolsizlantira olmaysiz!")
+
+        # 2-himoya (qo'shimcha ehtiyot chorasi): bu amaldan keyin tizimda
+        # bironta ham faol admin qolmasligi mumkin bo'lsa - rad etiladi.
+        # (1-himoya tufayli bu holat amalda deyarli sodir bo'lmaydi, chunki
+        # amalni bajarayotgan admin har doim faol qoladi, lekin kelajakda
+        # kod o'zgarsa ham tizim qulflanib qolmasligi uchun qo'shimcha
+        # tekshiruv sifatida saqlanadi.)
+        if foydalanuvchi.role == "admin":
+            faol_adminlar = db.query(User).filter(
+                User.role == "admin",
+                User.is_active == True,  # noqa: E712
+                User.id != foydalanuvchi.id,
+            ).count()
+            if faol_adminlar == 0:
+                raise HTTPException(status_code=400, detail="Oxirgi faol adminni faolsizlantirib bo'lmaydi!")
+
+    foydalanuvchi.is_active = data.is_active
+    db.commit()
+    db.refresh(foydalanuvchi)
+    return {
+        "id": foydalanuvchi.id,
+        "username": foydalanuvchi.username,
+        "role": foydalanuvchi.role,
+        "is_active": foydalanuvchi.is_active,
+    }
 
 # ============ MASHINALAR ============
 

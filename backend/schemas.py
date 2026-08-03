@@ -43,6 +43,9 @@ class UserParolYangilash(BaseModel):
             raise ValueError("Parol kamida 6 belgidan iborat bo'lishi kerak!")
         return qiymat
 
+class UserHolatYangilash(BaseModel):
+    is_active: bool
+
 class UserLogin(BaseModel):
     username: str
     password: str

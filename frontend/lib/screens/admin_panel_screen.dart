@@ -3092,7 +3092,14 @@ Widget _mashinaGrafik() {
     final parolCtrl2 = TextEditingController();
     final parol2Ctrl = TextEditingController();
     final String rol = f['role'] ?? 'operator';
-    return Container(
+    final bool faol = f['is_active'] ?? true;
+    // Joriy login qilgan foydalanuvchining o'zi - o'zini-o'zi
+    // faolsizlantirmasligi uchun tugma shu qatorda yashiriladi (haqiqiy
+    // himoya backendda, bu faqat qulaylik/oldini olish uchun).
+    final bool ozi = f['username'] == widget.username;
+    return Opacity(
+      opacity: faol ? 1.0 : 0.55,
+      child: Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -3113,13 +3120,55 @@ Widget _mashinaGrafik() {
         Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-          Text(_rolYorligi(rol), style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF0D1B2A))),
+          Row(children: [
+            Text(_rolYorligi(rol), style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0D1B2A))),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                  color: faol
+                      ? greenLight.withOpacity(0.15)
+                      : redColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(6)),
+              child: Text(faol ? "Faol" : "Faolsiz",
+                  style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: faol ? greenLight : redColor)),
+            ),
+          ]),
           Text("Login: ${f['username']}",
               style: const TextStyle(fontSize: 11, color: muted)),
         ])),
+        if (!ozi)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ElevatedButton.icon(
+              onPressed: () => _foydalanuvchiHolatiniOzgartir(f, !faol),
+              icon: Icon(faol ? Icons.block : Icons.check_circle, size: 14),
+              label: Text(faol ? "Faolsizlantirish" : "Faollashtirish",
+                  style: const TextStyle(fontSize: 11)),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: faol ? redColor : greenLight,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8))),
+            ),
+          )
+        else
+          const Padding(
+            padding: EdgeInsets.only(right: 8),
+            child: Tooltip(
+              message: "O'zingizni faolsizlantira olmaysiz",
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(Icons.info_outline, size: 16, color: muted),
+              ),
+            ),
+          ),
         ElevatedButton.icon(
           onPressed: () async {
             await showDialog(
@@ -3235,7 +3284,75 @@ Widget _mashinaGrafik() {
                   borderRadius: BorderRadius.circular(8))),
         ),
       ]),
+      ),
     );
+  }
+
+  void _foydalanuvchiHolatiniOzgartir(Map<String, dynamic> f, bool yangiHolat) async {
+    final rol = f['role'] ?? 'operator';
+    final tasdiqlandi = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+            yangiHolat ? "Faollashtirish" : "Faolsizlantirish",
+            style: const TextStyle(color: Color(0xFF0D1B2A), fontSize: 14)),
+        content: Text(
+            yangiHolat
+                ? "${f['username']} (${_rolYorligi(rol)}) qayta faollashtirilsinmi? U yana tizimga kira oladi."
+                : "${f['username']} (${_rolYorligi(rol)}) faolsizlantirilsinmi? U tizimga kira olmay qoladi.",
+            style: const TextStyle(fontSize: 12)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text("Bekor")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: yangiHolat ? greenLight : redColor),
+            child: Text(yangiHolat ? "Faollashtirish" : "Faolsizlantirish",
+                style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (tasdiqlandi != true) return;
+
+    bool muvaffaqiyatli = false;
+    String? xatoMatni;
+    try {
+      final javob = await http.put(
+        Uri.parse('${ApiService.baseUrl}/users/${f['id']}/holat'),
+        headers: ApiService.authHeaders(),
+        body: jsonEncode({'is_active': yangiHolat}),
+      );
+      muvaffaqiyatli = javob.statusCode == 200;
+      if (!muvaffaqiyatli) {
+        try {
+          final govda = jsonDecode(utf8.decode(javob.bodyBytes));
+          final detail = govda['detail'];
+          if (detail is String) xatoMatni = detail;
+        } catch (_) {}
+      }
+    } catch (e) {}
+
+    if (!mounted) return;
+    if (!muvaffaqiyatli) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(xatoMatni ?? "Holatni o'zgartirishda xatolik yuz berdi!"),
+            backgroundColor: Colors.red),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text(yangiHolat
+              ? "${f['username']} faollashtirildi!"
+              : "${f['username']} faolsizlantirildi!"),
+          backgroundColor: Colors.green),
+    );
+    foydalanuvchilarniYukla();
   }
 
   void _yangiiFoydalanuvchiQosh() async {

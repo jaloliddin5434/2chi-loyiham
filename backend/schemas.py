@@ -1,6 +1,5 @@
 from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
-from datetime import datetime
 from models import HujjatHolati
 
 RUXSAT_ETILGAN_ROLLAR = ("admin", "operator", "hisobchi")
@@ -57,9 +56,29 @@ class Token(BaseModel):
     role: str
     username: str
 
-class MahsulotCreate(BaseModel):
-    nom: str
-    konditsiya_bor: bool = False
+class MahsulotNarxiCreate(BaseModel):
+    narx: float
+
+    @field_validator('narx')
+    @classmethod
+    def narx_tekshiruv(cls, qiymat):
+        if qiymat is None or qiymat <= 0:
+            raise ValueError("Narx musbat son bo'lishi kerak!")
+        return qiymat
+
+class PinOrnatish(BaseModel):
+    eski_pin: Optional[str] = None
+    yangi_pin: str
+
+    @field_validator('yangi_pin')
+    @classmethod
+    def yangi_pin_tekshiruv(cls, qiymat):
+        if not qiymat or not qiymat.isdigit() or len(qiymat) != 4:
+            raise ValueError("PIN aynan 4 ta raqamdan iborat bo'lishi kerak!")
+        return qiymat
+
+class PinTekshirish(BaseModel):
+    pin: str
 
 class FirmaCreate(BaseModel):
     nom: str

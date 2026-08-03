@@ -34,6 +34,19 @@ class Firma(Base):
     nom = Column(String, unique=True, nullable=False, index=True)
     created_at = Column(DateTime, default=func.now())
 
+class MahsulotNarxi(Base):
+    # Har safar narx o'zgartirilganda YANGI qator qo'shiladi (eskisi
+    # hech qachon o'zgartirilmaydi/o'chirilmaydi) - shu bilan to'liq
+    # tarix saqlanadi. Bitta hujjat uchun daromad hisoblanganda, o'sha
+    # hujjat yaratilgan paytda kuchda bo'lgan ENG SO'NGGI narx qidiriladi
+    # (created_at <= hujjat.created_at), shunda eski hujjatlar narx
+    # o'zgargandan keyin ham to'g'ri (eski) narxda hisoblanadi.
+    __tablename__ = "mahsulot_narxlari"
+    id = Column(Integer, primary_key=True, index=True)
+    mahsulot_id = Column(Integer, ForeignKey("mahsulotlar.id", ondelete="CASCADE"), index=True)
+    narx = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=func.now())
+
 class Mashina(Base):
     __tablename__ = "mashinalar"
     id = Column(Integer, primary_key=True, index=True)

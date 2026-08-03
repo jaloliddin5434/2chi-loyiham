@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
 from sqlalchemy.engine import make_url
 from database import engine, get_db, Base, SessionLocal
-from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi, Firma
-from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash, UserHolatYangilash, FirmaCreate
-from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
+from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi, Firma, MahsulotNarxi, Sozlama
+from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash, UserHolatYangilash, FirmaCreate, MahsulotNarxiCreate, PinOrnatish, PinTekshirish
+from auth import verify_password, create_access_token, hash_password, get_current_user, require_role, require_moliyaviy_ruxsat
 from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL
 from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
 from datetime import datetime
@@ -266,6 +266,166 @@ def mahsulotlar_royxati(db: Session = Depends(get_db)):
     # Login'dan OLDINGI mahsulot-tanlash ekrani shu endpointni tokensiz chaqiradi,
     # shuning uchun bu yerda autentifikatsiya talab qilinmaydi.
     return db.query(Mahsulot).filter(Mahsulot.is_active == True).all()
+
+# Narx - moliyaviy ma'lumot, shuning uchun oddiy "admin" roli YETARLI
+# EMAS - require_moliyaviy_ruxsat() orqali alohida PIN-tokeni talab
+# qilinadi (qarang: auth.py, POST /moliyaviy/pin-tekshir).
+@app.post("/mahsulotlar/{mahsulot_id}/narx")
+def mahsulot_narxi_qoshish(mahsulot_id: int, data: MahsulotNarxiCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_moliyaviy_ruxsat)):
+    mahsulot = db.query(Mahsulot).filter(Mahsulot.id == mahsulot_id).first()
+    if not mahsulot:
+        raise HTTPException(status_code=404, detail="Mahsulot topilmadi!")
+    yangi = MahsulotNarxi(mahsulot_id=mahsulot_id, narx=data.narx)
+    db.add(yangi)
+    db.commit()
+    db.refresh(yangi)
+    return yangi
+
+@app.get("/mahsulotlar/narxlar")
+def mahsulotlar_narxlari(db: Session = Depends(get_db), current_user: dict = Depends(require_moliyaviy_ruxsat)):
+    mahsulotlar = db.query(Mahsulot).filter(Mahsulot.is_active == True).all()
+    natija = []
+    for m in mahsulotlar:
+        tarix = db.query(MahsulotNarxi).filter(
+            MahsulotNarxi.mahsulot_id == m.id
+        ).order_by(MahsulotNarxi.created_at.desc()).all()
+        natija.append({
+            "mahsulot_id": m.id,
+            "mahsulot_nomi": m.nom,
+            "hozirgi_narx": tarix[0].narx if tarix else None,
+            "tarix": [{"id": t.id, "narx": t.narx, "created_at": str(t.created_at)} for t in tarix],
+        })
+    return natija
+
+# ============ MOLIYAVIY HISOBOT ============
+# PIN bilan himoyalangan bo'lim - qarang: auth.py require_moliyaviy_ruxsat().
+# PIN xeshi Sozlama jadvalida "moliyaviy_pin_hash" kaliti ostida
+# saqlanadi (umumiy GET /sozlamalar javobidan ATAYLAB chiqarib
+# tashlanadi - qarang pastda sozlamalar_olish()).
+
+MOLIYAVIY_PIN_SOZLAMA_KALIT = "moliyaviy_pin_hash"
+MOLIYAVIY_TOKEN_MUDDATI_DAQIQA = 20
+
+@app.put("/moliyaviy/pin")
+@limiter.limit("5/minute")
+def moliyaviy_pin_ornatish(request: Request, data: PinOrnatish, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+    sozlama = db.query(Sozlama).filter(Sozlama.kalit == MOLIYAVIY_PIN_SOZLAMA_KALIT).first()
+    if sozlama and sozlama.qiymat:
+        # PIN allaqachon o'rnatilgan - ESKI PIN to'g'ri kiritilishi
+        # SHART, aks holda PIN'ni bilmagan admin ham uni o'ziga mos
+        # qilib qayta o'rnatib, butun himoyani chetlab o'tishi mumkin edi.
+        if not data.eski_pin or not verify_password(data.eski_pin, sozlama.qiymat):
+            raise HTTPException(status_code=401, detail="Eski PIN noto'g'ri!")
+        sozlama.qiymat = hash_password(data.yangi_pin)
+        sozlama.updated_at = datetime.now()
+    else:
+        # Birinchi marta o'rnatish - eski PIN talab qilinmaydi.
+        db.add(Sozlama(kalit=MOLIYAVIY_PIN_SOZLAMA_KALIT, qiymat=hash_password(data.yangi_pin)))
+    db.commit()
+    return {"status": "ok"}
+
+@app.post("/moliyaviy/pin-tekshir")
+@limiter.limit("5/minute")
+def moliyaviy_pin_tekshir(request: Request, data: PinTekshirish, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+    sozlama = db.query(Sozlama).filter(Sozlama.kalit == MOLIYAVIY_PIN_SOZLAMA_KALIT).first()
+    if not sozlama or not sozlama.qiymat:
+        raise HTTPException(status_code=400, detail="PIN hali o'rnatilmagan - avval PIN o'rnating!")
+    if not verify_password(data.pin, sozlama.qiymat):
+        raise HTTPException(status_code=401, detail="PIN noto'g'ri!")
+    token = create_access_token(
+        {"sub": current_user["sub"], "role": current_user["role"], "id": current_user["id"],
+         "moliyaviy_ruxsat": True},
+        expires_minutes=MOLIYAVIY_TOKEN_MUDDATI_DAQIQA,
+    )
+    return {"moliyaviy_token": token, "muddat_daqiqa": MOLIYAVIY_TOKEN_MUDDATI_DAQIQA}
+
+
+def _moliyaviy_davr_boshi(davr: str):
+    from datetime import date, timedelta
+    bugun = date.today()
+    if davr == "kunlik":
+        return bugun
+    if davr == "haftalik":
+        return bugun - timedelta(days=7)
+    if davr == "oylik":
+        return bugun.replace(day=1)
+    if davr == "mavsum":
+        # Mavsum: 1 Avgust dan 31 Iyul gacha - /statistika/mavsum bilan
+        # BIR XIL qoida (Excel jurnaldagi kalendar-yil qoidasidan farqli).
+        if bugun.month >= 8:
+            return date(bugun.year, 8, 1)
+        return date(bugun.year - 1, 8, 1)
+    raise HTTPException(status_code=400, detail="Davr faqat kunlik/haftalik/oylik/mavsum bo'lishi mumkin!")
+
+
+@app.get("/moliyaviy/hisobot")
+def moliyaviy_hisobot(davr: str, db: Session = Depends(get_db), current_user: dict = Depends(require_moliyaviy_ruxsat)):
+    davr_boshi = _moliyaviy_davr_boshi(davr)
+
+    # Har hujjat uchun alohida netto/konditsion jami - N+1 so'rovsiz,
+    # bitta JOIN+GROUP BY orqali (Olchov.hujjat_id bo'yicha).
+    satrlar = db.query(
+        Hujjat.id, Hujjat.mahsulot_id, Hujjat.created_at,
+        func.coalesce(func.sum(Olchov.netto), 0).label('netto'),
+        func.coalesce(func.sum(Olchov.konditsion), 0).label('konditsion'),
+    ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
+        Hujjat.holat == HujjatHolati.TUGALLANDI,
+        Hujjat.created_at >= davr_boshi,
+    ).group_by(Hujjat.id, Hujjat.mahsulot_id, Hujjat.created_at).all()
+
+    mahsulotlar = {m.id: m for m in db.query(Mahsulot).all()}
+
+    # Barcha narx yozuvlarini BIR MARTA olib, mahsulot bo'yicha
+    # (sana o'sish tartibida) xotirada guruhlash - har hujjat uchun
+    # alohida DB so'rovi shart emas.
+    barcha_narxlar = db.query(MahsulotNarxi).order_by(
+        MahsulotNarxi.mahsulot_id, MahsulotNarxi.created_at).all()
+    narxlar_mahsulot_boyicha = {}
+    for n in barcha_narxlar:
+        narxlar_mahsulot_boyicha.setdefault(n.mahsulot_id, []).append(n)
+
+    def _narxni_top(mahsulot_id, sana):
+        mos_narx = None
+        for n in narxlar_mahsulot_boyicha.get(mahsulot_id, []):
+            if n.created_at <= sana:
+                mos_narx = n.narx
+            else:
+                break
+        return mos_narx
+
+    natija = {}
+    for satr in satrlar:
+        mahsulot = mahsulotlar.get(satr.mahsulot_id)
+        if not mahsulot:
+            continue
+        asos_kg = satr.konditsion if mahsulot.konditsiya_bor else satr.netto
+
+        yozuv = natija.setdefault(satr.mahsulot_id, {
+            "mahsulot_id": satr.mahsulot_id,
+            "mahsulot_nomi": mahsulot.nom,
+            "asos": "konditsion" if mahsulot.konditsiya_bor else "netto",
+            "jami_kg": 0.0,
+            "daromad": 0.0,
+            "narxsiz_hujjatlar_soni": 0,
+        })
+        yozuv["jami_kg"] += asos_kg
+
+        narx = _narxni_top(satr.mahsulot_id, satr.created_at)
+        if narx is None:
+            yozuv["narxsiz_hujjatlar_soni"] += 1
+            continue
+        yozuv["daromad"] += asos_kg * narx
+
+    for yozuv in natija.values():
+        yozuv["jami_kg"] = round(yozuv["jami_kg"], 2)
+        yozuv["daromad"] = round(yozuv["daromad"], 2)
+
+    return {
+        "davr": davr,
+        "davr_boshi": str(davr_boshi),
+        "mahsulotlar": list(natija.values()),
+        "jami_daromad": round(sum(v["daromad"] for v in natija.values()), 2),
+    }
 
 # ============ HUJJATLAR ============
 
@@ -1208,7 +1368,7 @@ def haftalik_statistika(db: Session = Depends(get_db), current_user: dict = Depe
 
 @app.get("/statistika/oylik")
 def oylik_statistika(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    from datetime import date, timedelta
+    from datetime import date
     bugun = date.today()
     oy_boshi = bugun.replace(day=1)
 
@@ -1309,8 +1469,6 @@ def mavsum_statistika(db: Session = Depends(get_db), current_user: dict = Depend
     # ============ BACKUP ============
 
 import os
-import shutil
-from datetime import datetime
 
 @app.post("/backup")
 def backup_qilish(current_user: dict = Depends(require_role("admin"))):
@@ -1569,7 +1727,7 @@ backup_thread = threading.Thread(target=avtomatik_backup, daemon=True)
 backup_thread.start()
 # ============ EXCEL HISOBOT ============
 import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.styles import Font, PatternFill
 
 # excel_qatorga_yoz() har chaqiruvda BUTUN faylni o'qib-qo'shib-qayta
 # yozadi (openpyxl xotirada ishlaydi, qatorma-qator "qo'shish" imkonini
@@ -1832,7 +1990,6 @@ def excel_qatorga_yoz(hujjat_id, db):
         print(f"Excel xato: {e}")
 
 # ============ SOZLAMALAR ============
-from models import Sozlama
 
 @app.get("/sozlamalar")
 def sozlamalar_olish(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -1846,10 +2003,24 @@ def sozlamalar_olish(db: Session = Depends(get_db), current_user: dict = Depends
     # tokeni) admin/hisobchi bo'lmagan rollardan yashiriladi.
     if current_user.get("role") not in ("admin", "hisobchi"):
         natija.pop("telegram_token", None)
+    # Moliyaviy PIN xeshi HECH QACHON (hatto admin/hisobchiga ham) shu
+    # umumiy endpoint orqali qaytarilmaydi - buni faqat maxsus
+    # /moliyaviy/pin-tekshir orqali (xeshning o'zi emas, faqat
+    # to'g'ri/xato natija) bilish mumkin.
+    natija.pop(MOLIYAVIY_PIN_SOZLAMA_KALIT, None)
     return natija
 
 @app.post("/sozlamalar")
 def sozlama_saqlash(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+    # Moliyaviy PIN shu umumiy endpoint orqali O'RNATILISHI/O'ZGARTIRILISHI
+    # MUMKIN EMAS - aks holda /moliyaviy/pin'dagi "eski PIN talab qilinadi"
+    # himoyasi butunlay chetlab o'tilardi (bu yerda hech qanday eski PIN
+    # tekshiruvi yo'q). Faqat PUT /moliyaviy/pin orqali o'zgartiriladi.
+    if MOLIYAVIY_PIN_SOZLAMA_KALIT in data:
+        raise HTTPException(
+            status_code=400,
+            detail="Moliyaviy PIN faqat /moliyaviy/pin orqali o'zgartiriladi!",
+        )
     for kalit, qiymat in data.items():
         mavjud = db.query(Sozlama).filter(Sozlama.kalit == kalit).first()
         if mavjud:
@@ -2474,7 +2645,6 @@ th {{ background: #1A4A08; color: white; font-weight: 600; }}
 
 
 # ============ KAMERA ============
-from pathlib import Path
 import concurrent.futures
 
 def bir_kameradan_rasm_ol(cam_ip, fayl_yol):
@@ -2719,7 +2889,7 @@ def grafik_oylik(db: Session = Depends(get_db), current_user: dict = Depends(get
 
 @app.get("/statistika/grafik/mavsum")
 def grafik_mavsum(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    from datetime import date, timedelta
+    from datetime import date
     bugun = date.today()
     if bugun.month >= 8:
         mavsum_boshi = date(bugun.year, 8, 1)

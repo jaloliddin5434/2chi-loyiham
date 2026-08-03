@@ -61,6 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(
             builder: (context) => AdminPanelScreen(
               username: natija['username'],
+              rol: natija['role'],
             ),
           ),
         );

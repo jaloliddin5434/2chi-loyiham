@@ -7,6 +7,11 @@ import 'offline_queue_service.dart';
 class ApiService {
 static const String baseUrl = "http://10.112.30.77:8001";
   static String? _token;
+  // Moliyaviy hisobot uchun ALOHIDA, qisqa muddatli (20 daqiqalik) token -
+  // oddiy login tokenidan MUSTAQIL. Faqat to'g'ri PIN kiritilgandan
+  // keyin (moliyaviyPinTekshir()) olinadi, 20 daqiqadan keyin backend
+  // tomonidan avtomatik yaroqsiz bo'ladi.
+  static String? _moliyaviyToken;
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   static Map<String, String> _headers() {
@@ -16,6 +21,22 @@ static const String baseUrl = "http://10.112.30.77:8001";
     }
     return headers;
   }
+
+  static Map<String, String> _moliyaviyHeaders() {
+    final headers = {'Content-Type': 'application/json'};
+    if (_moliyaviyToken != null) {
+      headers['Authorization'] = 'Bearer $_moliyaviyToken';
+    }
+    return headers;
+  }
+
+  /// Foydalanuvchi bo'limdan chiqganda yoki qulflanganda chaqiriladi -
+  /// keyingi safar PIN qayta so'raladi.
+  static void moliyaviyChiqish() {
+    _moliyaviyToken = null;
+  }
+
+  static bool get moliyaviyOchiqmi => _moliyaviyToken != null;
 
   /// [maydonlar]dagi har bir maydon hali sinxronlanmagan "yerli ID"
   /// (manfiy int, [OfflineQueueService.yerliIdBiriktir] orqali berilgan)
@@ -91,6 +112,96 @@ static const String baseUrl = "http://10.112.30.77:8001";
       }
     } catch (e) {}
     return [];
+  }
+
+  /// PIN to'g'ri kiritilsa - moliyaviy token ichki holatga saqlanadi va
+  /// `null` qaytadi (muvaffaqiyat). Xato bo'lsa - foydalanuvchiga
+  /// ko'rsatiladigan xabar (masalan "PIN noto'g'ri!") qaytadi.
+  static Future<String?> moliyaviyPinTekshir(String pin) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/moliyaviy/pin-tekshir'),
+        headers: _headers(),
+        body: jsonEncode({'pin': pin}),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        _moliyaviyToken = data['moliyaviy_token'];
+        return null;
+      }
+      final govda = jsonDecode(utf8.decode(response.bodyBytes));
+      return govda['detail']?.toString() ?? "PIN tekshirishda xatolik yuz berdi!";
+    } catch (e) {
+      return "Serverga ulanishda xatolik yuz berdi!";
+    }
+  }
+
+  /// [eskiPin] faqat PIN allaqachon o'rnatilgan bo'lsa kerak - birinchi
+  /// marta o'rnatishda `null` qoldiriladi.
+  static Future<String?> moliyaviyPinOrnatish({String? eskiPin, required String yangiPin}) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/moliyaviy/pin'),
+        headers: _headers(),
+        body: jsonEncode({'eski_pin': eskiPin, 'yangi_pin': yangiPin}),
+      );
+      if (response.statusCode == 200) return null;
+      final govda = jsonDecode(utf8.decode(response.bodyBytes));
+      return govda['detail']?.toString() ?? "PIN o'rnatishda xatolik yuz berdi!";
+    } catch (e) {
+      return "Serverga ulanishda xatolik yuz berdi!";
+    }
+  }
+
+  /// `davr`: "kunlik" | "haftalik" | "oylik" | "mavsum". Moliyaviy token
+  /// yaroqsiz/yo'q bo'lsa `null` qaytadi - chaqiruvchi PIN oynasini
+  /// qayta ko'rsatishi kerak.
+  static Future<Map<String, dynamic>?> moliyaviyHisobotOl(String davr) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/moliyaviy/hisobot?davr=$davr'),
+        headers: _moliyaviyHeaders(),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+      if (response.statusCode == 403) {
+        moliyaviyChiqish();
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  static Future<List<dynamic>> moliyaviyNarxlarniOl() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/mahsulotlar/narxlar'),
+        headers: _moliyaviyHeaders(),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+      if (response.statusCode == 403) {
+        moliyaviyChiqish();
+      }
+    } catch (e) {}
+    return [];
+  }
+
+  static Future<String?> moliyaviyNarxQoshish(int mahsulotId, double narx) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/mahsulotlar/$mahsulotId/narx'),
+        headers: _moliyaviyHeaders(),
+        body: jsonEncode({'narx': narx}),
+      );
+      if (response.statusCode == 200) return null;
+      if (response.statusCode == 403) moliyaviyChiqish();
+      final govda = jsonDecode(utf8.decode(response.bodyBytes));
+      return govda['detail']?.toString() ?? "Narx qo'shishda xatolik yuz berdi!";
+    } catch (e) {
+      return "Serverga ulanishda xatolik yuz berdi!";
+    }
   }
 
   static Future<Map<String, dynamic>> login(

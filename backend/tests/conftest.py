@@ -169,9 +169,34 @@ def operator_headers(operator_user):
 
 
 @pytest.fixture()
+def moliyaviy_headers(admin_user):
+    """To'g'ridan-to'g'ri (PIN/tezlik-cheklovisiz) moliyaviy token -
+    admin_headers kabi, faqat hisobot/narx testlari uchun. PIN'ning
+    o'zini sinovdan o'tkazish uchun test_moliyaviy_pin.py haqiqiy
+    /moliyaviy/pin-tekshir orqali o'tadi (bu yerda emas)."""
+    from auth import create_access_token
+    token = create_access_token(
+        {"sub": admin_user.username, "role": admin_user.role, "id": admin_user.id,
+         "moliyaviy_ruxsat": True},
+        expires_minutes=20,
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
 def mahsulot_chigit(db_session):
     from models import Mahsulot
     m = Mahsulot(nom="Chigit", konditsiya_bor=True, is_active=True)
+    db_session.add(m)
+    db_session.commit()
+    db_session.refresh(m)
+    return m
+
+
+@pytest.fixture()
+def mahsulot_chiganoq(db_session):
+    from models import Mahsulot
+    m = Mahsulot(nom="Chiganoq", konditsiya_bor=False, is_active=True)
     db_session.add(m)
     db_session.commit()
     db_session.refresh(m)

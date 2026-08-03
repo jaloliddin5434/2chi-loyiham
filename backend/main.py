@@ -11,6 +11,7 @@ from auth import verify_password, create_access_token, hash_password, get_curren
 from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL
 from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
 from datetime import datetime
+import html
 import io
 from pathlib import Path
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -2420,6 +2421,59 @@ def bir_kameradan_rasm_ol(cam_ip, fayl_yol):
         tizim_xatosini_saqla("kamera", str(e))
         return {"status": "error", "message": str(e)}
 
+
+# Kamera Telegram ogohlantirishi: har bir arava saqlanganda kamera
+# chaqirilgani uchun (kuniga o'nlab/yuzlab marta) HAR bir xatoda xabar
+# yuborilsa Telegram guruh spam bilan to'lib ketadi. Shu sabab har
+# kamera (IP) uchun ALOHIDA ketma-ket xatolar hisoblanadi - faqat
+# KAMERA_XATO_CHEGARA marta ketma-ket muvaffaqiyatsiz bo'lsa bitta
+# ogohlantirish yuboriladi, keyingi xatolarda esa (tuzalmaguncha)
+# qayta yuborilmaydi. Holat xotirada saqlanadi (DB shart emas) -
+# server qayta ishga tushirilsa hisoblagich nolga tushadi, bu
+# zararsiz (faqat qayta 3 marta xato kerak bo'ladi, xolos).
+KAMERA_XATO_CHEGARA = 3
+
+_kamera_holati = {
+    KAMERA_1_IP: {"ketma_ket": 0, "ogohlantirilgan": False},
+    KAMERA_2_IP: {"ketma_ket": 0, "ogohlantirilgan": False},
+}
+
+
+def kamera_xatosi_ogohlantirish(cam_nomi: str, cam_ip: str, natija: dict,
+                                 mashina_raqami: str, mahsulot_nomi: str, tur: str):
+    holat = _kamera_holati.get(cam_ip)
+    if holat is None:
+        holat = {"ketma_ket": 0, "ogohlantirilgan": False}
+        _kamera_holati[cam_ip] = holat
+
+    if natija["status"] == "error":
+        holat["ketma_ket"] += 1
+        if holat["ketma_ket"] >= KAMERA_XATO_CHEGARA and not holat["ogohlantirilgan"]:
+            holat["ogohlantirilgan"] = True
+            vaqt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # html.escape(): natija["message"] xom Python exception matni
+            # bo'lishi mumkin (masalan "<HTTPConnection(...) at 0x...>"
+            # kabi burchakli qavslar bilan) - parse_mode=HTML bunday
+            # matnni noto'g'ri teg deb Telegram butun xabarni rad etadi
+            # (400 Bad Request), aynan ogohlantirish kerak bo'lgan paytda
+            # yetib bormay qolishi mumkin edi.
+            matn = (
+                f"⚠️ <b>Kamera xatosi</b>\n\n"
+                f"Kamera: {html.escape(cam_nomi)} ({html.escape(cam_ip)})\n"
+                f"Mashina: {html.escape(mashina_raqami)}\n"
+                f"Mahsulot: {html.escape(mahsulot_nomi)} ({html.escape(tur)})\n"
+                f"Vaqt: {vaqt}\n"
+                f"Xato: {html.escape(natija['message'])}\n\n"
+                f"({holat['ketma_ket']} marta ketma-ket muvaffaqiyatsiz)"
+            )
+            telegram_xabar_yuborish(matn)
+    else:
+        if holat["ogohlantirilgan"]:
+            telegram_xabar_yuborish(f"✅ Kamera {cam_nomi} ({cam_ip}) qayta ishlay boshladi.")
+        holat["ketma_ket"] = 0
+        holat["ogohlantirilgan"] = False
+
+
 @app.post("/kamera/rasm")
 def rasm_ol(data: dict, current_user: dict = Depends(get_current_user)):
     # DIQQAT: bu qiymatlar operator ekranidagi JONLI matn maydonidan
@@ -2453,6 +2507,9 @@ def rasm_ol(data: dict, current_user: dict = Depends(get_current_user)):
         future2 = executor.submit(bir_kameradan_rasm_ol, KAMERA_2_IP, fayl2)
         natija1 = future1.result()
         natija2 = future2.result()
+
+    kamera_xatosi_ogohlantirish("Kamera 1", KAMERA_1_IP, natija1, mashina_raqami, mahsulot_nomi, tur)
+    kamera_xatosi_ogohlantirish("Kamera 2", KAMERA_2_IP, natija2, mashina_raqami, mahsulot_nomi, tur)
 
     # Ikkala kamera ham muvaffaqiyatsiz bo'lsa - bu haqiqiy "yuqori oqim"
     # (kamera qurilmasi) xatosi, frontend buni ANIQ ko'rishi va offline

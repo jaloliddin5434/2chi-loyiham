@@ -78,6 +78,21 @@ static const String baseUrl = "http://10.112.30.77:8001";
     ];
   }
 
+  /// Mavjud firma nomlari ro'yxati (operator ekranidagi autocomplete
+  /// uchun). Bo'sh ro'yxat qaytsa ham xato emas - operator baribir
+  /// erkin matn kiritishda davom eta oladi.
+  static Future<List<String>> getFirmalar() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/firmalar'), headers: _headers());
+      _check401(response);
+      if (response.statusCode == 200) {
+        final List natija = jsonDecode(utf8.decode(response.bodyBytes));
+        return natija.map((f) => f['nom'].toString()).toList();
+      }
+    } catch (e) {}
+    return [];
+  }
+
   static Future<Map<String, dynamic>> login(
       String username, String password, String role) async {
     final response = await http.post(

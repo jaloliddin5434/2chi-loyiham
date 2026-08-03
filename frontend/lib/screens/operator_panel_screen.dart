@@ -166,6 +166,9 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   final shofyorCtrl = TextEditingController();
   final firmaCtrl =
       TextEditingController(text: "SABZAVOTNAVURUG'LARI MChJ");
+  // Mavjud firma nomlari (autocomplete uchun) - backenddan yuklanadi,
+  // bo'sh bo'lsa ham operator erkin matn kiritishda davom eta oladi.
+  List<String> firmaRoyxati = [];
   final tudaRaqamCtrl = TextEditingController();
   final tiketRaqamCtrl = TextEditingController();
   final seleksiyaNaviCtrl =
@@ -455,6 +458,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     // Backend dan yuklash
     _sozlamalarYukla();
     _backendDanYukla();
+    _firmalarniYukla();
     navbatYangilashTimer = Timer.periodic(
         const Duration(seconds: 5),
         (_) => _backendDanYukla());
@@ -466,6 +470,12 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
 
   void _navbatYangilandi() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _firmalarniYukla() async {
+    final natija = await ApiService.getFirmalar();
+    if (!mounted) return;
+    setState(() => firmaRoyxati = natija);
   }
 
   void _soatniYanila() {
@@ -1703,6 +1713,82 @@ try {
     );
   }
 
+  // Mavjud firmalar ro'yxatidan tanlash MUMKIN, lekin majburiy emas -
+  // ro'yxatda topilmasa operator qo'lda yozib davom etishi kerak (bu
+  // holda backend yangi firmani /mashinalar orqali avtomatik ro'yxatga
+  // qo'shadi). `firmaCtrl` xuddi oldingi oddiy TextField'dagidek to'g'ri
+  // matnni saqlaydi - qolgan kod (saqlash, mashina qidiruv) o'zgarishsiz
+  // ishlayveradi.
+  Widget firmaAutocompleteField() {
+    return Autocomplete<String>(
+      textEditingController: firmaCtrl,
+      optionsBuilder: (TextEditingValue qiymat) {
+        if (qiymat.text.isEmpty) return firmaRoyxati;
+        final soralgan = qiymat.text.toLowerCase();
+        return firmaRoyxati
+            .where((f) => f.toLowerCase().contains(soralgan));
+      },
+      fieldViewBuilder:
+          (context, controller, focusNode, onFieldSubmitted) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.9),
+            border: Border.all(color: brandGreenBorder),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF0D1B2A)),
+            decoration: const InputDecoration(
+              labelText: "Firma nomi",
+              labelStyle: TextStyle(fontSize: 10, color: muted),
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding:
+                  EdgeInsets.symmetric(vertical: 9),
+            ),
+          ),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(8),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                  maxHeight: 200, maxWidth: 280),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: options.length,
+                itemBuilder: (context, index) {
+                  final tanlov = options.elementAt(index);
+                  return InkWell(
+                    onTap: () => onSelected(tanlov),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      child: Text(tanlov,
+                          style:
+                              const TextStyle(fontSize: 13)),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget mrow(String label, String value,
       {bool special = false,
       bool gold = false,
@@ -2568,8 +2654,7 @@ try {
                           shofyorCtrl,
                           enabled: !bazagaSaqlandi),
                       const SizedBox(height: 6),
-                      infoField(
-                          "Firma nomi", firmaCtrl),
+                      firmaAutocompleteField(),
                     ])),
                   ),
                   const SizedBox(width: 12),

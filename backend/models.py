@@ -24,6 +24,16 @@ class Mahsulot(Base):
     konditsiya_bor = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
 
+class Firma(Base):
+    # Faqat qo'shimcha (additive) tanlov ro'yxati - Mashina.firma va
+    # Hujjat.firma ustunlariga bog'lanmagan (FK yo'q), ular hozirgidek
+    # erkin matn bo'lib qoladi. Bu jadval faqat operator ekranidagi
+    # autocomplete uchun "mavjud nomlar" ro'yxatini beradi.
+    __tablename__ = "firmalar"
+    id = Column(Integer, primary_key=True, index=True)
+    nom = Column(String, unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=func.now())
+
 class Mashina(Base):
     __tablename__ = "mashinalar"
     id = Column(Integer, primary_key=True, index=True)

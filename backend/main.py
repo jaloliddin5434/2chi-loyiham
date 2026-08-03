@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
 from sqlalchemy.engine import make_url
 from database import engine, get_db, Base, SessionLocal
-from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi
-from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash, UserHolatYangilash
+from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi, Firma
+from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash, UserHolatYangilash, FirmaCreate
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role
 from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL
 from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
@@ -209,6 +209,7 @@ def mashina_qoshish(mashina: MashinaCreate, db: Session = Depends(get_db), curre
         return mavjud
     yangi = Mashina(**mashina.dict())
     db.add(yangi)
+    firma_royxatga_qoshish(db, mashina.firma)
     db.commit()
     db.refresh(yangi)
     return yangi
@@ -222,6 +223,41 @@ def mashina_qidiruv(raqam: str, db: Session = Depends(get_db), current_user: dic
     return db.query(Mashina).filter(
         Mashina.davlat_raqami.ilike(f"%{raqam}%")
     ).all()
+
+# ============ FIRMALAR ============
+# Faqat qo'shimcha (additive) tanlov ro'yxati - operator ekranidagi
+# autocomplete uchun. Mashina.firma/Hujjat.firma ustunlariga bog'liq
+# emas (FK yo'q), ular hozirgidek erkin matn bo'lib qoladi.
+
+def firma_royxatga_qoshish(db: Session, nom: str | None):
+    """Agar `nom` bo'sh bo'lmasa va Firma jadvalida (katta-kichik harf/
+    probelga sezgir bo'lmagan holda) hali yo'q bo'lsa - yangi qator
+    sifatida qo'shadi. Chaqiruvchi keyin o'zi commit qiladi (bu funksiya
+    faqat db.add() qiladi, tranzaksiyani boshqarmaydi)."""
+    if not nom or not nom.strip():
+        return
+    toza_nom = nom.strip()
+    mavjud = db.query(Firma).filter(func.lower(Firma.nom) == toza_nom.lower()).first()
+    if mavjud:
+        return
+    db.add(Firma(nom=toza_nom))
+
+
+@app.get("/firmalar")
+def firmalar_royxati(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    return db.query(Firma).order_by(Firma.nom).all()
+
+
+@app.post("/firmalar")
+def firma_qoshish(firma: FirmaCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+    mavjud = db.query(Firma).filter(func.lower(Firma.nom) == firma.nom.lower()).first()
+    if mavjud:
+        raise HTTPException(status_code=409, detail=f"'{firma.nom}' firmasi allaqachon ro'yxatda bor!")
+    yangi = Firma(nom=firma.nom)
+    db.add(yangi)
+    db.commit()
+    db.refresh(yangi)
+    return yangi
 
 # ============ MAHSULOTLAR ============
 
@@ -774,6 +810,9 @@ def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, db: Session = Depends(g
         if key in ("sabab", "namlik", "ifloslik"):
             continue
         setattr(hujjat, key, value)
+
+    if "firma" in payload:
+        firma_royxatga_qoshish(db, payload["firma"])
 
     if olchov_ozgargan_maydonlar:
         for maydon in olchov_ozgargan_maydonlar:

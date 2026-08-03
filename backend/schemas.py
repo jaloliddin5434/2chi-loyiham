@@ -61,6 +61,16 @@ class MahsulotCreate(BaseModel):
     nom: str
     konditsiya_bor: bool = False
 
+class FirmaCreate(BaseModel):
+    nom: str
+
+    @field_validator('nom')
+    @classmethod
+    def nom_tekshiruv(cls, qiymat):
+        if not qiymat or not qiymat.strip():
+            raise ValueError("Firma nomi bo'sh bo'lishi mumkin emas!")
+        return qiymat.strip()
+
 class MashinaCreate(BaseModel):
     davlat_raqami: str
     turi: str

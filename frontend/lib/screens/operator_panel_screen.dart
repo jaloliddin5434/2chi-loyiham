@@ -127,13 +127,18 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   // saqlaydi - bitta umumiy "so'nggi surat" joyi emas.
   final Map<int, Map<String, Uint8List?>> kameraRasmlari = {};
 
-  /// Hozir ekranda ko'rsatilayotgan (joriy tanlangan) mashinaning
-  /// hujjatId'si - kod bo'ylab boshqa joylarda ham ishlatiladigan
-  /// naqsh bilan bir xil.
-  int? get _joriyKameraHujjatId => tanlanganNavbat?.hujjatId ?? hujjatId;
+  /// Hozir KAMERALAR bo'limida ko'rsatilishi kerak bo'lgan hujjatId -
+  /// eng oxirgi Tara/Brutto AMALI qaysi hujjat uchun bajarilgan bo'lsa,
+  /// o'sha. ATAYLAB `tanlanganNavbat?.hujjatId ?? hujjatId`dan alohida
+  /// saqlanadi: mashina "Tugallandi" bo'lganda `tanlanganNavbat` null
+  /// bo'lib qoladi va (agar operator shu orada boshqa mashina uchun
+  /// Tara ham ulgurgan bo'lsa) umumiy `hujjatId` maydoni BOSHQA
+  /// mashinaga ishora qilib qolishi mumkin - shu sabab suratlar
+  /// ko'rsatilmay qolib ketardi.
+  int? _kameraKorsatishHujjatId;
 
   Uint8List? _kameraRasmi(String kalit) =>
-      kameraRasmlari[_joriyKameraHujjatId]?[kalit];
+      kameraRasmlari[_kameraKorsatishHujjatId]?[kalit];
 
   /// [tur] - "tara" yoki "brutto". Rasm olishni ishga tushiradi, lekin
   /// `await` QILMAYDI (fire-and-forget) - kamera sekin javob bersa
@@ -142,18 +147,25 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   /// ekran yangilanadi. Maqsad hujjatId chaqiruv PAYTIDA saqlab
   /// qo'yiladi - shunda operator javob kutilayotgan payt boshqa
   /// mashinaga o'tib ketsa ham, rasm noto'g'ri mashinaga yozilmaydi.
+  ///
+  /// Har safar (Tara alohida, Brutto alohida) FAQAT shu amalning o'zi
+  /// olgan 2 ta rasmi ko'rsatiladi - shu hujjat uchun eski (oldingi
+  /// Tara yoki Brutto) rasmlar shu yerda butunlay almashtiriladi.
   void _kameraRasmOl(String tur) {
-    final maqsadHujjatId = _joriyKameraHujjatId;
+    final maqsadHujjatId = tanlanganNavbat?.hujjatId ?? hujjatId;
+    if (maqsadHujjatId == null) return;
+    _kameraKorsatishHujjatId = maqsadHujjatId;
     ApiService.rasmOl(
       mashinaRaqami: raqamiCtrl.text,
       mahsulotNomi: widget.mahsulotNomi,
       tur: tur,
     ).then((natija) {
-      if (natija == null || !mounted || maqsadHujjatId == null) return;
+      if (natija == null || !mounted) return;
       final kamera1 = natija['kamera1'] as Map<String, dynamic>?;
       final kamera2 = natija['kamera2'] as Map<String, dynamic>?;
       setState(() {
-        final joy = kameraRasmlari.putIfAbsent(maqsadHujjatId, () => {});
+        final joy = <String, Uint8List?>{};
+        kameraRasmlari[maqsadHujjatId] = joy;
         if (kamera1 != null && kamera1['rasm_base64'] != null) {
           try {
             joy['${tur}_cam1'] =
@@ -799,6 +811,15 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       },
     });
 
+    setState(() {
+      // "Keyingi mashina" bosildi - shu mashinaning kamera suratlari
+      // endi kerak emas (Brutto qaytib kelganda o'z rasmini olib,
+      // qaytadan ko'rsatadi).
+      kameraRasmlari.remove(hujjatId);
+      if (_kameraKorsatishHujjatId == hujjatId) {
+        _kameraKorsatishHujjatId = null;
+      }
+    });
    await _tozala();
     _xabar("✅ Mashina navbatga qo'shildi!");
   }
@@ -868,6 +889,9 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
           // mashina"dan farqli) shu mashinaning suratlari shu yerda
           // tozalanadi (boshqa navbatdagi mashinalarga tegilmaydi).
           kameraRasmlari.remove(mashina.hujjatId);
+          if (_kameraKorsatishHujjatId == mashina.hujjatId) {
+            _kameraKorsatishHujjatId = null;
+          }
         });
         await _tozala();
       }
@@ -898,14 +922,10 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     saqlanmoqda = false;
     qoldiqSoniya = 0;
    mashinaKelganVaqt = null;
-    // DIQQAT: kameraRasmlari ATAYLAB bu yerda tozalanmaydi!
-    // `_tozala()` "Keyingi mashina" bosilganda ham chaqiriladi - bu esa
-    // odatda mashinani Tara bilan NAVBATGA yuborish (Brutto keyinroq,
-    // navbatdan qayta tanlab bajariladi) degani. Agar shu yerda
-    // tozalasak, Brutto saqlangan payt Tara suratlari allaqachon
-    // yo'qolgan bo'lardi (4 tasi birga ko'rinmasdi). Suratlar o'rniga
-    // YANGI Tara boshlanganda (haqiqiy yangi mashina/arava) tozalanadi -
-    // qarang: tara saqlash oqimidagi tegishli izoh.
+    // kameraRasmlari bu yerda tozalanmaydi - "Keyingi mashina"
+    // (keyingiMashina()) chaqiruvchisi buni o'zi, _tozala()'dan OLDIN,
+    // hali to'g'ri hujjatId qo'lda bo'lganida tozalaydi (qarang:
+    // keyingiMashina()dagi tegishli qism).
   }
   
   Future<void> _sozlamalarYukla() async {
@@ -934,6 +954,10 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   void navbatdanTanlash(NavbatMashina mashina) {
     setState(() {
       tanlanganNavbat = mashina;
+      // Boshqa (oldingi) mashinaning eski suratlari shu yerda hali
+      // ko'rsatilib qolmasligi uchun - Brutto bosilib, YANGI surat
+      // kelguncha KAMERALAR bo'shab turadi.
+      _kameraKorsatishHujjatId = null;
       raqamiCtrl.text = mashina.raqam;
       turiCtrl.text = mashina.turi;
       shofyorCtrl.text = mashina.shofyor;
@@ -1490,17 +1514,6 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       if (tanlanganArava == 3) taraSaqlangan3 = true;
       saqlanmoqda = true;
       qoldiqSoniya = 10;
-      // Chinakam YANGI mashina/arava uchun Tara boshlanmoqda (bu yerga
-      // faqat `taraS == false` bo'lganda, ya'ni birinchi marta
-      // yetib kelamiz, va shu paytda `hujjatId` allaqachon YANGI
-      // hujjat uchun `_bazagaSaqla()` orqali yangilangan bo'ladi) -
-      // shu yangi hujjatId uchun eski qoldiq bo'lsa (bo'lmasligi kerak,
-      // ehtiyot chorasi) tozalab, toza holatdan boshlaymiz. Boshqa
-      // navbatdagi mashinalarning suratlariga bu tegmaydi.
-      // "Keyingi mashina" (navbatga yuborish) esa BU YERDA tozalanmaydi -
-      // Tara suratlari Brutto saqlangunga qadar saqlanib turishi kerak
-      // (qarang: _tozala()dagi izoh).
-      if (hujjatId != null) kameraRasmlari.remove(hujjatId);
     });
 try {
       await ApiService.olchovSaqlash(
@@ -2887,21 +2900,21 @@ try {
                       Row(children: [
                         Expanded(
                             child: camFrame("Tara CAM-1",
-                                rasm: kameraRasmlari['tara_cam1'])),
+                                rasm: _kameraRasmi('tara_cam1'))),
                         const SizedBox(width: 10),
                         Expanded(
                             child: camFrame("Tara CAM-2",
-                                rasm: kameraRasmlari['tara_cam2'])),
+                                rasm: _kameraRasmi('tara_cam2'))),
                       ]),
                       const SizedBox(height: 10),
                       Row(children: [
                         Expanded(
                             child: camFrame("Brutto CAM-1",
-                                rasm: kameraRasmlari['brutto_cam1'])),
+                                rasm: _kameraRasmi('brutto_cam1'))),
                         const SizedBox(width: 10),
                         Expanded(
                             child: camFrame("Brutto CAM-2",
-                                rasm: kameraRasmlari['brutto_cam2'])),
+                                rasm: _kameraRasmi('brutto_cam2'))),
                       ]),
                       const SizedBox(height: 10),
                       SizedBox(

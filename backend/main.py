@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Response, Request
+from fastapi import FastAPI, Depends, HTTPException, status, Response, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
@@ -945,7 +945,7 @@ OPERATOR_RUXSAT_ETILGAN_MAYDONLAR = {
 }
 
 @app.put("/hujjatlar/{hujjat_id}")
-def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user.get("role") not in ("admin", "hisobchi"):
         yuborilgan = set(data.dict(exclude_unset=True).keys())
         ruxsatsiz = yuborilgan - OPERATOR_RUXSAT_ETILGAN_MAYDONLAR
@@ -1062,7 +1062,7 @@ def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, db: Session = Depends(g
     # sabab bu shart bitta hujjat uchun UMRIDA FAQAT BIR MARTA rost
     # bo'ladi - takroriy qator xavfi yo'q.
     if eski_holat != HujjatHolati.TUGALLANDI and hujjat.holat == HujjatHolati.TUGALLANDI:
-        excel_qatorga_yoz(hujjat_id, db)
+        background_tasks.add_task(excel_qatorga_yoz_fon, hujjat_id)
 
     return hujjat
 
@@ -1220,7 +1220,7 @@ def navbat_get(db: Session = Depends(get_db), current_user: dict = Depends(get_c
     return natija
 
 @app.post("/navbat/tugallandi")
-def navbat_tugallandi(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def navbat_tugallandi(data: dict, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from models import Navbat
     navbat = db.query(Navbat).filter(Navbat.hujjat_id == data.get("hujjatId")).first()
     if not navbat:
@@ -1273,7 +1273,7 @@ def navbat_tugallandi(data: dict, db: Session = Depends(get_db), current_user: d
 
     db.commit()
     if yangi_tugallangan_hujjat_id:
-        excel_qatorga_yoz(yangi_tugallangan_hujjat_id, db)
+        background_tasks.add_task(excel_qatorga_yoz_fon, yangi_tugallangan_hujjat_id)
     return {"status": "ok"}
 
 @app.get("/navbat/tugallanganlar")
@@ -2042,6 +2042,24 @@ def excel_qatorga_yoz(hujjat_id, db):
         print(f"Excel jurnal qayta qurildi: {mahsulot_nomi} ({yil}-yil, {len(itemlar)} hujjat)")
     except Exception as e:
         print(f"Excel xato: {e}")
+
+
+def excel_qatorga_yoz_fon(hujjat_id):
+    """excel_qatorga_yoz()ni FON vazifasi sifatida chaqirish uchun
+    o'ram - operator "Saqlash" javobini kutib turmasligi uchun (mavsum
+    davomida yillik hujjatlar ko'payishi bilan bitta chaqiruv bir necha
+    soniya olishi mumkin edi, buni endi operator SEZMAYDI). So'rovning
+    o'z DB sessiyasi ISHLATILMAYDI (javob jo'natilgach yopiladi) -
+    o'rniga bu yerda ALOHIDA, yangi sessiya ochiladi/yopiladi, xuddi
+    avtomatik_backup()/avtomatik_telegram_hisobot() fon oqimlaridagi
+    naqsh bilan bir xil. excel_qatorga_yoz()ning o'zi butun tanasini
+    try/except bilan o'rab, hech qachon xato otmaydi (qarang: yuqorida)
+    - shu sabab bu yerda qo'shimcha himoya shart emas."""
+    db = SessionLocal()
+    try:
+        excel_qatorga_yoz(hujjat_id, db)
+    finally:
+        db.close()
 
 # ============ SOZLAMALAR ============
 

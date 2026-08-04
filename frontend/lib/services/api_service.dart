@@ -710,4 +710,83 @@ static const String baseUrl = "http://10.112.30.77:8001";
       _check401(response);
    } catch (e) {}
   }
+
+  /// Bazaning haqiqiy zaxira nusxasini (pg_dump) HOZIR yaratadi.
+  /// Muvaffaqiyatli bo'lsa {'status': 'ok', 'fayl', 'vaqt', 'hajm'},
+  /// aks holda {'status': 'error', 'message'} qaytaradi.
+  static Future<Map<String, dynamic>> backupOl() async {
+    try {
+      final response = await http.post(Uri.parse('$baseUrl/backup'), headers: _headers());
+      _check401(response);
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+      return {'status': 'error', 'message': "Server xatosi (${response.statusCode})"};
+    } catch (e) {
+      return {'status': 'error', 'message': "Serverga ulanishda xatolik yuz berdi!"};
+    }
+  }
+
+  static Future<List<dynamic>> backupRoyxatOl() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/backup/royxat'), headers: _headers());
+      _check401(response);
+      if (response.statusCode == 200) {
+        final govda = jsonDecode(utf8.decode(response.bodyBytes));
+        return govda['fayllar'] ?? [];
+      }
+    } catch (e) {}
+    return [];
+  }
+
+  static Future<List<dynamic>> tizimXatolariOl() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/tizim-xatolari'), headers: _headers());
+      _check401(response);
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+    } catch (e) {}
+    return [];
+  }
+
+  static Future<bool> xatoniKorildiBelgila(int xatoId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/tizim-xatolari/$xatoId/korildi'),
+        headers: _headers(),
+      );
+      _check401(response);
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Telegram bot ulanishini sinash uchun qisqa test xabari yuboradi.
+  static Future<bool> telegramTest() async {
+    try {
+      final response = await http.post(Uri.parse('$baseUrl/telegram/test'), headers: _headers());
+      _check401(response);
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Kunlik hisobotni ("bugun allaqachon yuborilganmi" tekshiruvidan
+  /// qat'i nazar) DARHOL Telegram'ga yuboradi. Muvaffaqiyatli bo'lsa
+  /// yuborilgan xabar matnini (tasdiqlash uchun) qaytaradi, aks holda
+  /// null.
+  static Future<String?> telegramKunlikYubor() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/telegram/kunlik'), headers: _headers());
+      _check401(response);
+      if (response.statusCode == 200) {
+        final govda = jsonDecode(utf8.decode(response.bodyBytes));
+        return govda['xabar']?.toString();
+      }
+    } catch (e) {}
+    return null;
+  }
 }

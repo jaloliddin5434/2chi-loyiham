@@ -25,7 +25,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     with TickerProviderStateMixin {
 
    int tanlanganTab = 0;
-  int tanlanganStatTab = 0;
   List<dynamic> dashTonnajChigit = [];
   List<dynamic> dashTonnajChiganoq = [];
   bool dashTonnajYuklanmoqda = false;
@@ -41,6 +40,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Map<String, dynamic> oylikStat = {};
   Map<String, dynamic> mavsumStat = {};
   List<dynamic> kunlikGrafik = [];
+  List<dynamic> haftalikGrafik = [];
   List<dynamic> oylikGrafik = [];
   List<dynamic> mavsumGrafik = [];
   String hozirgiSoat = '';
@@ -78,6 +78,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   String sortTuri = 'raqam';
   bool sortOshib = false;
 
+  // ---- Tizim xatolari, backup ro'yxati, Telegram (Sozlamalar bo'limi) ----
+  List<dynamic> tizimXatolari = [];
+  bool tizimXatolariYuklanmoqda = false;
+  List<dynamic> backupRoyxati = [];
+  bool backupOlinmoqda = false;
+  bool backupRoyxatiYuklanmoqda = false;
+  bool telegramTestYuborilmoqda = false;
+  bool telegramKunlikYuborilmoqda = false;
+
 
   final telegramTokenCtrl = TextEditingController();
   final zavodNomiCtrl = TextEditingController(
@@ -97,7 +106,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     'uptime': '3 kun 14 soat',
   };
 
-  static const Color green = Color(0xFF1565C0);
   static const Color greenLight = Color(0xFF1976D2);
   static const Color greenBg = Color(0xFFEAFADE);
   static const Color greenBorder = Color(0xFFB0D890);
@@ -126,6 +134,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     hujjatlarniYukla();
     _sozlamalarYukla();
     dashboardTonnajniYukla();
+    _tizimXatolariniYukla();
+    _backupRoyxatiniYukla();
     yangilanishTimer = Timer.periodic(
         const Duration(seconds: 3), (_) {
       if (mounted) {
@@ -229,6 +239,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         if (kunlikG.statusCode == 200)
           setState(() => kunlikGrafik = jsonDecode(utf8.decode(kunlikG.bodyBytes)));
 
+        final haftalikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/haftalik'), headers: ApiService.authHeaders());
+        if (haftalikG.statusCode == 200)
+          setState(() => haftalikGrafik = jsonDecode(utf8.decode(haftalikG.bodyBytes)));
+
         final oylikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/oylik'), headers: ApiService.authHeaders());
         if (oylikG.statusCode == 200)
           setState(() => oylikGrafik = jsonDecode(utf8.decode(oylikG.bodyBytes)));
@@ -254,6 +268,87 @@ Future<void> _sozlamalarYukla() async {
         }
       });
     } catch (e) {}
+  }
+
+  Future<void> _tizimXatolariniYukla() async {
+    setState(() => tizimXatolariYuklanmoqda = true);
+    final royxat = await ApiService.tizimXatolariOl();
+    if (!mounted) return;
+    setState(() {
+      tizimXatolari = royxat;
+      tizimXatolariYuklanmoqda = false;
+    });
+  }
+
+  Future<void> _xatoniKorildiBelgila(int xatoId) async {
+    final muvaffaqiyatli = await ApiService.xatoniKorildiBelgila(xatoId);
+    if (muvaffaqiyatli) await _tizimXatolariniYukla();
+  }
+
+  Future<void> _backupRoyxatiniYukla() async {
+    setState(() => backupRoyxatiYuklanmoqda = true);
+    final royxat = await ApiService.backupRoyxatOl();
+    if (!mounted) return;
+    setState(() {
+      backupRoyxati = royxat;
+      backupRoyxatiYuklanmoqda = false;
+    });
+  }
+
+  Future<void> _hozirBackupOl() async {
+    setState(() => backupOlinmoqda = true);
+    final natija = await ApiService.backupOl();
+    if (!mounted) return;
+    setState(() => backupOlinmoqda = false);
+    if (natija['status'] == 'ok') {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text("Backup yaratildi: ${natija['fayl']} (${natija['hajm']})"),
+        backgroundColor: Colors.green,
+      ));
+      await _backupRoyxatiniYukla();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text("Backup xatosi: ${natija['message']}"),
+        backgroundColor: Colors.red,
+      ));
+    }
+  }
+
+  Future<void> _telegramTestYubor() async {
+    setState(() => telegramTestYuborilmoqda = true);
+    final muvaffaqiyatli = await ApiService.telegramTest();
+    if (!mounted) return;
+    setState(() => telegramTestYuborilmoqda = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(muvaffaqiyatli
+          ? "Test xabar Telegram'ga yuborildi"
+          : "Test xabar yuborilmadi - sozlamalarni tekshiring"),
+      backgroundColor: muvaffaqiyatli ? Colors.green : Colors.red,
+    ));
+  }
+
+  Future<void> _telegramKunlikYuborish() async {
+    setState(() => telegramKunlikYuborilmoqda = true);
+    final xabar = await ApiService.telegramKunlikYubor();
+    if (!mounted) return;
+    setState(() => telegramKunlikYuborilmoqda = false);
+    if (xabar != null) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Hisobot yuborildi"),
+          content: SingleChildScrollView(child: Text(xabar)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Yopish")),
+          ],
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text("Hisobot yuborilmadi - Telegram sozlamalarini tekshiring"),
+        backgroundColor: Colors.red,
+      ));
+    }
   }
 
 Future<void> hujjatlarniYukla() async {
@@ -917,11 +1012,18 @@ void _jsonNavbatOchir(Map<String, dynamic> m) {
 Widget _mashinaGrafik() {
     final cardColor = kechagiRejim ? const Color(0xFF0F2A0F) : Colors.white;
     
-    List<dynamic> grafikData = tanlanganStatTab == 0
-        ? kunlikGrafik
-        : tanlanganStatTab == 1
-            ? oylikGrafik
-            : mavsumGrafik;
+    // tanlanganTab: 0=kunlik, 1=haftalik, 2=oylik, 3=mavsum - Dashboard
+    // yuqorisidagi davr tugmalari bilan BIR XIL o'zgaruvchi (avval bu
+    // yerda alohida, hech qachon o'rnatilmagan `tanlanganStatTab`
+    // ishlatilardi - shu sabab bu grafik davr tugmasi bosilishidan
+    // qat'i nazar doim faqat kunlikni ko'rsatardi, audit orqali
+    // topilgan xato).
+    List<dynamic> grafikData = [
+      kunlikGrafik,
+      haftalikGrafik,
+      oylikGrafik,
+      mavsumGrafik,
+    ][tanlanganTab];
 
     if (grafikData.isEmpty) {
       return Container(
@@ -937,10 +1039,17 @@ Widget _mashinaGrafik() {
     final List<double> chigitData = grafikData.map((e) => (e['chigit'] as num).toDouble()).toList();
     final List<double> chiganoqData = grafikData.map((e) => (e['chiganoq'] as num).toDouble()).toList();
     final List<String> labellar = grafikData.map((e) {
-      if (tanlanganStatTab == 2) {
+      if (tanlanganTab == 3) {
+        // Mavsum - har oy uchun bitta ustun, "oy" maydoni ishlatiladi.
         final oy = e['oy'].toString();
         return oy.length >= 7 ? oy.substring(5, 7) : oy;
+      } else if (tanlanganTab == 1) {
+        // Haftalik - "hafta_boshi" maydoni, ~8 hafta oralig'ida faqat
+        // kun raqami takrorlanib qolmasligi uchun "OO-KK" ko'rinishida.
+        final hafta = e['hafta_boshi'].toString();
+        return hafta.length >= 10 ? hafta.substring(5, 10) : hafta;
       } else {
+        // Kunlik/oylik - ikkalasi ham "kun" maydonidan foydalanadi.
         final kun = e['kun'].toString();
         return kun.length >= 10 ? kun.substring(8, 10) : kun;
       }
@@ -3115,6 +3224,39 @@ Widget _mashinaGrafik() {
               ),
             ]),
             const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed:
+                      telegramTestYuborilmoqda ? null : _telegramTestYubor,
+                  icon: telegramTestYuborilmoqda
+                      ? const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.send_outlined, size: 13),
+                  label: const Text("Test xabar yuborish",
+                      style: TextStyle(fontSize: 11)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: telegramKunlikYuborilmoqda
+                      ? null
+                      : _telegramKunlikYuborish,
+                  icon: telegramKunlikYuborilmoqda
+                      ? const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.today_outlined, size: 13),
+                  label: const Text("Kunlik hisobotni hozir yuborish",
+                      style: TextStyle(fontSize: 11)),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 8),
             Row(mainAxisAlignment: MainAxisAlignment.end,
                 children: [
               ElevatedButton.icon(
@@ -3228,18 +3370,19 @@ Widget _mashinaGrafik() {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text(
-                            "Backup yaratilmoqda... "
-                            "C:\\hazorasp_tarozi\\backup\\"),
-                        backgroundColor: Colors.green),
-                  );
-                },
-                icon: const Icon(Icons.save_alt, size: 14),
-                label: const Text("Hozir backup olish",
-                    style: TextStyle(fontSize: 11)),
+                onPressed: backupOlinmoqda ? null : _hozirBackupOl,
+                icon: backupOlinmoqda
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.save_alt, size: 14),
+                label: Text(
+                    backupOlinmoqda
+                        ? "Backup yaratilmoqda..."
+                        : "Hozir backup olish",
+                    style: const TextStyle(fontSize: 11)),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: blueColor,
                     foregroundColor: Colors.white,
@@ -3247,6 +3390,137 @@ Widget _mashinaGrafik() {
                         borderRadius: BorderRadius.circular(8))),
               ),
             ),
+            const SizedBox(height: 12),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Text("Mavjud backup fayllari",
+                  style: TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.w600, color: muted)),
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 16, color: muted),
+                tooltip: "Ro'yxatni yangilash",
+                onPressed:
+                    backupRoyxatiYuklanmoqda ? null : _backupRoyxatiniYukla,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            if (backupRoyxatiYuklanmoqda)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Center(
+                    child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))),
+              )
+            else if (backupRoyxati.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text("Hali backup fayli yo'q",
+                    style: TextStyle(fontSize: 11, color: muted)),
+              )
+            else
+              ...backupRoyxati.take(10).map((fayl) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(children: [
+                      const Icon(Icons.description_outlined,
+                          size: 13, color: muted),
+                      const SizedBox(width: 6),
+                      Expanded(
+                          child: Text(fayl.toString(),
+                              style: const TextStyle(fontSize: 11),
+                              overflow: TextOverflow.ellipsis)),
+                    ]),
+                  )),
+          ]),
+        ),
+        const SizedBox(height: 12),
+
+        // TIZIM XATOLARI
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+              color: cardColor,
+              border: Border.all(color: cardBorder),
+              borderRadius: BorderRadius.circular(16)),
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              cardLabel(Icons.warning_amber_outlined, "TIZIM XATOLARI",
+                  color: redColor),
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 16, color: muted),
+                tooltip: "Ro'yxatni yangilash",
+                onPressed:
+                    tizimXatolariYuklanmoqda ? null : _tizimXatolariniYukla,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            if (tizimXatolariYuklanmoqda)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                    child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))),
+              )
+            else if (tizimXatolari.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Center(
+                    child: Text("Xatolar yo'q",
+                        style: TextStyle(fontSize: 12, color: muted))),
+              )
+            else
+              ...tizimXatolari.map((x) {
+                final korilgan = x['korilgan'] == true;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: korilgan
+                        ? (kechagiRejim ? Colors.black12 : const Color(0xFFF7F7F7))
+                        : const Color(0xFFFFF3E0),
+                    border: Border.all(
+                        color: korilgan
+                            ? cardBorder
+                            : const Color(0xFFFFCC80)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(children: [
+                    Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Row(children: [
+                          Text(x['turi']?.toString() ?? '',
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: goldColor)),
+                          const SizedBox(width: 6),
+                          Text(x['vaqt']?.toString() ?? '',
+                              style: TextStyle(fontSize: 10, color: muted)),
+                        ]),
+                        const SizedBox(height: 3),
+                        Text(x['xabar']?.toString() ?? '',
+                            style: const TextStyle(fontSize: 11)),
+                      ]),
+                    ),
+                    if (!korilgan)
+                      TextButton(
+                        onPressed: () => _xatoniKorildiBelgila(x['id'] as int),
+                        child: const Text("Ko'rildi",
+                            style: TextStyle(fontSize: 11)),
+                      ),
+                  ]),
+                );
+              }),
           ]),
         ),
         const SizedBox(height: 12),

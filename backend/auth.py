@@ -3,7 +3,10 @@ from jose import JWTError, jwt
 from passlib.hash import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session
 from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from database import get_db
+from models import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -27,12 +30,27 @@ def verify_token(token: str):
     except JWTError:
         return None
 
-def get_current_user(token: str = Depends(oauth2_scheme)):
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     payload = verify_token(token)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token yaroqsiz yoki muddati o'tgan",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    # DIQQAT: token o'zi hali amal qilsa (muddati tugamagan bo'lsa) ham,
+    # foydalanuvchi shu orada admin tomonidan FAOLSIZLANTIRILGAN bo'lishi
+    # mumkin - token standart bo'yicha 8 soatgacha amal qiladi va
+    # serverda "bekor qilib" bo'lmaydi (JWT stateless), shu sabab HAR
+    # so'rovda bazadan haqiqiy holat tekshiriladi. Avval faolsizlantirish
+    # faqat KELAJAKDAGI login urinishlarini to'xtatardi, joriy (allaqachon
+    # qo'lga kiritilgan) sessiyaga umuman ta'sir qilmasdi - audit orqali
+    # topilgan xavfsizlik teshigi.
+    foydalanuvchi = db.query(User).filter(User.id == payload.get("id")).first()
+    if foydalanuvchi is None or not foydalanuvchi.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Hisobingiz faolsizlantirilgan yoki mavjud emas",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return payload

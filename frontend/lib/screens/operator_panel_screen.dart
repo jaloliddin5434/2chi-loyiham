@@ -109,6 +109,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   Timer? xabarTimer;
   Timer? tugallanganTimer;
   Timer? navbatYangilashTimer;
+  Timer? _qoldiqTimerObj;
 
   bool saqlanmoqda = false;
   int qoldiqSoniya = 0;
@@ -693,6 +694,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     xabarTimer?.cancel();
     tugallanganTimer?.cancel();
     navbatYangilashTimer?.cancel();
+    _qoldiqTimerObj?.cancel();
     _aravaAnimCtrl.dispose();
     NavbatService.navbat.removeListener(_navbatYangilandi);
     NavbatService.tugallanganlar
@@ -1620,7 +1622,13 @@ try {
   }
 
   void _qoldiqTimer() {
-    Timer.periodic(const Duration(seconds: 1), (t) {
+    // Bu funksiya bir necha marta (har Tara/Brutto saqlashda) ketma-ket
+    // chaqirilishi mumkin - agar oldingi chaqiruvdan qolgan Timer hali
+    // ishlab tursa, avval SHU bekor qilinadi (aks holda bir nechta
+    // Timer bir vaqtda bitta umumiy qoldiqSoniya'ni kamaytirib,
+    // hisoblash kutilganidan tezroq nolga tushardi).
+    _qoldiqTimerObj?.cancel();
+    _qoldiqTimerObj = Timer.periodic(const Duration(seconds: 1), (t) {
       setState(() => qoldiqSoniya--);
       if (qoldiqSoniya <= 0) {
         t.cancel();
@@ -3469,9 +3477,15 @@ try {
               IconButton(
                 icon: const Icon(Icons.logout,
                     color: Colors.redAccent, size: 17),
-                onPressed: () =>
-                    Navigator.popUntil(context,
-                        (route) => route.isFirst),
+                onPressed: () {
+                  // ApiService.chiqish() tokenni VA NavbatService
+                  // ro'yxatlarini tozalaydi - shu bilan keyingi operator
+                  // shu tabda kirsa, oldingi sessiyaning navbat/
+                  // tugallangan ma'lumoti unga "meros" bo'lib qolmaydi.
+                  ApiService.chiqish();
+                  Navigator.popUntil(
+                      context, (route) => route.isFirst);
+                },
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),

@@ -4,7 +4,7 @@ bloklangandan keyin login ishlamasligi, admin o'z-o'zini bloklay
 olmasligi, va oxirgi faol adminni bloklab bo'lmasligi.
 """
 from models import User
-from auth import hash_password
+from auth import hash_password, create_access_token
 
 
 def test_operatorni_faolsizlantirish_va_qayta_faollashtirish(
@@ -41,6 +41,37 @@ def test_admin_ozini_ozi_faolsizlantira_olmaydi(client, admin_headers, admin_use
         "is_active": False,
     }, headers=admin_headers)
     assert javob.status_code == 400
+
+
+def test_faolsizlantirilgan_foydalanuvchining_joriy_tokeni_ishlamay_qoladi(
+        client, admin_headers, operator_user):
+    """Audit orqali topilgan xavfsizlik teshigi: avval `is_active` FAQAT
+    /login'da tekshirilardi - operator ALLAQACHON qo'lidagi (hali
+    muddati tugamagan) tokeni bilan, faolsizlantirilgandan KEYIN ham,
+    soatlab ishlayverardi. Endi HAR so'rovda bazadan tekshiriladi - shu
+    tokenning o'zi darhol ishlamay qolishi kerak, yangi login qilmasdan
+    ham."""
+    # Operator "allaqachon qo'lida" tokenni oladi (login orqali emas,
+    # to'g'ridan-to'g'ri - xuddi u avvalroq, hali faol paytida kirgan
+    # va shu tokenni saqlab qolgandek).
+    eski_token = create_access_token(
+        {"sub": operator_user.username, "role": operator_user.role, "id": operator_user.id})
+    eski_headers = {"Authorization": f"Bearer {eski_token}"}
+
+    # Token hali faol - oddiy so'rov ishlashi kerak.
+    javob0 = client.get("/mashinalar", headers=eski_headers)
+    assert javob0.status_code == 200
+
+    # Admin operatorni faolsizlantiradi.
+    javob = client.put(f"/users/{operator_user.id}/holat", json={
+        "is_active": False,
+    }, headers=admin_headers)
+    assert javob.status_code == 200
+
+    # ESKI (hali muddati tugamagan) token bilan endi so'rov RAD ETILISHI
+    # kerak - yangi login qilinmagan bo'lsa ham.
+    javob2 = client.get("/mashinalar", headers=eski_headers)
+    assert javob2.status_code == 401
 
 
 def test_oxirgi_faol_adminni_faolsizlantirib_bolmaydi(

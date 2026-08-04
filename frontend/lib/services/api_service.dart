@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'offline_service.dart';
 import 'offline_queue_service.dart';
+import 'navbat_service.dart';
 
 class ApiService {
 static const String baseUrl = "http://10.112.30.77:8001";
@@ -72,9 +73,21 @@ static const String baseUrl = "http://10.112.30.77:8001";
   /// Foydalanuvchi "Chiqish"ni bosganda chaqiriladi - saqlangan tokenni
   /// tozalaydi, shunda login ekraniga qaytilgandan keyin ham eski token
   /// bilan so'rovlar yubormaydi (avval faqat ekran almashtirilar edi,
-  /// token xotirada saqlanib qolardi).
+  /// token xotirada saqlanib qolardi). NavbatService.navbat/tugallanganlar
+  /// ham shu yerda tozalanadi - ular butun ilova umri davomida yashaydigan
+  /// statik ro'yxatlar, aks holda bir operator chiqib, boshqasi (yoki
+  /// o'shaning o'zi boshqa mahsulot bilan) kirsa, eski sessiyaning
+  /// navbat/tugallangan ma'lumoti yangisiga "meros" bo'lib qolardi (sahifa
+  /// to'liq qayta yuklanmagani uchun). moliyaviyChiqish() ham shu yerda
+  /// chaqiriladi - aks holda admin Moliyaviy Hisobotni ochib, "Bo'limni
+  /// qulflash"ni bosmasdan oddiy "Chiqish"ni bossa, _moliyaviyToken
+  /// (20 daqiqagacha) tirik qolib, keyingi admin PIN so'ralmasdan
+  /// moliyaviy ma'lumotlarga kirib qolishi mumkin edi - audit orqali
+  /// topilgan xavfsizlik teshigi.
   static void chiqish() {
     _token = null;
+    NavbatService.tozala();
+    moliyaviyChiqish();
   }
 
   static void _check401(http.Response response) {

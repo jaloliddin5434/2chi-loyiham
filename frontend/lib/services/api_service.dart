@@ -127,6 +127,27 @@ static const String baseUrl = "http://10.112.30.77:8001";
     return [];
   }
 
+  /// Tarozidan joriy og'irlikni o'qiydi. Backend fon oqimda COM portni
+  /// doim tinglab turadi - bu chaqiruv shunchaki so'nggi o'qilgan
+  /// qiymatni qaytaradi (portning o'zini ochmaydi). Xato yoki aloqa
+  /// yo'qligida `null` qaytadi - chaqiruvchi bu holatda ekranda
+  /// "Uzilgan" ko'rsatishi va oxirgi (eskirgan) qiymatga ishonmasligi
+  /// kerak.
+  static Future<({double ogirlikKg, bool ulangan})?> joriyOgirlikOl() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/tarozi/joriy'), headers: _headers());
+      _check401(response);
+      if (response.statusCode == 200) {
+        final natija = jsonDecode(utf8.decode(response.bodyBytes));
+        return (
+          ogirlikKg: (natija['ogirlik_kg'] as num).toDouble(),
+          ulangan: natija['ulangan'] as bool,
+        );
+      }
+    } catch (e) {}
+    return null;
+  }
+
   /// PIN to'g'ri kiritilsa - moliyaviy token ichki holatga saqlanadi va
   /// `null` qaytadi (muvaffaqiyat). Xato bo'lsa - foydalanuvchiga
   /// ko'rsatiladigan xabar (masalan "PIN noto'g'ri!") qaytadi.

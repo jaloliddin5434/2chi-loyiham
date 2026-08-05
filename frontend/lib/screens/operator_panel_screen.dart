@@ -99,10 +99,11 @@ class OperatorPanelScreen extends StatefulWidget {
 
 class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     with TickerProviderStateMixin {
-  double taroziKg = 18450;
-  double _oldingiTaroziKg = 18450;
+  double taroziKg = 0;
+  double _oldingiTaroziKg = 0;
   int _barqarorSoniya = 0;
   bool taroziBarqaror = false;
+  bool taroziUlangan = false;
 
   Timer? timer;
   Timer? soatTimer;
@@ -497,10 +498,20 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         .substring(5, 12);
 
     timer =
-        Timer.periodic(const Duration(milliseconds: 800), (t) {
-      final yangi =
-          taroziKg + (DateTime.now().millisecond % 10) - 5;
+        Timer.periodic(const Duration(milliseconds: 800), (t) async {
+      final natija = await ApiService.joriyOgirlikOl();
+      if (!mounted) return;
+      if (natija == null || !natija.ulangan) {
+        setState(() {
+          taroziUlangan = false;
+          taroziBarqaror = false;
+          _barqarorSoniya = 0;
+        });
+        return;
+      }
+      final yangi = natija.ogirlikKg;
       setState(() {
+        taroziUlangan = true;
         if ((yangi - _oldingiTaroziKg).abs() < 2) {
           _barqarorSoniya++;
           if (_barqarorSoniya >= 4) taroziBarqaror = true;
@@ -2538,13 +2549,18 @@ try {
                                 horizontal: 10,
                                 vertical: 4),
                             decoration: BoxDecoration(
-                                color: taroziBarqaror
+                                color: !taroziUlangan
+                                    ? const Color(
+                                        0xFFFFF0F0)
+                                    : taroziBarqaror
                                     ? brandGreenBg
                                     : const Color(
                                         0xFFFFF0F0),
                                 border: Border.all(
-                                    color:
-                                        taroziBarqaror
+                                    color: !taroziUlangan
+                                        ? const Color(
+                                            0xFFF0B0A0)
+                                        : taroziBarqaror
                                             ? brandGreenBorder
                                             : const Color(
                                                 0xFFF0B0A0)),
@@ -2558,19 +2574,24 @@ try {
                                 children: [
                               Icon(Icons.circle,
                                   size: 8,
-                                  color:
-                                      taroziBarqaror
+                                  color: !taroziUlangan
+                                      ? Colors.red
+                                      : taroziBarqaror
                                           ? brandGreen
                                           : Colors
                                               .red),
                               const SizedBox(width: 5),
                               Text(
-                                  taroziBarqaror
+                                  !taroziUlangan
+                                      ? "Uzilgan"
+                                      : taroziBarqaror
                                       ? "Barqaror"
                                       : "Harakatda",
                                   style: TextStyle(
                                       fontSize: 11,
-                                      color: taroziBarqaror
+                                      color: !taroziUlangan
+                                          ? Colors.red
+                                          : taroziBarqaror
                                           ? brandGreen
                                           : Colors
                                               .red)),
@@ -2658,7 +2679,9 @@ try {
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: (saqlanmoqda ||
-                                  tanlanganArava == 0)
+                                  tanlanganArava == 0 ||
+                                  !taroziUlangan ||
+                                  !taroziBarqaror)
                               ? null
                               : saqlash,
                           icon: Icon(

@@ -26,6 +26,12 @@ KAMERA_2_IP = os.getenv("KAMERA_2_IP")
 KAMERA_LOGIN = os.getenv("KAMERA_LOGIN")
 KAMERA_PAROL = os.getenv("KAMERA_PAROL")
 
+# Asosiy tarozi (KLAS XK3190-A9+) ulangan COM port. Windows qurilmani
+# qayta ulaganda ba'zan COM raqamini o'zgartirib yuboradi - shunday holda
+# kodga tegmasdan .env dagi shu qiymatni yangilash kifoya.
+TAROZI_PORT = os.getenv("TAROZI_PORT", "COM7")
+TAROZI_BAUD = int(os.getenv("TAROZI_BAUD", "9600"))
+
 # QR kod (nakladnoy-korish ochiq sahifasi) uchun serverning tashqi manzili -
 # frontend'ning ApiService.baseUrl bilan bir xil (hozircha lokal tarmoq IP,
 # faqat shu WiFi'ga ulangan qurilmalar ocha oladi).

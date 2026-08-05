@@ -46,8 +46,16 @@ class _AdminAnaEkranState extends State<AdminAnaEkran> {
         backgroundColor: rang,
         foregroundColor: Colors.white,
         elevation: 0,
-        title: const Text("Hazorasp Tekstil · Admin",
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+        title: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Smart Tarozi · Admin",
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, height: 1.1)),
+            Text("Hazorasp Tekstil",
+                style: TextStyle(fontSize: 10, color: Colors.white70, height: 1.1)),
+          ],
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),

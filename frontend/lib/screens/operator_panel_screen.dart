@@ -3193,14 +3193,26 @@ try {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                   Icon(Icons.scale,
-                      size: 14,
+                      size: 18,
                       color: Colors.white),
                   SizedBox(width: 6),
-                  Text("Hazorasp Tekstil",
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white)),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Smart Tarozi",
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              height: 1.1,
+                              color: Colors.white)),
+                      Text("Hazorasp Tekstil",
+                          style: TextStyle(
+                              fontSize: 9,
+                              height: 1.1,
+                              color: Color(0xFFDCEFE2))),
+                    ],
+                  ),
                 ]),
               ),
               const SizedBox(width: 10),

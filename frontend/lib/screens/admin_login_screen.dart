@@ -126,7 +126,26 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                         child: const Icon(Icons.admin_panel_settings_rounded,
                             color: Colors.white, size: 32),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: rang.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: rang.withOpacity(0.3)),
+                        ),
+                        child: const Text(
+                          "SMART TAROZI",
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.2,
+                            color: rang,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       const Text(
                         "Hazorasp Tekstil",
                         style: TextStyle(

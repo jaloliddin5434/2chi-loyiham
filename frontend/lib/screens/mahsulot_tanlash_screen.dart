@@ -131,7 +131,27 @@ class _MahsulotTanlashScreenState extends State<MahsulotTanlashScreen> {
                             ),
                             child: const Icon(Icons.scale, color: Colors.white, size: 40),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 14),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F6E56).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                  color: const Color(0xFF0F6E56).withOpacity(0.3)),
+                            ),
+                            child: const Text(
+                              "SMART TAROZI",
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.2,
+                                color: Color(0xFF0F6E56),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
                           const Text(
                             "Hazorasp Tekstil",
                             style: TextStyle(

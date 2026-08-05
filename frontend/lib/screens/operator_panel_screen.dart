@@ -2858,6 +2858,37 @@ try {
                         mrow("Konditsion",
                             fmt(konditsion),
                             gold: true),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: hujjatOch,
+                          icon: const Icon(
+                              Icons.print,
+                              size: 16,
+                              color:
+                                  Color(0xFF8A6010)),
+                          label: const Text(
+                              "Nakladnoy chop etish",
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(
+                                      0xFF8A6010))),
+                          style:
+                              OutlinedButton.styleFrom(
+                                  backgroundColor:
+                                      goldBg.withValues(
+                                          alpha: 0.8),
+                                  side: const BorderSide(
+                                      color: Color(
+                                          0xFFE8C878)),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius
+                                              .circular(
+                                                  10))),
+                        ),
+                      ),
                     ])),
                   ),
                 ]),
@@ -2924,37 +2955,6 @@ try {
                             child: camFrame("Brutto CAM-2",
                                 rasm: _kameraRasmi('brutto_cam2'))),
                       ]),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: hujjatOch,
-                          icon: const Icon(
-                              Icons.print,
-                              size: 16,
-                              color:
-                                  Color(0xFF8A6010)),
-                          label: const Text(
-                              "Nakladnoy chop etish",
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  color: Color(
-                                      0xFF8A6010))),
-                          style:
-                              OutlinedButton.styleFrom(
-                                  backgroundColor:
-                                      goldBg.withValues(
-                                          alpha: 0.8),
-                                  side: const BorderSide(
-                                      color: Color(
-                                          0xFFE8C878)),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius
-                                              .circular(
-                                                  10))),
-                        ),
-                      ),
                     ])),
                   ),
                   const SizedBox(width: 12),

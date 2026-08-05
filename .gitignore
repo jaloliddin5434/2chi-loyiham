@@ -10,3 +10,8 @@ backup/
 # Cloudflare Tunnel bajariluvchi fayli - tashqi dastur, kodimiz emas
 # (Cloudflare'ning rasmiy GitHub sahifasidan yuklab olingan)
 cloudflared.exe
+
+# NSSM (tashqi dastur, tarozi_agent'ni Windows xizmati qilib o'rnatish uchun)
+# https://nssm.cc/download - kodimiz emas, har bir kompyuterda alohida joylashtiriladi
+tarozi_agent/nssm.exe
+tarozi_agent/*.log

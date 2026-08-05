@@ -80,6 +80,17 @@ class PinOrnatish(BaseModel):
 class PinTekshirish(BaseModel):
     pin: str
 
+class TaroziYubor(BaseModel):
+    ogirlik_kg: float
+    ulangan: bool
+
+    @field_validator('ogirlik_kg')
+    @classmethod
+    def ogirlik_tekshiruv(cls, qiymat):
+        if not (-100 <= qiymat <= 200000):
+            raise ValueError("Og'irlik qiymati oqilona diapazonda emas!")
+        return qiymat
+
 class FirmaCreate(BaseModel):
     nom: str
 

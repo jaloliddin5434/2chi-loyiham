@@ -5,4 +5,3 @@ qrcode[pil]
 Pillow
 playwright
 slowapi
-pyserial

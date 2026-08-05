@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Response, Request, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, status, Response, Request, BackgroundTasks, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
@@ -6,13 +6,15 @@ from sqlalchemy import func, cast, Date
 from sqlalchemy.engine import make_url
 from database import engine, get_db, Base, SessionLocal
 from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi, Firma, MahsulotNarxi, Sozlama
-from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash, UserHolatYangilash, FirmaCreate, MahsulotNarxiCreate, PinOrnatish, PinTekshirish
+from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash, UserHolatYangilash, FirmaCreate, MahsulotNarxiCreate, PinOrnatish, PinTekshirish, TaroziYubor
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role, require_moliyaviy_ruxsat
-from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL, TAROZI_PORT, TAROZI_BAUD
+from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL, TAROZI_AGENT_KEY
 from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
 from datetime import datetime
 import html
 import io
+import threading
+import time
 from pathlib import Path
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -51,99 +53,50 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
-# ============ TAROZI (COM port orqali jonli og'irlik) ============
-import re
-import threading
-import time
-import serial
-
-# To'liq freym (KLAS XK3190-A9+, uzluksiz rejim): TAB + '+'/'-' belgisi +
-# 7 xonali raqam (0.1 kg birligida, masalan "+0000100" = 10.0 kg) + DC2 + CR.
-# Liniyada elektr shovqin bor - ba'zan TAB/DC2/CR anchor baytlari yo'qolib,
-# faqat belgi+7-raqam qismi omon qoladi. Shu "qisqartirilgan" holatda
-# shovqin tasodifan haqiqiy freymga o'xshab qolishi mumkin (sinovda
-# tasdiqlangan), shuning uchun u faqat KETMA-KET IKKI MARTA bir xil
-# qiymat bilan uchraganda qabul qilinadi. To'liq freym anchor'lari bilan
-# topilsa, bu tasodifiy mos kelish ehtimoli deyarli yo'q - darhol ishonamiz.
-_TAROZI_FREYM_QATIY_RE = re.compile(rb"\x09([+\-])([0-9]{7})\x12\r")
-_TAROZI_FREYM_ERKIN_RE = re.compile(rb"([+\-])([0-9]{7})")
+# ============ TAROZI (alohida "Tarozi agenti" dasturidan tarmoq orqali qabul qilinadi) ============
+# Tarozi (KLAS XK3190-A9+) tarozixonadagi ALOHIDA kompyuterga ulangan -
+# server esa ofisda turadi. Shuning uchun server COM port bilan bevosita
+# ishlamaydi: tarozixonadagi kompyuterda ishlaydigan tarozi_agent.py COM
+# portni o'qib, har necha yuz millisekundda quyidagi endpointga (POST
+# /tarozi/yubor) so'nggi qiymatni yuboradi. Server faqat shu qiymatni
+# xotirada saqlab, GET /tarozi/joriy orqali frontendga beradi.
+_TAROZI_ULANISH_TIMEOUT_SONIYA = 10.0
 
 _tarozi_qulf = threading.Lock()
 _tarozi_holat = {"ogirlik_kg": 0.0, "ulangan": False}
+_tarozi_oxirgi_yangilanish = 0.0
 
 
-def _tarozi_holatini_yangila(ogirlik_kg=None, ulangan=None):
+@app.post("/tarozi/yubor")
+def tarozi_qiymat_qabul_qil(
+    payload: TaroziYubor,
+    x_tarozi_agent_key: str = Header(default=""),
+):
+    """Tarozi agentidan (tarozixonadagi kompyuter) qabul qiladi. Foydalanuvchi
+    JWT'i emas - alohida umumiy sir (TAROZI_AGENT_KEY) bilan himoyalangan,
+    chunki bu kanalda login qiluvchi odam emas, bitta ishonchli qurilma bor."""
+    if not TAROZI_AGENT_KEY or x_tarozi_agent_key != TAROZI_AGENT_KEY:
+        raise HTTPException(status_code=401, detail="Noto'g'ri agent kaliti")
+
+    global _tarozi_oxirgi_yangilanish
     with _tarozi_qulf:
-        if ogirlik_kg is not None:
-            _tarozi_holat["ogirlik_kg"] = ogirlik_kg
-        if ulangan is not None:
-            _tarozi_holat["ulangan"] = ulangan
-
-
-def _tarozi_oquvchisi():
-    """COM portini fon oqimida uzluksiz o'qiydi. Port ochilmasa yoki
-    aloqa uzilib qolsa (masalan CH340'ning ma'lum #31 xatosi), 3
-    soniyadan keyin avtomatik qayta urinadi - server ishlashda davom
-    etadi, faqat ulanган holat 'ulangan: false' bo'lib qoladi."""
-    buffer = bytearray()
-    oldingi_erkin_nomzod = None
-    while True:
-        try:
-            with serial.Serial(
-                TAROZI_PORT,
-                baudrate=TAROZI_BAUD,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-                timeout=0.2,
-            ) as ser:
-                _tarozi_holatini_yangila(ulangan=True)
-                buffer.clear()
-                oldingi_erkin_nomzod = None
-                while True:
-                    chunk = ser.read(256)
-                    if chunk:
-                        buffer += chunk
-
-                        qatiy_moslik = None
-                        for qatiy_moslik in _TAROZI_FREYM_QATIY_RE.finditer(buffer):
-                            pass
-
-                        if qatiy_moslik:
-                            ishora = -1 if qatiy_moslik.group(1) == b"-" else 1
-                            ogirlik_kg = ishora * int(qatiy_moslik.group(2)) / 10
-                            _tarozi_holatini_yangila(ogirlik_kg=ogirlik_kg)
-                            del buffer[: qatiy_moslik.end()]
-                            oldingi_erkin_nomzod = None
-                        else:
-                            erkin_moslik = None
-                            for erkin_moslik in _TAROZI_FREYM_ERKIN_RE.finditer(buffer):
-                                pass
-                            if erkin_moslik:
-                                nomzod = (erkin_moslik.group(1), erkin_moslik.group(2))
-                                if nomzod == oldingi_erkin_nomzod:
-                                    ishora = -1 if nomzod[0] == b"-" else 1
-                                    ogirlik_kg = ishora * int(nomzod[1]) / 10
-                                    _tarozi_holatini_yangila(ogirlik_kg=ogirlik_kg)
-                                oldingi_erkin_nomzod = nomzod
-                                del buffer[: erkin_moslik.end()]
-
-                        if len(buffer) > 4096:
-                            del buffer[:-64]
-                            oldingi_erkin_nomzod = None
-        except serial.SerialException as e:
-            _tarozi_holatini_yangila(ulangan=False)
-            print(f"Tarozi ({TAROZI_PORT}) bilan aloqa yo'q: {e}")
-        time.sleep(3)
-
-
-threading.Thread(target=_tarozi_oquvchisi, daemon=True).start()
+        _tarozi_holat["ogirlik_kg"] = payload.ogirlik_kg
+        _tarozi_holat["ulangan"] = payload.ulangan
+        _tarozi_oxirgi_yangilanish = time.time()
+    return {"ok": True}
 
 
 @app.get("/tarozi/joriy")
 def tarozi_joriy_ogirlik(current_user: dict = Depends(get_current_user)):
     with _tarozi_qulf:
-        return dict(_tarozi_holat)
+        holat = dict(_tarozi_holat)
+        yangi_malumotmi = (time.time() - _tarozi_oxirgi_yangilanish) <= _TAROZI_ULANISH_TIMEOUT_SONIYA
+    # Agentdan 10 soniyadan ko'proq vaqt hech narsa kelmagan bo'lsa - agent
+    # yoki tarmoq o'zi o'lgan deb hisoblanadi, hatto agentning oxirgi
+    # yuborgan holati "ulangan: true" bo'lsa ham.
+    if not yangi_malumotmi:
+        holat["ulangan"] = False
+    return holat
 
 # ============ ASOSIY ============
 

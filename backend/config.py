@@ -26,11 +26,11 @@ KAMERA_2_IP = os.getenv("KAMERA_2_IP")
 KAMERA_LOGIN = os.getenv("KAMERA_LOGIN")
 KAMERA_PAROL = os.getenv("KAMERA_PAROL")
 
-# Asosiy tarozi (KLAS XK3190-A9+) ulangan COM port. Windows qurilmani
-# qayta ulaganda ba'zan COM raqamini o'zgartirib yuboradi - shunday holda
-# kodga tegmasdan .env dagi shu qiymatni yangilash kifoya.
-TAROZI_PORT = os.getenv("TAROZI_PORT", "COM7")
-TAROZI_BAUD = int(os.getenv("TAROZI_BAUD", "9600"))
+# Tarozixonadagi kompyuterda ishlaydigan "Tarozi agenti" (tarozi_agent.py)
+# POST /tarozi/yubor so'rovida shu kalitni X-Tarozi-Agent-Key sarlavhasida
+# yuborishi shart - mos kelmasa so'rov rad etiladi. Ikkala tomonda ham
+# (server .env va agent .env) bir xil qiymat turishi kerak.
+TAROZI_AGENT_KEY = os.getenv("TAROZI_AGENT_KEY", "")
 
 # QR kod (nakladnoy-korish ochiq sahifasi) uchun serverning tashqi manzili -
 # frontend'ning ApiService.baseUrl bilan bir xil (hozircha lokal tarmoq IP,

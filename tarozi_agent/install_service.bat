@@ -22,6 +22,16 @@ set SERVICE_NAME=TaroziAgent
 set AGENT_DIR=%~dp0
 set NSSM=%AGENT_DIR%nssm.exe
 
+REM %~dp0 HAR DOIM oxirida "\" bilan tugaydi. AGENT_DIR ko'p joyda ("...\
+REM nssm.exe", "...\tarozi_agent.py" kabi) shu holicha xavfsiz ishlatiladi -
+REM lekin uni YOLG'IZ, hech narsa qo'shmasdan tirnoqqa olsak ("%AGENT_DIR%"),
+REM oxiridagi "\" tirnoqdan OLDIN turib qoladi va Windows buni "qochirilgan
+REM tirnoq" (\") deb o'qib, keyingi argument bilan aralashtirib yuboradi -
+REM NSSM'ga noto'g'ri AppDirectory yuboriladi. Shu sabab faqat SHU maqsad
+REM uchun oxiridagi "\"siz alohida nusxa tayyorlanadi.
+set AGENT_DIR_NOSLASH=%AGENT_DIR%
+if "%AGENT_DIR_NOSLASH:~-1%"=="\" set AGENT_DIR_NOSLASH=%AGENT_DIR_NOSLASH:~0,-1%
+
 if not exist "%NSSM%" (
     echo XATOLIK: nssm.exe topilmadi: %NSSM%
     echo https://nssm.cc/download saytidan yuklab, shu papkaga joylashtiring.
@@ -46,7 +56,7 @@ echo Python:        %PYTHON_EXE%
 echo Agent papkasi: %AGENT_DIR%
 
 "%NSSM%" install %SERVICE_NAME% "%PYTHON_EXE%" "%AGENT_DIR%tarozi_agent.py"
-"%NSSM%" set %SERVICE_NAME% AppDirectory "%AGENT_DIR%"
+"%NSSM%" set %SERVICE_NAME% AppDirectory "%AGENT_DIR_NOSLASH%"
 "%NSSM%" set %SERVICE_NAME% DisplayName "Hazorasp Tarozi Agenti"
 "%NSSM%" set %SERVICE_NAME% Description "COM portdagi tarozini o'qib, asosiy serverga tarmoq orqali yuboradi"
 "%NSSM%" set %SERVICE_NAME% Start SERVICE_AUTO_START
@@ -54,6 +64,12 @@ echo Agent papkasi: %AGENT_DIR%
 "%NSSM%" set %SERVICE_NAME% AppStderr "%AGENT_DIR%agent_stderr.log"
 "%NSSM%" set %SERVICE_NAME% AppRotateFiles 1
 "%NSSM%" set %SERVICE_NAME% AppRotateBytes 1048576
+REM AppRotateOnline'siz, hajm bo'yicha aylanish FAQAT xizmat qayta ishga
+REM tushganda tekshiriladi - agent oylab qayta ishga tushmasdan ishlashi
+REM mo'ljallangani uchun (masalan COM port uzoq vaqt uzilib, har 3
+REM soniyada log qatori yozilsa), bu bilan log fayli xizmat qayta ishga
+REM tushirilmaguncha CHEKSIZ o'sib ketishi mumkin edi.
+"%NSSM%" set %SERVICE_NAME% AppRotateOnline 1
 "%NSSM%" set %SERVICE_NAME% AppExit Default Restart
 "%NSSM%" set %SERVICE_NAME% AppRestartDelay 3000
 

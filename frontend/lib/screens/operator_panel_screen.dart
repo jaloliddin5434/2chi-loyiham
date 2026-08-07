@@ -287,10 +287,18 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   String get _terimTuriQiymati => konditsionBor ? terimTuriCtrl.text : '';
   String get _seleksiyaNaviQiymati =>
       konditsionBor ? seleksiyaNaviCtrl.text : '';
-  double? get _namlikQiymati =>
-      konditsionBor ? double.tryParse(namlikCtrl.text) : null;
-  double? get _ifloslikQiymati =>
-      konditsionBor ? double.tryParse(ifloslikCtrl.text) : null;
+  // DIQQAT: O'zbek/Rossiya klaviaturasida kasr son odatda vergul bilan
+  // kiritiladi ("6,5"), lekin Dart'ning double.tryParse() FAQAT nuqtani
+  // ("6.5") kasr ajratuvchi deb tanийdi - vergul bilan kiritilgan qiymat
+  // hech qanday xatosiz, JIMGINA null qaytar edi (operator kiritdi deb
+  // o'ylaydi, aslida hech narsa saqlanmaydi). Shu sabab parse qilishdan
+  // oldin vergul nuqtaga almashtiriladi.
+  double? get _namlikQiymati => konditsionBor
+      ? double.tryParse(namlikCtrl.text.trim().replaceAll(',', '.'))
+      : null;
+  double? get _ifloslikQiymati => konditsionBor
+      ? double.tryParse(ifloslikCtrl.text.trim().replaceAll(',', '.'))
+      : null;
 
  List<NavbatMashina> get navbat =>
       NavbatService.navbatByMahsulot(widget.mahsulotId);
@@ -1297,6 +1305,24 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
 
   Future<void> saqlash() async {
     if (saqlanmoqda || tanlanganArava == 0) return;
+
+    // Operator biror narsa kiritgan (maydon bo'sh emas), lekin son sifatida
+    // o'qib bo'lmayapti (masalan harflar aralashgan, bir nechta vergul/nuqta
+    // va h.k.) - AVVAL bu holat JIMGINA saqlanardi (namlik/ifloslik null
+    // sifatida yuborilib, operator hech qanday xabar ko'rmasdi). Endi
+    // saqlash to'xtatilib, aniq ko'rsatiladi.
+    if (konditsionBor) {
+      final namlikMatn = namlikCtrl.text.trim();
+      if (namlikMatn.isNotEmpty && _namlikQiymati == null) {
+        _xabar("❌ Namlik % noto'g'ri kiritildi (\"$namlikMatn\") - faqat son kiriting!");
+        return;
+      }
+      final ifloslikMatn = ifloslikCtrl.text.trim();
+      if (ifloslikMatn.isNotEmpty && _ifloslikQiymati == null) {
+        _xabar("❌ Ifloslik % noto'g'ri kiritildi (\"$ifloslikMatn\") - faqat son kiriting!");
+        return;
+      }
+    }
 
     final taraS = tanlanganArava == 1
         ? taraSaqlangan1

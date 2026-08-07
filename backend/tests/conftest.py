@@ -119,7 +119,15 @@ def client(db_session):
     """FastAPI TestClient - get_db dependency shu testning o'z
     tranzaksiyasiga (db_session) yo'naltirilgan."""
     def _get_db_override():
-        yield db_session
+        # Haqiqiy get_db() (database.py) bilan bir xil xatti-harakat -
+        # so'rov ichida xato chiqsa, shu so'rov davomida flush() qilingan
+        # (lekin hali commit qilinmagan) o'zgarishlar bekor qilinishi
+        # kerak, aks holda testlar production'dagidan boshqacha ishlaydi.
+        try:
+            yield db_session
+        except Exception:
+            db_session.rollback()
+            raise
 
     main.app.dependency_overrides[get_db] = _get_db_override
     yield TestClient(main.app)

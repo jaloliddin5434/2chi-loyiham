@@ -105,6 +105,16 @@ def _serial_oquvchisi():
         except serial.SerialException as e:
             _holatni_yangila(ulangan=False)
             print(f"Tarozi ({TAROZI_PORT}) bilan aloqa yo'q: {e}")
+        except Exception as e:
+            # Kutilmagan xato turi (masalan ba'zi USB-RS232 adapterlarning
+            # noyob drayver xatolari SerialException sifatida kelmasligi
+            # mumkin). Buni ushlamasak, bu thread jimgina o'lib qoladi -
+            # holat "muzlab qoladi" (hatto ulangan=true bo'lib qolishi
+            # mumkin), garchi asosiy thread hali POST yuborishda davom
+            # etaversa ham. Shu sabab bu yerda ATAYLAB keng `Exception`
+            # ushlanadi - thread hech qachon o'lmasligi kerak.
+            _holatni_yangila(ulangan=False)
+            print(f"Tarozi o'quvchisida kutilmagan xato: {e}")
         time.sleep(3)
 
 

@@ -30,7 +30,7 @@ class SyncService {
       }
 
       final kutayotganlar = await OfflineService.kutayotganlarOl();
-     
+      final qolganKutayotganlar = <dynamic>[];
       for (final op in kutayotganlar) {
         try {
           final tur = op['tur'];
@@ -44,9 +44,18 @@ class SyncService {
               ifloslik: op['data']['ifloslik']?.toDouble(),
             );
           }
-        } catch (e) {}
+        } catch (e) {
+          // Muvaffaqiyatsiz bo'lgan amal navbatda QOLDIRILADI (keyingi
+          // siklda qayta urinish uchun) - avval bu yerda xato yutilib,
+          // pastda BUTUN navbat shartsiz tozalanardi: bitta
+          // muvaffaqiyatsizlik boshqa, muvaffaqiyatli saqlanishi mumkin
+          // bo'lgan o'lchovlarni ham butunlay yo'qotib qo'yardi.
+          qolganKutayotganlar.add(op);
+        }
       }
-      await OfflineService.kutayotganlarTozala();
+      if (qolganKutayotganlar.length != kutayotganlar.length) {
+        await OfflineService.kutayotganlarSaqla(qolganKutayotganlar);
+      }
 
       // Nakladnoylarni sync qilish
       final nakladnoylar = await OfflineService.nakladnoylarOl();

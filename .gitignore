@@ -3,7 +3,7 @@ backend/.env
 
 __pycache__/
 *.pyc
-backend/*.log
+*.log
 frontend/pw_shots/
 backup/
 
@@ -11,7 +11,8 @@ backup/
 # (Cloudflare'ning rasmiy GitHub sahifasidan yuklab olingan)
 cloudflared.exe
 
-# NSSM (tashqi dastur, tarozi_agent'ni Windows xizmati qilib o'rnatish uchun)
-# https://nssm.cc/download - kodimiz emas, har bir kompyuterda alohida joylashtiriladi
+# NSSM (tashqi dastur, tarozi_agent va Cloudflare Tunnel'ni Windows xizmati
+# qilib o'rnatish uchun) - https://nssm.cc/download - kodimiz emas, har bir
+# kompyuterda alohida joylashtiriladi
+nssm.exe
 tarozi_agent/nssm.exe
-tarozi_agent/*.log

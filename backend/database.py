@@ -10,5 +10,11 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # Aniq (explicit) rollback - db.close() committed bo'lmagan ishni
+        # baribir bekor qiladi, lekin bunga yashirin ravishda tayanish
+        # o'rniga shu yerda ATAYLAB ko'rsatib qo'yamiz.
+        db.rollback()
+        raise
     finally:
         db.close()

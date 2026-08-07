@@ -60,6 +60,10 @@ class OfflineService {
     return ((await _olish('tugallanganlar')) as List?)?.cast<dynamic>() ?? [];
   }
 
+  static Future<void> kutayotganlarSaqla(List<dynamic> kutayotganlar) async {
+    await _saqlash('kutayotgan', kutayotganlar);
+  }
+
   static Future<void> kutayotganlarTozala() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('kutayotgan');

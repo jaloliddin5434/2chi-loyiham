@@ -56,6 +56,10 @@ class OfflineService {
     return (_olish('tugallanganlar') as List?)?.cast<dynamic>() ?? [];
   }
 
+  static Future<void> kutayotganlarSaqla(List<dynamic> kutayotganlar) async {
+    _saqlash('kutayotgan', kutayotganlar);
+  }
+
   static Future<void> kutayotganlarTozala() async {
     html.window.localStorage.remove('kutayotgan');
   }

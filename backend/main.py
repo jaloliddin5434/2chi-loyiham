@@ -1214,10 +1214,21 @@ import json
 @app.post("/navbat/qosh")
 def navbat_qosh(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from models import Navbat
+    # DIQQAT: eski yozuvni o'chirish va yangisini qo'shish BITTA
+    # tranzaksiyada, bitta commit bilan bajariladi (avval ikkita alohida
+    # commit bor edi - agar ikkinchisi muvaffaqiyatsiz bo'lsa, mashina
+    # eski yozuv o'chirilgani uchun navbatdan butunlay g'oyib bo'lib
+    # qolardi).
     mavjud = db.query(Navbat).filter(Navbat.hujjat_id == data.get("hujjatId")).first()
     if mavjud:
         db.delete(mavjud)
-        db.commit()
+        # flush() - o'chirishni HOZIROQ bazaga yuboradi (lekin hali commit
+        # qilinmaydi, hammasi bitta tranzaksiya bo'lib qoladi). Buni
+        # qilmasak, SQLAlchemy pastdagi yangi qatorni INSERT qilishni
+        # o'chirishdan OLDIN yuboradi - hujjat_id ustunidagi UNIQUE
+        # cheklovga urilib, UniqueViolation beradi (sinov shuni aniq
+        # ko'rsatdi).
+        db.flush()
     yangi = Navbat(
         hujjat_id=data.get("hujjatId"),
         mashina_id=data.get("mashinaId"),
@@ -1580,10 +1591,19 @@ import os
 
 @app.post("/backup")
 def backup_qilish(current_user: dict = Depends(require_role("admin"))):
+    # DIQQAT (API andozasi): bu endpoint xatoda ham HAR DOIM HTTP 200
+    # qaytaradi, muvaffaqiyat/xato JAVOB TANASIDAGI "status" maydoni
+    # orqali bildiriladi (ko'pchilik boshqa endpoint - /login,
+    # /nakladnoy/saqlash - esa to'g'ri 4xx/5xx qaytaradi). Bu ataylab -
+    # frontenddagi ApiService.backupOl() shu qoidani bilib, tanani
+    # tekshiradi. Agar shu endpointga YANGI chaqiruvchi qo'shsangiz,
+    # FAQAT statusKod emas, albatta javob tanasidagi "status"ni ham
+    # tekshiring - aks holda xato "muvaffaqiyat" deb qabul qilinishi
+    # mumkin.
     try:
         backup_dir = r"C:\hazorasp_tarozi\backup"
         os.makedirs(backup_dir, exist_ok=True)
-        
+
         sana = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         backup_fayl = os.path.join(backup_dir, f"backup_{sana}.sql")
 
@@ -1595,7 +1615,8 @@ def backup_qilish(current_user: dict = Depends(require_role("admin"))):
             [pg_dump, "-U", db_url.username, "-p", str(db_url.port),
              "-d", db_url.database, "-f", backup_fayl],
             capture_output=True, text=True,
-            env={**os.environ, "PGPASSWORD": db_url.password}
+            env={**os.environ, "PGPASSWORD": db_url.password},
+            timeout=300,
         )
         
         if result.returncode == 0:
@@ -1718,6 +1739,7 @@ def avtomatik_telegram_hisobot():
 
 BACKUP_SOZLAMA_KALIT = "oxirgi_backup_sanasi"
 TARMOQ_BACKUP_SOZLAMA_KALIT = "oxirgi_tarmoq_backup_sanasi"
+RASMLAR_BACKUP_SOZLAMA_KALIT = "oxirgi_rasmlar_backup_sanasi"
 
 
 def tarmoqqa_backup_yubor(backup_dir: str) -> bool:
@@ -1758,6 +1780,65 @@ def tarmoqqa_backup_yubor(backup_dir: str) -> bool:
         return False
 
 
+def rasmlar_tarmoqqa_backup_yubor() -> bool:
+    """C:/RASMLAR (kamera rasmlari, nakladnoy PDF/HTML) ikkinchi
+    kompyuterga zaxiralanadi - avval FAQAT baza (.sql) zaxiralanardi,
+    rasmlar hech qayerga ko'chirilmasdi. Agar diskning shu qismi
+    buzilsa, tortish tasdiqlovchi rasmlar qaytarib bo'lmas tarzda
+    yo'qolar edi. /E - bo'sh papkalar ham (chuqur ichma-ich tuzilishni
+    saqlash uchun); robocopy odatdagidek faqat yangi/o'zgargan
+    fayllarni ko'chiradi - qayta-qayta chaqirish arzon."""
+    import subprocess
+    manba = r"C:\RASMLAR"
+    if not os.path.isdir(manba):
+        return True  # hali birorta rasm yo'q - qilinadigan ish yo'q
+    unc_yol = fr"\\{TARMOQ_BACKUP_IP}\{TARMOQ_BACKUP_SHARE}\RASMLAR"
+    try:
+        subprocess.run(
+            ["net", "use", fr"\\{TARMOQ_BACKUP_IP}\{TARMOQ_BACKUP_SHARE}",
+             TARMOQ_BACKUP_PAROL, f"/user:{TARMOQ_BACKUP_FOYDALANUVCHI}"],
+            capture_output=True, text=True, errors="replace", timeout=30
+        )
+        natija = subprocess.run(
+            ["robocopy", manba, unc_yol, "/E", "/R:2", "/W:5"],
+            capture_output=True, text=True, errors="replace", timeout=1800
+        )
+        if natija.returncode >= 8:
+            tizim_xatosini_saqla(
+                "rasmlar_tarmoq_backup",
+                f"robocopy xato kod bilan tugadi: {natija.returncode}")
+            return False
+        return True
+    except Exception as e:
+        tizim_xatosini_saqla("rasmlar_tarmoq_backup", str(e))
+        return False
+
+
+BACKUP_RETENSIYA_KUN = 30
+BACKUP_TOZALASH_SOZLAMA_KALIT = "oxirgi_backup_tozalash_sanasi"
+
+
+def eski_backuplarni_tozala(backup_dir: str, kun_soni: int = BACKUP_RETENSIYA_KUN) -> int:
+    """backup_dir ichidagi `kun_soni`dan eski .sql fayllarni o'chiradi.
+    Avval retensiya siyosati umuman yo'q edi - har kungi backup abadiy
+    jamg'arilar, disk vaqt o'tishi bilan cheksiz to'lardi. Qaytadi:
+    o'chirilgan fayllar soni."""
+    from datetime import timedelta
+    chegara = datetime.now() - timedelta(days=kun_soni)
+    ochirilgan = 0
+    for nom in os.listdir(backup_dir):
+        if not nom.endswith(".sql"):
+            continue
+        yol = os.path.join(backup_dir, nom)
+        try:
+            if datetime.fromtimestamp(os.path.getmtime(yol)) < chegara:
+                os.remove(yol)
+                ochirilgan += 1
+        except OSError:
+            continue
+    return ochirilgan
+
+
 def avtomatik_backup():
     import time
     import subprocess
@@ -1788,7 +1869,8 @@ def avtomatik_backup():
                 natija = subprocess.run(
                     [pg_dump, "-U", db_url.username, "-p", str(db_url.port),
                      "-d", db_url.database, "-f", backup_fayl],
-                    env={**os.environ, "PGPASSWORD": db_url.password}
+                    env={**os.environ, "PGPASSWORD": db_url.password},
+                    timeout=300,
                 )
                 if natija.returncode == 0:
                     if sozlama:
@@ -1823,6 +1905,42 @@ def avtomatik_backup():
                         print("Tarmoq backup: ikkinchi kompyuterga muvaffaqiyatli ko'chirildi")
                     else:
                         print("Tarmoq backup xato, keyingi urinishda qayta sinaladi")
+
+                # C:/RASMLAR (kamera rasmlari, nakladnoy) - bazadan ALOHIDA
+                # kuzatiladi, chunki bu ancha uzoq davom etishi mumkin
+                # (/E, katta papka) - .sql backup yoki bazaning o'zi bunga
+                # bog'liq bo'lib qolmasligi kerak.
+                rasmlar_sozlama = db.query(Sozlama).filter(
+                    Sozlama.kalit == RASMLAR_BACKUP_SOZLAMA_KALIT).first()
+                rasmlar_bugun_bajarilgan = (
+                    rasmlar_sozlama is not None and rasmlar_sozlama.qiymat == str(bugun))
+                if not rasmlar_bugun_bajarilgan:
+                    if rasmlar_tarmoqqa_backup_yubor():
+                        if rasmlar_sozlama:
+                            rasmlar_sozlama.qiymat = str(bugun)
+                            rasmlar_sozlama.updated_at = datetime.now()
+                        else:
+                            db.add(Sozlama(kalit=RASMLAR_BACKUP_SOZLAMA_KALIT, qiymat=str(bugun)))
+                        db.commit()
+                        print("Rasmlar backup: ikkinchi kompyuterga muvaffaqiyatli ko'chirildi")
+                    else:
+                        print("Rasmlar backup xato, keyingi urinishda qayta sinaladi")
+
+            # Eski backup fayllarni tozalash - kuniga bir marta yetarli.
+            tozalash_sozlama = db.query(Sozlama).filter(
+                Sozlama.kalit == BACKUP_TOZALASH_SOZLAMA_KALIT).first()
+            tozalash_bugun_bajarilgan = (
+                tozalash_sozlama is not None and tozalash_sozlama.qiymat == str(bugun))
+            if not tozalash_bugun_bajarilgan:
+                ochirilgan = eski_backuplarni_tozala(backup_dir)
+                if ochirilgan:
+                    print(f"Eski backup fayllar tozalandi: {ochirilgan} ta")
+                if tozalash_sozlama:
+                    tozalash_sozlama.qiymat = str(bugun)
+                    tozalash_sozlama.updated_at = datetime.now()
+                else:
+                    db.add(Sozlama(kalit=BACKUP_TOZALASH_SOZLAMA_KALIT, qiymat=str(bugun)))
+                db.commit()
         except Exception as e:
             print(f"Backup xato: {e}")
             tizim_xatosini_saqla("backup", str(e))
@@ -2096,6 +2214,7 @@ def excel_qatorga_yoz(hujjat_id, db):
         print(f"Excel jurnal qayta qurildi: {mahsulot_nomi} ({yil}-yil, {len(itemlar)} hujjat)")
     except Exception as e:
         print(f"Excel xato: {e}")
+        tizim_xatosini_saqla("excel", f"{mahsulot_nomi} ({yil}-yil): {e}")
 
 
 def excel_qatorga_yoz_fon(hujjat_id):
@@ -2207,6 +2326,10 @@ def server_holat(current_user: dict = Depends(get_current_user)):
             "uptime": f"{kun} kun {soat} soat"
         }
     except Exception as e:
+        # Avval bu yerda hech narsa log qilinmasdi - monitoring
+        # endpoint'ining o'zi buzilib qolsa, dashboard "hammasi 0%,
+        # tinch" deb noto'g'ri ko'rsatib turaverar edi.
+        tizim_xatosini_saqla("server_holat", str(e))
         return {"cpu": 0, "ram": 0, "disk": 0, "uptime": "—"}
 
 # ============ TIZIM XATOLARI ============
@@ -2235,7 +2358,7 @@ def telegram_xabar_yuborish(matn: str) -> bool:
             "chat_id": TELEGRAM_CHAT_ID,
             "text": matn,
             "parse_mode": "HTML"
-        })
+        }, timeout=5)
         javob.raise_for_status()
         return True
     except Exception as e:
@@ -2245,6 +2368,61 @@ def telegram_xabar_yuborish(matn: str) -> bool:
 
 hisobot_thread = threading.Thread(target=avtomatik_telegram_hisobot, daemon=True)
 hisobot_thread.start()
+
+# ============ TUNNEL/SERVER O'Z-O'ZINI KUZATISH ============
+# Ilgari hech narsa serverning/tunnel'ning o'zi ishlamay qolganini
+# kuzatmasdi - faqat operator ilovani ochishga urinib, ishlamasligini
+# payqashi orqaligina ma'lum bo'lardi. Bu fon oqim davriy ravishda
+# serverning O'Z ommaviy manziliga (SERVER_ASOSIY_URL) so'rov yuborib,
+# butun zanjir (backend -> Cloudflare Tunnel -> Cloudflare edge)
+# ishlab turganini tekshiradi.
+_TUNNEL_TEKSHIRUV_OSIYA = 180
+_TUNNEL_XATO_CHEGARA = 2
+
+_tunnel_holati = {"ketma_ket": 0, "ogohlantirilgan": False}
+_tunnel_holati_qulf = threading.Lock()
+
+
+def _tunnel_bir_tekshiruv():
+    """Bitta tekshiruv sikli - alohida funksiya qilib ajratilgan, shunda
+    sinovlarda `while True`/`time.sleep`ga tegmasdan to'g'ridan-to'g'ri
+    chaqirish mumkin."""
+    try:
+        javob = req.get(f"{SERVER_ASOSIY_URL}/health", timeout=10)
+        muvaffaqiyat = javob.status_code == 200
+    except Exception:
+        muvaffaqiyat = False
+
+    yuboriladigan_matn = None
+    with _tunnel_holati_qulf:
+        if not muvaffaqiyat:
+            _tunnel_holati["ketma_ket"] += 1
+            if (_tunnel_holati["ketma_ket"] >= _TUNNEL_XATO_CHEGARA
+                    and not _tunnel_holati["ogohlantirilgan"]):
+                _tunnel_holati["ogohlantirilgan"] = True
+                yuboriladigan_matn = (
+                    f"🔴 <b>Diqqat!</b> Server o'zining ommaviy manziliga "
+                    f"({html.escape(SERVER_ASOSIY_URL)}) yeta olmayapti - "
+                    f"Cloudflare Tunnel yoki tarmoq muammosi bo'lishi mumkin."
+                )
+        else:
+            if _tunnel_holati["ogohlantirilgan"]:
+                yuboriladigan_matn = "✅ Server ommaviy manzili qayta ishlay boshladi."
+            _tunnel_holati["ketma_ket"] = 0
+            _tunnel_holati["ogohlantirilgan"] = False
+
+    if yuboriladigan_matn:
+        telegram_xabar_yuborish(yuboriladigan_matn)
+
+
+def _tunnel_ozini_tekshirish():
+    while True:
+        time.sleep(_TUNNEL_TEKSHIRUV_OSIYA)
+        _tunnel_bir_tekshiruv()
+
+
+tunnel_kuzatuv_thread = threading.Thread(target=_tunnel_ozini_tekshirish, daemon=True)
+tunnel_kuzatuv_thread.start()
 
 @app.post("/telegram/test")
 def telegram_test(current_user: dict = Depends(require_role("admin"))):
@@ -2839,41 +3017,54 @@ _kamera_holati = {
     KAMERA_1_IP: {"ketma_ket": 0, "ogohlantirilgan": False},
     KAMERA_2_IP: {"ketma_ket": 0, "ogohlantirilgan": False},
 }
+# _kamera_holati sinxron route handler'dan (FastAPI thread pool'da
+# PARALLEL ishlaydi) o'zgartiriladi - shu sabab boshqa global holatlar
+# (_tarozi_holat, _excel_qulflari) kabi Lock bilan himoyalanadi, aks
+# holda ikki operator stansiyasi bir vaqtda rasm yuborsa hisoblagich
+# noto'g'ri sanashi yoki ogohlantirish ikki marta yuborilishi mumkin edi.
+_kamera_holati_qulf = threading.Lock()
 
 
 def kamera_xatosi_ogohlantirish(cam_nomi: str, cam_ip: str, natija: dict,
                                  mashina_raqami: str, mahsulot_nomi: str, tur: str):
-    holat = _kamera_holati.get(cam_ip)
-    if holat is None:
-        holat = {"ketma_ket": 0, "ogohlantirilgan": False}
-        _kamera_holati[cam_ip] = holat
+    # Telegram so'rovi (tarmoq I/O) LOCK OSTIDA YUBORILMAYDI - faqat
+    # holatni o'qish/yangilash va "yuborish kerakmi" qarorini qulf ichida
+    # qilamiz, xabarning o'zini qulfdan chiqqach yuboramiz.
+    yuboriladigan_matn = None
+    with _kamera_holati_qulf:
+        holat = _kamera_holati.get(cam_ip)
+        if holat is None:
+            holat = {"ketma_ket": 0, "ogohlantirilgan": False}
+            _kamera_holati[cam_ip] = holat
 
-    if natija["status"] == "error":
-        holat["ketma_ket"] += 1
-        if holat["ketma_ket"] >= KAMERA_XATO_CHEGARA and not holat["ogohlantirilgan"]:
-            holat["ogohlantirilgan"] = True
-            vaqt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # html.escape(): natija["message"] xom Python exception matni
-            # bo'lishi mumkin (masalan "<HTTPConnection(...) at 0x...>"
-            # kabi burchakli qavslar bilan) - parse_mode=HTML bunday
-            # matnni noto'g'ri teg deb Telegram butun xabarni rad etadi
-            # (400 Bad Request), aynan ogohlantirish kerak bo'lgan paytda
-            # yetib bormay qolishi mumkin edi.
-            matn = (
-                f"⚠️ <b>Kamera xatosi</b>\n\n"
-                f"Kamera: {html.escape(cam_nomi)} ({html.escape(cam_ip)})\n"
-                f"Mashina: {html.escape(mashina_raqami)}\n"
-                f"Mahsulot: {html.escape(mahsulot_nomi)} ({html.escape(tur)})\n"
-                f"Vaqt: {vaqt}\n"
-                f"Xato: {html.escape(natija['message'])}\n\n"
-                f"({holat['ketma_ket']} marta ketma-ket muvaffaqiyatsiz)"
-            )
-            telegram_xabar_yuborish(matn)
-    else:
-        if holat["ogohlantirilgan"]:
-            telegram_xabar_yuborish(f"✅ Kamera {cam_nomi} ({cam_ip}) qayta ishlay boshladi.")
-        holat["ketma_ket"] = 0
-        holat["ogohlantirilgan"] = False
+        if natija["status"] == "error":
+            holat["ketma_ket"] += 1
+            if holat["ketma_ket"] >= KAMERA_XATO_CHEGARA and not holat["ogohlantirilgan"]:
+                holat["ogohlantirilgan"] = True
+                vaqt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                # html.escape(): natija["message"] xom Python exception matni
+                # bo'lishi mumkin (masalan "<HTTPConnection(...) at 0x...>"
+                # kabi burchakli qavslar bilan) - parse_mode=HTML bunday
+                # matnni noto'g'ri teg deb Telegram butun xabarni rad etadi
+                # (400 Bad Request), aynan ogohlantirish kerak bo'lgan paytda
+                # yetib bormay qolishi mumkin edi.
+                yuboriladigan_matn = (
+                    f"⚠️ <b>Kamera xatosi</b>\n\n"
+                    f"Kamera: {html.escape(cam_nomi)} ({html.escape(cam_ip)})\n"
+                    f"Mashina: {html.escape(mashina_raqami)}\n"
+                    f"Mahsulot: {html.escape(mahsulot_nomi)} ({html.escape(tur)})\n"
+                    f"Vaqt: {vaqt}\n"
+                    f"Xato: {html.escape(natija['message'])}\n\n"
+                    f"({holat['ketma_ket']} marta ketma-ket muvaffaqiyatsiz)"
+                )
+        else:
+            if holat["ogohlantirilgan"]:
+                yuboriladigan_matn = f"✅ Kamera {cam_nomi} ({cam_ip}) qayta ishlay boshladi."
+            holat["ketma_ket"] = 0
+            holat["ogohlantirilgan"] = False
+
+    if yuboriladigan_matn:
+        telegram_xabar_yuborish(yuboriladigan_matn)
 
 
 @app.post("/kamera/rasm")

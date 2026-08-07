@@ -103,7 +103,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     return [
       {"id": 1, "nom": "Chigit", "konditsiya_bor": true},
       {"id": 2, "nom": "Chiganoq", "konditsiya_bor": false},
@@ -123,7 +129,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
         final List natija = jsonDecode(utf8.decode(response.bodyBytes));
         return natija.map((f) => f['nom'].toString()).toList();
       }
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     return [];
   }
 
@@ -144,7 +156,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
           ulangan: natija['ulangan'] as bool,
         );
       }
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     return null;
   }
 
@@ -202,7 +220,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
       if (response.statusCode == 403) {
         moliyaviyChiqish();
       }
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     return null;
   }
 
@@ -218,7 +242,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
       if (response.statusCode == 403) {
         moliyaviyChiqish();
       }
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     return [];
   }
 
@@ -292,7 +322,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
 
     final mahalliyKalit = OfflineQueueService.yangiMahalliyKalit();
     await OfflineQueueService.qoshish(
@@ -355,7 +391,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
         if (response.statusCode == 200) {
           return jsonDecode(utf8.decode(response.bodyBytes));
         }
-      } catch (e) {}
+      } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     }
 
     await OfflineQueueService.qoshish(
@@ -386,7 +428,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
         );
         _check401(response);
         if (response.statusCode == 200) return;
-      } catch (e) {}
+      } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     }
     // Server bilan aloqa bo'lmadi (yoki hujjat hali sinxronlanmagan) -
     // dostaverka/qabul_qildi/yuk_olindi kabi maydonlar YO'QOLMASIN uchun
@@ -428,7 +476,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
         if (response.statusCode == 200) {
           return jsonDecode(utf8.decode(response.bodyBytes));
         }
-      } catch (e) {}
+      } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     }
     // Server bilan aloqa bo'lmadi (yoki hujjat hali sinxronlanmagan) -
     // o'lchov (tara/brutto) YO'QOLMASIN uchun offline navbatga qo'yamiz.
@@ -447,7 +501,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
         );
         _check401(response);
         if (response.statusCode == 200) return;
-      } catch (e) {}
+      } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     }
     // Server bilan aloqa bo'lmadi (yoki hujjat/mashina hali
     // sinxronlanmagan) - navbatga qo'shish YO'QOLMASIN uchun offline
@@ -527,7 +587,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
       );
       _check401(response);
       if (response.statusCode == 200) return;
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     // Server bilan aloqa bo'lmadi - keyinroq avtomatik qayta yuborish
     // uchun offline navbatga qo'yamiz. hujjatId bu yerda ALLAQACHON
     // haqiqiy (mahalliy kalit emas) - chunki bekor qilinayotgan mashina
@@ -568,7 +634,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     return null;
   }
 
@@ -582,7 +654,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     return [];
   }
 
@@ -595,7 +673,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     return [];
   }
 
@@ -700,7 +784,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
       );
       _check401(response);
       if (response.statusCode == 200) return;
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     // Server bilan aloqa bo'lmadi (yoki xato qaytardi) - keyinroq
     // avtomatik qayta yuborish uchun offline navbatga qo'yamiz.
     await OfflineQueueService.qoshish('sozlama_saqlash', data);
@@ -713,7 +803,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     return {};
   }
 
@@ -739,7 +835,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
         }),
       );
       _check401(response);
-   } catch (e) {}
+   } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
   }
 
   /// Bazaning haqiqiy zaxira nusxasini (pg_dump) HOZIR yaratadi.
@@ -766,7 +868,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
         final govda = jsonDecode(utf8.decode(response.bodyBytes));
         return govda['fayllar'] ?? [];
       }
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     return [];
   }
 
@@ -777,7 +885,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     return [];
   }
 
@@ -817,7 +931,13 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
         final govda = jsonDecode(utf8.decode(response.bodyBytes));
         return govda['xabar']?.toString();
       }
-    } catch (e) {}
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+    }
     return null;
   }
 }

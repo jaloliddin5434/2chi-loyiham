@@ -2421,6 +2421,69 @@ def _tunnel_ozini_tekshirish():
         _tunnel_bir_tekshiruv()
 
 
+# ============ TAROZI AGENTI O'Z-O'ZINI KUZATISH (Telegram) ============
+# _tarozi_oxirgi_yangilanish (yuqorida, TAROZI bo'limida) hozirgacha
+# FAQAT operator ekrani GET /tarozi/joriy so'raganda tekshirilardi - agar
+# hech kim ekranni ochmasa (masalan tunda), agent uzilib qolsa ham hech
+# kim bilmasdi. Bu fon oqim buni davriy ravishda, MUSTAQIL tekshiradi.
+# DIQQAT: bu FAQAT backend TIRIK bo'lganda ishlaydi - agar backend
+# jarayonining o'zi butunlay o'lsa, bu thread ham u bilan birga o'ladi
+# (shu sabab tarozi_agent.py'ning o'zida ham ALOHIDA, mustaqil ogohlantirish
+# bor - qarang: tarozi_agent/tarozi_agent.py).
+_TAROZI_ALERT_TEKSHIRUV_OSIYA = 60
+# Operator ekranidagi "Uzilgan" belgisi 10 soniyada ko'rinadi (tezkor,
+# vizual) - lekin Telegram ogohlantirish uchun ancha yuqoriroq chegara
+# ishlatiladi, aks holda har bir qisqa (bir necha soniyalik) uzilishda
+# ham xabar kelib, spam bo'lib qolardi.
+_TAROZI_ALERT_CHEGARA_SONIYA = 180
+
+_tarozi_alert_holati = {"ogohlantirilgan": False}
+_tarozi_alert_holati_qulf = threading.Lock()
+
+
+def _tarozi_alert_bir_tekshiruv():
+    with _tarozi_qulf:
+        oxirgi = _tarozi_oxirgi_yangilanish
+    muddat_otdi = (time.time() - oxirgi) if oxirgi else float("inf")
+    uzilgan = muddat_otdi > _TAROZI_ALERT_CHEGARA_SONIYA
+
+    yuboriladigan_matn = None
+    with _tarozi_alert_holati_qulf:
+        if uzilgan:
+            if not _tarozi_alert_holati["ogohlantirilgan"]:
+                _tarozi_alert_holati["ogohlantirilgan"] = True
+                # muddat_otdi cheksiz bo'lishi mumkin (server hozirgina
+                # ishga tushgan, agentdan HALI BIRON MARTA ham ma'lumot
+                # kelmagan) - int(inf) OverflowError beradi, shu sabab
+                # bu holat alohida xabar bilan ko'rsatiladi.
+                muddat_matni = (
+                    "hali birorta ham ma'lumot kelmagan"
+                    if muddat_otdi == float("inf")
+                    else f"{int(muddat_otdi)} soniyadan buyon ma'lumot kelmayapti"
+                )
+                yuboriladigan_matn = (
+                    f"🔴 <b>Diqqat!</b> Tarozi agentidan {muddat_matni} - "
+                    f"TaroziAgent yoki tarozixona kompyuteri/tarmog'i bilan "
+                    f"muammo bo'lishi mumkin."
+                )
+        else:
+            if _tarozi_alert_holati["ogohlantirilgan"]:
+                yuboriladigan_matn = "✅ Tarozi agentidan ma'lumot qayta kela boshladi."
+            _tarozi_alert_holati["ogohlantirilgan"] = False
+
+    if yuboriladigan_matn:
+        telegram_xabar_yuborish(yuboriladigan_matn)
+
+
+def _tarozi_alert_kuzatuvchisi():
+    while True:
+        time.sleep(_TAROZI_ALERT_TEKSHIRUV_OSIYA)
+        _tarozi_alert_bir_tekshiruv()
+
+
+tarozi_alert_thread = threading.Thread(target=_tarozi_alert_kuzatuvchisi, daemon=True)
+tarozi_alert_thread.start()
+
 tunnel_kuzatuv_thread = threading.Thread(target=_tunnel_ozini_tekshirish, daemon=True)
 tunnel_kuzatuv_thread.start()
 

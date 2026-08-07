@@ -24,6 +24,16 @@ SERVER_URL = os.getenv("SERVER_URL", "http://10.112.30.77:8001").rstrip("/")
 TAROZI_AGENT_KEY = os.getenv("TAROZI_AGENT_KEY", "")
 YUBORISH_INTERVAL_SONIYA = float(os.getenv("YUBORISH_INTERVAL_SONIYA", "0.5"))
 
+# Bular MUSTAQIL ogohlantirish uchun - backend/.envdagi bilan BIR XIL
+# Telegram bot/guruh (o'sha bitta bot barcha tizim xabarlarini yuboradi).
+# Bu agent alohida, tarozixona kompyuterida ishlaydi - agar ofisdagi
+# SERVER (yoki Cloudflare Tunnel) butunlay o'chib qolsa, backend ICHIDAGI
+# hech qanday ogohlantirish ishlay olmaydi (o'lik jarayon xabar yubora
+# olmaydi) - shu sabab bu ALOHIDA, mustaqil ogohlantirish shart.
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+TELEGRAM_ALERT_CHEGARA_SONIYA = float(os.getenv("TELEGRAM_ALERT_CHEGARA_SONIYA", "180"))
+
 if not TAROZI_AGENT_KEY:
     raise RuntimeError(
         ".env faylida TAROZI_AGENT_KEY topilmadi! Serverdagi backend/.env "
@@ -41,6 +51,59 @@ _TAROZI_FREYM_ERKIN_RE = re.compile(rb"([+\-])([0-9]{7})")
 
 _qulf = threading.Lock()
 _holat = {"ogirlik_kg": 0.0, "ulangan": False}
+
+# ============ MUSTAQIL TELEGRAM OGOHLANTIRISH (server bilan aloqa) ============
+# Backenddagi shunga o'xshash mexanizmdan MUSTAQIL - bu yerda ATAYLAB
+# backend/main.py'dan hech narsa import qilinmaydi, chunki aynan backend
+# (yoki unga olib boruvchi tarmoq/Cloudflare Tunnel) o'lganda ham bu agent
+# xabar bera olishi kerak.
+_tg_holati = {"oxirgi_muvaffaqiyat": time.time(), "ogohlantirilgan": False}
+_tg_holati_qulf = threading.Lock()
+
+
+def _telegram_xabar_yuborish(matn: str) -> bool:
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        return False
+    try:
+        javob = requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": matn, "parse_mode": "HTML"},
+            timeout=5,
+        )
+        return javob.status_code == 200
+    except requests.RequestException as e:
+        print(f"Telegram xabar yuborib bo'lmadi: {e}")
+        return False
+
+
+def _server_aloqasi_holatini_yangila(muvaffaqiyat: bool):
+    """Serverga har bir POST urinishidan keyin chaqiriladi. Agar
+    TELEGRAM_ALERT_CHEGARA_SONIYA vaqtidan beri hech qanday muvaffaqiyatli
+    POST bo'lmasa - bu server (yoki Cloudflare Tunnel, yoki butun tarmoq)
+    ishlamayotganidan darak beradi - shunda MUSTAQIL, to'g'ridan-to'g'ri
+    Telegram Bot API orqali (backend ORQALI EMAS) ogohlantirish yuboriladi."""
+    yuboriladigan_matn = None
+    with _tg_holati_qulf:
+        if muvaffaqiyat:
+            if _tg_holati["ogohlantirilgan"]:
+                yuboriladigan_matn = (
+                    "✅ Tarozi agenti serverga qayta ulandi "
+                    f"({SERVER_URL})."
+                )
+            _tg_holati["oxirgi_muvaffaqiyat"] = time.time()
+            _tg_holati["ogohlantirilgan"] = False
+        else:
+            muddat_otdi = time.time() - _tg_holati["oxirgi_muvaffaqiyat"]
+            if (muddat_otdi > TELEGRAM_ALERT_CHEGARA_SONIYA
+                    and not _tg_holati["ogohlantirilgan"]):
+                _tg_holati["ogohlantirilgan"] = True
+                yuboriladigan_matn = (
+                    f"🔴 <b>Diqqat!</b> Tarozi agenti {int(muddat_otdi)} soniyadan "
+                    f"buyon serverga ({SERVER_URL}) ulana olmayapti - server, "
+                    f"Cloudflare Tunnel yoki tarmoqda muammo bo'lishi mumkin."
+                )
+    if yuboriladigan_matn:
+        _telegram_xabar_yuborish(yuboriladigan_matn)
 
 
 def _holatni_yangila(ogirlik_kg=None, ulangan=None):
@@ -134,10 +197,13 @@ def _serverga_yuboruvchi():
                 headers={"X-Tarozi-Agent-Key": TAROZI_AGENT_KEY},
                 timeout=3,
             )
+            muvaffaqiyat = javob.status_code == 200
             if javob.status_code == 401:
                 print("Serverga yuborilmadi: TAROZI_AGENT_KEY mos kelmayapti (401).")
         except requests.RequestException as e:
+            muvaffaqiyat = False
             print(f"Serverga ({SERVER_URL}) yuborib bo'lmadi: {e}")
+        _server_aloqasi_holatini_yangila(muvaffaqiyat)
         time.sleep(YUBORISH_INTERVAL_SONIYA)
 
 

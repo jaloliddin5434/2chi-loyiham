@@ -22,6 +22,8 @@ class _RolTanlashScreenState extends State<RolTanlashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final torEkran = screenWidth < 400;
     return Scaffold(
       body: Stack(
         children: [
@@ -86,7 +88,7 @@ class _RolTanlashScreenState extends State<RolTanlashScreen> {
                 Expanded(
                   child: Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(24.0),
+                      padding: EdgeInsets.all(torEkran ? 12.0 : 24.0),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -126,8 +128,10 @@ class _RolTanlashScreenState extends State<RolTanlashScreen> {
                             ),
                           ),
                           const SizedBox(height: 36),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 16,
+                            runSpacing: 16,
                             children: [
                               _rolKartasi(
                                 context,
@@ -138,7 +142,6 @@ class _RolTanlashScreenState extends State<RolTanlashScreen> {
                                 rang: const Color(0xFF2E7D32),
                                 rol: "operator",
                               ),
-                              const SizedBox(width: 16),
                               _rolKartasi(
                                 context,
                                 index: 1,

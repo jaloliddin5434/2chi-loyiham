@@ -33,6 +33,13 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Chrome "Private Network Access": Cloudflare Tunnel orqasidagi origin
+    # ba'zan mijoz brauzeriga "private" tarmoq sifatida ko'rinadi, shunda
+    # Chrome preflight'ga Access-Control-Request-Private-Network: true
+    # qo'shadi - buni yoqmasak, Starlette CORSMiddleware 400 "Disallowed
+    # CORS private-network" bilan preflight'ni rad etadi (masalan telefon
+    # ilovadan mobil tarmoq orqali kirganda POST /login shu tarzda buzilgan).
+    allow_private_network=True,
 )
 
 

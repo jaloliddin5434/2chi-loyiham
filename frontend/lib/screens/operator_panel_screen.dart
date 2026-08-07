@@ -2363,93 +2363,15 @@ try {
         ? (jami ? jamiKonditsion() : arava?.konditsion)
         : null;
 
-    Widget kontent = Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: kechagiRejim
-              ? [
-                  const Color(0xFF081A16),
-                  const Color(0xFF0B2A22),
-                  const Color(0xFF081A16)
-                ]
-              : [
-                  const Color(0xFFE7F5EF),
-                  const Color(0xFFF1FAF6),
-                  const Color(0xFFE3F2EA)
-                ],
-        ),
-      ),
-     child: isMobile
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-              // Mobile uchun vertikal
-            ])
-            : Row(
-          crossAxisAlignment:
-              CrossAxisAlignment.stretch,
-          children: [
-        // SIDEBAR — faqat operator rejimda
-        if (!widget.adminRejim)
-          Container(
-            width: 52,
-            decoration: BoxDecoration(
-              color: kechagiRejim
-                  ? Colors.black
-                      .withValues(alpha: 0.4)
-                  : Colors.white
-                      .withValues(alpha: 0.7),
-              border: Border(
-                  right: BorderSide(
-                      color: kechagiRejim
-                          ? brandGreenLight
-                              .withValues(alpha: 0.3)
-                          : brandGreenBorder)),
-            ),
-            padding: const EdgeInsets.symmetric(
-                vertical: 12),
-            child: Column(children: [
-              _sidebarIcon(Icons.scale, _tanlanganBolim == 0,
-                  onTap: () =>
-                      setState(() => _tanlanganBolim = 0)),
-              _sidebarIcon(
-                  Icons.description_outlined,
-                  _tanlanganBolim == 1,
-                  onTap: () =>
-                      setState(() => _tanlanganBolim = 1)),
-              _sidebarIcon(
-                  Icons.bar_chart,
-                  _tanlanganBolim == 2,
-                  onTap: () =>
-                      setState(() => _tanlanganBolim = 2)),
-              _sidebarIcon(
-                  Icons.camera_alt_outlined, false),
-            ]),
-          ),
-        Expanded(
-          child: _tanlanganBolim == 1
-              ? const HujjatlarRoyxatiPaneli()
-              : _tanlanganBolim == 2
-              ? StatistikaPaneli(kechagiRejim: kechagiRejim)
-              : SingleChildScrollView(
-            padding: const EdgeInsets.all(12),
-            child: Column(children: [
-              IntrinsicHeight(
-                child: Row(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.stretch,
-                    children: [
-                  // TAROZI
-                  Expanded(
-                    flex: 13,
-                    child: _karta(
-                        child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
-                            children: [
+    // Kartalar bir marta quriladi - ham desktop (Row/flex), ham mobil
+    // (Column, to'liq kenglikda stacked) joylashuvda XUDDI SHU widget
+    // qayta ishlatiladi, ikki xil kod nusxasi saqlanmasin deb.
+    final Widget taroziKartasi = _karta(
+        child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment
+                    .start,
+            children: [
                       Row(
                           mainAxisAlignment:
                               MainAxisAlignment
@@ -2767,18 +2689,14 @@ try {
                                     fontSize: 11,
                                     color: muted))),
                       ],
-                    ])),
-                  ),
-                  const SizedBox(width: 12),
-                  // MASHINA
-                  Expanded(
-                    flex: 8,
-                    child: _karta(
-                        child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
-                            children: [
+                    ]));
+
+    final Widget mashinaKartasi = _karta(
+        child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment
+                    .start,
+            children: [
                       cardLabel(Icons.local_shipping,
                           "MASHINA"),
                       const SizedBox(height: 8),
@@ -2794,19 +2712,14 @@ try {
                           enabled: !bazagaSaqlandi),
                       const SizedBox(height: 6),
                       firmaAutocompleteField(),
-                    ])),
-                  ),
-                  const SizedBox(width: 12),
-                  // HUJJAT — faqat Chigit uchun
-                  if (konditsionBor)
-                    Expanded(
-                      flex: 10,
-                      child: _karta(
-                          child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment
-                                      .start,
-                              children: [
+                    ]));
+
+    final Widget? hujjatKartasi = !konditsionBor ? null : _karta(
+          child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
+              children: [
                         cardLabel(
                             Icons.article_outlined,
                             "HUJJAT"),
@@ -2856,19 +2769,14 @@ try {
                                       TextInputType
                                           .number)),
                         ]),
-                      ])),
-                    ),
-                
-                  const SizedBox(width: 12),
-                  // NATIJALAR
-                  Expanded(
-                    flex: 7,
-                    child: _karta(
-                        child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
-                            children: [
+                      ]));
+
+    final Widget natijalarKartasi = _karta(
+        child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment
+                    .start,
+            children: [
                       cardLabel(
                           Icons.list_alt, "NATIJALAR"),
                       const SizedBox(height: 8),
@@ -2912,25 +2820,14 @@ try {
                                                   10))),
                         ),
                       ),
-                    ])),
-                  ),
-                ]),
-              ),
-              const SizedBox(height: 12),
-              IntrinsicHeight(
-                child: Row(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.stretch,
-                    children: [
-                  // KAMERA
-                  Expanded(
-                    flex: 2,
-                    child: _karta(
-                        child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
-                            children: [
+                    ]));
+
+    final Widget kameraKartasi = _karta(
+        child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment
+                    .start,
+            children: [
                       Row(
                           mainAxisAlignment:
                               MainAxisAlignment
@@ -2978,19 +2875,14 @@ try {
                             child: camFrame("Brutto CAM-2",
                                 rasm: _kameraRasmi('brutto_cam2'))),
                       ]),
-                    ])),
-                  ),
-                  const SizedBox(width: 12),
-                  // DOSTAVERNA — faqat Chigit uchun
-                  if (dostavernaBor) ...[
-                    Expanded(
-                      flex: 1,
-                      child: _karta(
-                          child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment
-                                      .start,
-                              children: [
+                    ]));
+
+    final Widget? dostavernaKartasi = !dostavernaBor ? null : _karta(
+          child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
+              children: [
                         cardLabel(Icons.assignment,
                             "DOSTAVERNA"),
                         const SizedBox(height: 8),
@@ -3004,19 +2896,14 @@ try {
                         const SizedBox(height: 6),
                         infoField("Yuk olindi",
                             yukOlindiCtrl),
-                      ])),
-                    ),
-                    const SizedBox(width: 12),
-                  ],
-                  // NAVBAT
-                  Expanded(
-                    flex: 1,
-                    child: _karta(
-                        child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
-                            children: [
+                      ]));
+
+    final Widget navbatKartasi = _karta(
+        child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment
+                    .start,
+            children: [
                       Row(children: [
                         Expanded(
                           child: GestureDetector(
@@ -3147,14 +3034,156 @@ try {
                           ...tugallanganlar.map((m) =>
                               tugallanganItem(m)),
                       ],
-                    ])),
-                  ),
-                ]),
-              ),
+                    ]));
+
+    // Mobilda yon panel o'rniga tepada gorizontal navigatsiya paneli
+    final Widget? mobilNavBar = widget.adminRejim
+        ? null
+        : Container(
+            decoration: BoxDecoration(
+              color: kechagiRejim
+                  ? Colors.black.withValues(alpha: 0.4)
+                  : Colors.white.withValues(alpha: 0.7),
+              border: Border(
+                  bottom: BorderSide(
+                      color: kechagiRejim
+                          ? brandGreenLight.withValues(alpha: 0.3)
+                          : brandGreenBorder)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+              _sidebarIcon(Icons.scale, _tanlanganBolim == 0,
+                  onTap: () => setState(() => _tanlanganBolim = 0)),
+              _sidebarIcon(Icons.description_outlined, _tanlanganBolim == 1,
+                  onTap: () => setState(() => _tanlanganBolim = 1)),
+              _sidebarIcon(Icons.bar_chart, _tanlanganBolim == 2,
+                  onTap: () => setState(() => _tanlanganBolim = 2)),
+              _sidebarIcon(Icons.camera_alt_outlined, false),
             ]),
-          ),
+          );
+
+    final Widget asosiyBolimIchik = _tanlanganBolim == 1
+        ? const HujjatlarRoyxatiPaneli()
+        : _tanlanganBolim == 2
+            ? StatistikaPaneli(kechagiRejim: kechagiRejim)
+            : (isMobile
+                ? SingleChildScrollView(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        taroziKartasi,
+                        const SizedBox(height: 12),
+                        mashinaKartasi,
+                        if (hujjatKartasi != null) ...[
+                          const SizedBox(height: 12),
+                          hujjatKartasi,
+                        ],
+                        const SizedBox(height: 12),
+                        natijalarKartasi,
+                        const SizedBox(height: 12),
+                        kameraKartasi,
+                        if (dostavernaKartasi != null) ...[
+                          const SizedBox(height: 12),
+                          dostavernaKartasi,
+                        ],
+                        const SizedBox(height: 12),
+                        navbatKartasi,
+                      ],
+                    ),
+                  )
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(children: [
+                      IntrinsicHeight(
+                        child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                          Expanded(flex: 13, child: taroziKartasi),
+                          const SizedBox(width: 12),
+                          Expanded(flex: 8, child: mashinaKartasi),
+                          if (hujjatKartasi != null) ...[
+                            const SizedBox(width: 12),
+                            Expanded(flex: 10, child: hujjatKartasi),
+                          ],
+                          const SizedBox(width: 12),
+                          Expanded(flex: 7, child: natijalarKartasi),
+                        ]),
+                      ),
+                      const SizedBox(height: 12),
+                      IntrinsicHeight(
+                        child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                          Expanded(flex: 2, child: kameraKartasi),
+                          if (dostavernaKartasi != null) ...[
+                            const SizedBox(width: 12),
+                            Expanded(flex: 1, child: dostavernaKartasi),
+                          ],
+                          const SizedBox(width: 12),
+                          Expanded(flex: 1, child: navbatKartasi),
+                        ]),
+                      ),
+                    ]),
+                  ));
+
+    Widget kontent = Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: kechagiRejim
+              ? [
+                  const Color(0xFF081A16),
+                  const Color(0xFF0B2A22),
+                  const Color(0xFF081A16)
+                ]
+              : [
+                  const Color(0xFFE7F5EF),
+                  const Color(0xFFF1FAF6),
+                  const Color(0xFFE3F2EA)
+                ],
         ),
-      ]),
+      ),
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (mobilNavBar != null) mobilNavBar,
+                Expanded(child: asosiyBolimIchik),
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // SIDEBAR — faqat operator rejimda
+                if (!widget.adminRejim)
+                  Container(
+                    width: 52,
+                    decoration: BoxDecoration(
+                      color: kechagiRejim
+                          ? Colors.black.withValues(alpha: 0.4)
+                          : Colors.white.withValues(alpha: 0.7),
+                      border: Border(
+                          right: BorderSide(
+                              color: kechagiRejim
+                                  ? brandGreenLight.withValues(alpha: 0.3)
+                                  : brandGreenBorder)),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Column(children: [
+                      _sidebarIcon(Icons.scale, _tanlanganBolim == 0,
+                          onTap: () => setState(() => _tanlanganBolim = 0)),
+                      _sidebarIcon(Icons.description_outlined, _tanlanganBolim == 1,
+                          onTap: () => setState(() => _tanlanganBolim = 1)),
+                      _sidebarIcon(Icons.bar_chart, _tanlanganBolim == 2,
+                          onTap: () => setState(() => _tanlanganBolim = 2)),
+                      _sidebarIcon(Icons.camera_alt_outlined, false),
+                    ]),
+                  ),
+                Expanded(child: asosiyBolimIchik),
+              ],
+            ),
     );
 
     if (widget.adminRejim) {

@@ -49,13 +49,16 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     } catch (e) {
       setState(() {
         yuklanmoqda = false;
-        xato = "Login yoki parol noto'g'ri!";
+        xato = e.toString().replaceFirst('Exception: ', '');
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final kartaKengligi = screenWidth < 428 ? screenWidth - 48 : 380.0;
+    final kartaPadding = screenWidth < 400 ? 20.0 : 32.0;
     return Scaffold(
       body: Stack(
         children: [
@@ -85,8 +88,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
                 child: Container(
-                  width: 380,
-                  padding: const EdgeInsets.all(32),
+                  width: kartaKengligi,
+                  padding: EdgeInsets.all(kartaPadding),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),

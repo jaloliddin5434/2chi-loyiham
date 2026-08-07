@@ -6,7 +6,7 @@ import 'offline_queue_service.dart';
 import 'navbat_service.dart';
 
 class ApiService {
-static const String baseUrl = "http://10.112.30.77:8001";
+static const String baseUrl = "https://api.smart-tarozi.uz";
   static String? _token;
   // Moliyaviy hisobot uchun ALOHIDA, qisqa muddatli (20 daqiqalik) token -
   // oddiy login tokenidan MUSTAQIL. Faqat to'g'ri PIN kiritilgandan
@@ -240,17 +240,27 @@ static const String baseUrl = "http://10.112.30.77:8001";
 
   static Future<Map<String, dynamic>> login(
       String username, String password, String role) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'username': username, 'password': password, 'role': role}),
-    );
+    http.Response response;
+    try {
+      response = await http
+          .post(
+            Uri.parse('$baseUrl/login'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'username': username, 'password': password, 'role': role}),
+          )
+          .timeout(const Duration(seconds: 10));
+    } catch (e) {
+      throw Exception('Serverga ulanib bo\'lmadi - internet aloqasini tekshiring.');
+    }
     if (response.statusCode == 200) {
       final data = jsonDecode(utf8.decode(response.bodyBytes));
       _token = data['access_token'];
       return data;
     }
-    throw Exception('Login yoki parol noto\'g\'ri!');
+    if (response.statusCode == 401) {
+      throw Exception('Login yoki parol noto\'g\'ri!');
+    }
+    throw Exception('Server xatosi (${response.statusCode}) - birozdan keyin qayta urinib ko\'ring.');
   }
 
   /// Mashina yaratish/olish. Onlayn muvaffaqiyatli bo'lsa, haqiqiy

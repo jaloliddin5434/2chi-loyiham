@@ -4185,7 +4185,14 @@ Widget _mashinaGrafik() {
           color: topbarColor,
           padding: const EdgeInsets.symmetric(
               horizontal: 16, vertical: 8),
-          child: Row(children: [
+          // Tor ekranlarda (telefon) badge/soat/tugmalar hammasi sig'may
+          // qolsa, RenderFlex "overflow" xatosi (sariq-qora chiziqlar)
+          // o'rniga shunchaki gorizontal skroll bo'ladi - "buzilmasin"
+          // darajasidagi xavfsizlik chorasi, to'liq mobil qayta
+          // dizayn emas.
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
             Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: 12, vertical: 5),
@@ -4258,7 +4265,9 @@ Widget _mashinaGrafik() {
                   style: const TextStyle(
                       fontSize: 11, color: greenLight)),
             ),
-            const Spacer(),
+            // Spacer emas - topbar endi gorizontal skroll ichida
+            // (unbounded kenglik), Spacer'ga bunday joyda ruxsat yo'q.
+            const SizedBox(width: 24),
             Container(
                 width: 8,
                 height: 8,
@@ -4370,6 +4379,7 @@ Widget _mashinaGrafik() {
               constraints: const BoxConstraints(),
             ),
           ]),
+          ),
         ),
 
         _offlineBanner(),

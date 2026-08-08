@@ -2487,6 +2487,68 @@ tarozi_alert_thread.start()
 tunnel_kuzatuv_thread = threading.Thread(target=_tunnel_ozini_tekshirish, daemon=True)
 tunnel_kuzatuv_thread.start()
 
+# ============ CLOUDFLAREDTUNNEL WINDOWS XIZMATINI KUZATISH (Telegram) ============
+# Yuqoridagi _tunnel_ozini_tekshirish() serverning ommaviy manziliga HTTP
+# so'rov yuborib, butun zanjirni (backend+tunnel+Cloudflare edge) birgalikda
+# tekshiradi - lekin aynan QAYSI qism buzilganini aytmaydi. Bu fon oqim
+# to'g'ridan-to'g'ri, tarmoq orqali EMAS, shu kompyuterning o'zida
+# CloudflaredTunnel Windows xizmatining holatini tekshiradi - shu sabab
+# tezroq va ANIQROQ ("aynan tunnel xizmati to'xtadi") ogohlantirish beradi.
+# DIQQAT: bu ham backend TIRIK bo'lgandagina ishlaydi - agar backend
+# jarayonining o'zi (yoki butun kompyuter) o'lsa, TaroziAgent'dagi mustaqil
+# Qatlam 2 baribir "serverga ulanib bo'lmayapti" deb ogohlantiradi (u ham
+# xuddi shu CloudflaredTunnel orqali ulanadi) - shu sabab bu yerga
+# UCHINCHI, alohida jarayon qo'shishning hojati yo'q.
+_TUNNEL_XIZMAT_TEKSHIRUV_OSIYA = 60
+_CLOUDFLARE_XIZMAT_NOMI = "CloudflaredTunnel"
+
+_tunnel_xizmat_holati = {"ogohlantirilgan": False}
+_tunnel_xizmat_holati_qulf = threading.Lock()
+
+
+def _tunnel_xizmat_ishlab_turibdimi():
+    import subprocess
+    try:
+        natija = subprocess.run(
+            ["sc", "query", _CLOUDFLARE_XIZMAT_NOMI],
+            capture_output=True, text=True, timeout=10,
+        )
+        return "RUNNING" in natija.stdout
+    except Exception:
+        return False
+
+
+def _tunnel_xizmat_bir_tekshiruv():
+    ishlayaptimi = _tunnel_xizmat_ishlab_turibdimi()
+
+    yuboriladigan_matn = None
+    with _tunnel_xizmat_holati_qulf:
+        if not ishlayaptimi:
+            if not _tunnel_xizmat_holati["ogohlantirilgan"]:
+                _tunnel_xizmat_holati["ogohlantirilgan"] = True
+                yuboriladigan_matn = (
+                    "🔴 <b>Diqqat!</b> CloudflaredTunnel Windows xizmati "
+                    "to'xtab qoldi - tashqi (jamoat) kirish (smart-tarozi.uz) "
+                    "ishlamasligi mumkin. Windows xizmatini tekshiring."
+                )
+        else:
+            if _tunnel_xizmat_holati["ogohlantirilgan"]:
+                yuboriladigan_matn = "✅ CloudflaredTunnel xizmati qayta ishga tushdi."
+            _tunnel_xizmat_holati["ogohlantirilgan"] = False
+
+    if yuboriladigan_matn:
+        telegram_xabar_yuborish(yuboriladigan_matn)
+
+
+def _tunnel_xizmat_kuzatuvchisi():
+    while True:
+        time.sleep(_TUNNEL_XIZMAT_TEKSHIRUV_OSIYA)
+        _tunnel_xizmat_bir_tekshiruv()
+
+
+tunnel_xizmat_thread = threading.Thread(target=_tunnel_xizmat_kuzatuvchisi, daemon=True)
+tunnel_xizmat_thread.start()
+
 @app.post("/telegram/test")
 def telegram_test(current_user: dict = Depends(require_role("admin"))):
     telegram_xabar_yuborish("✅ Hazorasp Tekstil tarozi tizimi ulandi!")

@@ -1,30 +1,31 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// Ilova asosiy ekrani (mahsulot tanlash) to'g'ri yuklanishini tekshiradi -
+// hatto tarmoq/backend mavjud bo'lmagan holatda ham (flutter test
+// muhitida haqiqiy HTTP so'rovlar hech qachon serverga yetmaydi).
+// ApiService.getMahsulotlar() bunday holatda o'zining ichki standart
+// mahsulotlar ro'yxatini qaytaradi - shu sabab ekran baribir to'liq,
+// brendlangan holatda ochilishi kerak.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:frontend/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
+  testWidgets('Mahsulot tanlash ekrani tarmoqsiz holatda ham togri ochiladi',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+
     await tester.pumpWidget(const MyApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Birinchi frame'da yuklanish indikatori korinishi kerak.
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Hazorasp Tekstil'), findsOneWidget);
+    expect(find.text('SMART TAROZI'), findsOneWidget);
+    expect(find.text('Mahsulot turini tanlang'), findsOneWidget);
+    expect(find.text('Chigit'), findsOneWidget);
   });
 }

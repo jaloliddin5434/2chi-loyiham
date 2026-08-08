@@ -60,9 +60,28 @@ jobs:
         working-directory: backend
         run: pytest tests/ -v
 
-# frontend-testlari job hozircha QO'SHILMADI - frontend/test/ papkasidagi
-# 5 ta test hozir mahalliy kompyuterda ham muvaffaqiyatsiz (widget_test.dart -
-# eski "counter" andozasi, ilova endi counter emas; offline_queue_integration_test.dart -
-# 3 ta test REAL, ishlab turgan backendga ulanishni talab qiladi, izolyatsiya
-# qilingan CI muhitida emas). Bularni CI'ga qo'shishdan oldin avval frontend
-# testlarining o'zini tuzatish/moslashtirish kerak - alohida vazifa sifatida.
+  frontend-testlari:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodni yuklab olish
+        uses: actions/checkout@v4
+
+      - name: Flutter o'rnatish
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.4"
+          channel: stable
+
+      - name: Bog'liqliklarni o'rnatish
+        working-directory: frontend
+        run: flutter pub get
+
+      # frontend/integration_test/ papkasidagi fayllar ATAYLAB shu yerga
+      # kirmaydi - ular real, ishlab turgan backendga (office LAN) ulanib
+      # sinaydigan qo'lda ishga tushiriladigan tekshiruvlar, GitHub Actions
+      # hosted runner'i office LAN'ga yeta olmaydi. `flutter test`
+      # (argumentsiz) faqat `frontend/test/` papkasini skanerlaydi.
+      - name: Testlarni ishga tushirish
+        working-directory: frontend
+        run: flutter test

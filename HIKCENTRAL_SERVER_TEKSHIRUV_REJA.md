@@ -1,9 +1,40 @@
 # HikCentral kompyuteriga server ko'chirish - tekshiruv va xavfsizlik rejasi
 
-Bu hujjat - ofisdagi (hali alohida tekshirilmagan) HikCentral kompyuteriga
-bizning backend+frontend+PostgreSQL stack'ini o'rnatishdan OLDINGI tayyorgarlik
-rejasi. Hech qanday o'rnatish/o'zgartirish HALI amalga oshirilmagan - bu FAQAT
-reja va tekshiruv skripti.
+Bu hujjat - ofisdagi HikCentral kompyuteriga bizning backend+frontend+PostgreSQL
+stack'ini o'rnatishdan OLDINGI tayyorgarlik rejasi. Hech qanday o'rnatish/
+o'zgartirish HALI amalga oshirilmagan - bu FAQAT reja va tekshiruv natijasi.
+
+## YAKUNIY XULOSA (2026-08-08, haqiqiy HikCentral kompyuterida tekshirilgan)
+
+**O'RNATISH XAVFSIZ - hech qanday to'siq topilmadi.** Barcha 15 bo'lim
+haqiqiy HikCentral kompyuterida (Windows 10 Pro, build 19041, oxirgi qayta
+yuklanish 2026-08-01) tekshirildi:
+
+| Ko'rsatkich | Natija | Xulosa |
+|---|---|---|
+| Portlar (8001, 8080) | Barchasi BO'SH | To'qnashuv yo'q |
+| Port 5432 | HikCentral'ning o'z PostgreSQL'i band | Kutilgan, bizga aloqasi yo'q |
+| Port 5544 (Postgres uchun tanlangan yangi port) | **HALI TEKSHIRILMAGAN** | Dastlabki tekshiruvda faqat 5433 tekshirilgan edi - 5544'ni alohida tasdiqlash kerak (pastga qarang) |
+| Disk C: | 237,9 GB jami, **187,1 GB bo'sh (78,7%)** | Sog'lom - bizning ~1 GB'lik og'irligimiz uchun katta marja |
+| RAM | 15,7 GB jami, **8 GB bo'sh (51%)** | Sog'lom marja |
+| CPU | Eng og'ir jarayonlar - HikCentral'ning o'zi (media/BeeGuard/SYS) | Kutilgan (video striming), bizga bog'liq emas |
+| Python/Git/PostgreSQL | Uchalasi ham O'RNATILMAGAN | Toza muhit - versiya to'qnashuvi xavfi yo'q |
+| Firewall | 3 profil ham yoqilgan, 503 qoida | HikCentral uchun mavjud qoidalar bor - namuna sifatida foydalanish mumkin |
+| System Restore | **FAOL** - so'nggi 3 checkpoint: 2026-07-19, 2026-07-28, 2026-08-06 | Rollback tarmog'i ALLAQACHON ishlaydi (kalibrlash kompyuteridan farqli o'laroq) |
+
+**Port qarori yangilandi**: dastlab Postgres uchun 5433 taklif qilingan edi,
+lekin HikCentral'ning o'z portidan (5432) yanada aniqroq, uzoqroq
+ajratilishi uchun **5544** portiga o'tildi. 5544 dastlabki tekshiruvda
+tekshirilmagan edi - o'rnatishdan oldin pastdagi buyruq bilan alohida
+tasdiqlanishi shart.
+
+Yagona diqqat talab qiladigan nuqta: video arxiv joyi alohida diskda emas,
+`C:\Program Files (x86)\HikCentral` ichida, ya'ni C: diskning o'zida
+saqlanadi. Bu muammo emas (C: da 187 GB bo'sh), lekin shuni bildiradiki -
+bizning stack ham, HikCentral'ning video arxivi ham BIR XIL diskni
+ulashadi - kelajakda video arxiv o'sishi C: diskning bo'sh joyini
+kamaytirib borishini davriy nazorat qilish tavsiya etiladi (masalan disk
+bo'sh joyini oylik tekshirib turish).
 
 ## Kalibrlash: nima kutish mumkinligi haqida real ma'lumot
 
@@ -17,7 +48,7 @@ haqida qimmatli, real namuna berdi:
 
 - HikCentral Professional **PostgreSQL'ning o'z instansiyasini** o'rnatadi
   (odatda port **5432**) - shu sabab bizning Postgres albatta BOSHQA portda
-  (5433 yoki undan yuqori) o'rnatilishi SHART.
+  (5544 - HikCentral'ning 5432'sidan aniq uzoq) o'rnatilishi SHART.
 - HikCentral juda ko'p portdan foydalanadi: Nginx (80, 443, 18001-18010),
   Streaming Gateway/media (83, 554, 559, 1935), SYS core xizmati (6000-10000+
   oralig'ida o'nlab dinamik port), BeeAgent va boshqa "Bee*" nomli ichki
@@ -39,7 +70,7 @@ hech qanday iz qoldirmasdan quyidagilarni aniqlaydi:
 1. Tizim asosiy ma'lumotlari (OS, uptime)
 2. BARCHA tinglayotgan TCP portlar - to'liq exe yo'li va kompaniya nomi bilan
 3. BARCHA tinglayotgan UDP portlar
-4. Bizga kerak bo'lishi mumkin bo'lgan portlar (8001, 8080, 5432, 5433, 5000,
+4. Bizga kerak bo'lishi mumkin bo'lgan portlar (8001, 8080, 5432, 5544, 5000,
    8000, 3000, 8888) band-bandligi
 5. BARCHA nostandart (Microsoft'dan boshqa) xizmatlar to'liq ro'yxati -
    nafaqat "Hik" nomi bilan, balki Redis/Mongo/RabbitMQ/Nginx/Postgres kabi
@@ -59,31 +90,28 @@ hech qanday iz qoldirmasdan quyidagilarni aniqlaydi:
 `%TEMP%\hikcentral_tekshiruv_natija_*.txt` fayliga ham saqlanadi - shu faylni
 menga yuboring.
 
-## 2. Xavfsiz disk joyi hisobi
+## 2. Disk joyi - TASDIQLANDI XAVFSIZ
 
-Bizning REAL o'lchangan og'irligimiz (shu dev-kompyuterdagi mavjud
+Haqiqiy HikCentral kompyuterida C: diskda **187,1 GB bo'sh (78,7%)**.
+Bizning REAL o'lchangan og'irligimiz (dev-kompyuterdagi mavjud
 o'rnatishdan): repo manba kodi ~15-20 MB, PostgreSQL data papkasi hozircha
 ~78 MB (biznes ma'lumoti bilan sekin o'sadi), backup fayllari ~6 MB (30 kunlik
 avtomatik tozalash siyosati bilan chegaralangan - cheksiz o'smaydi), Flutter
-veb build ~20-50 MB. **Jami boshlang'ich og'irlik: 1 GB dan kam.**
+veb build ~20-50 MB. **Jami boshlang'ich og'irlik: 1 GB dan kam** - 187 GB
+bo'sh joy oldida bu deyarli sezilmaydigan miqdor. Xavotir yo'q.
 
-Shunga qaramay, tavsiya: o'rnatishdan oldin diskda **kamida 20-30 GB bo'sh
-joy** borligini tasdiqlang (xavfsizlik marjasi sifatida, HikCentral'ning
-o'zi ham vaqt o'tishi bilan ko'proq joy talab qilishi mumkinligi uchun).
-Agar HikCentral video arxivi alohida diskda bo'lsa (odatiy amaliyot), bizning
-stack'ni o'sha diskka EMAS, tizim diskiga (yoki eng ko'p bo'sh joyi bor
-diskka) o'rnatish tavsiya etiladi.
+Video arxiv ham C: diskda joylashgan (alohida disk yo'q) - shuning uchun
+kelajakda ikkalasi (HikCentral video arxivi + bizning ma'lumotlar) bir xil
+diskni ulashadi. Tavsiya: disk bo'sh joyini oylik nazorat qilib turish.
 
-## 3. RAM/CPU xavfsizligi
+## 3. RAM/CPU xavfsizligi - TASDIQLANDI XAVFSIZ
 
-Bizning stack yengil (Python+PostgreSQL, video kodlash/striming qilmaydi) -
-odatda 200-400 MB RAM va past CPU talab qiladi oddiy yuklamada. Lekin
-tekshiruv skriptining 10-11 bo'limlari orqali HikCentral kompyuterining
-UMUMIY bo'sh RAM/CPU zaxirasini albatta ko'rib chiqish kerak - agar bo'sh RAM
-1-2 GB dan kam bo'lsa (shu kalibrlash kompyuterida bo'lgani kabi), bu allaqachon
-tor holat va bizning qo'shimchamiz uni yanada torlashtiradi - bunday holatda
-o'rnatishdan oldin HikCentral operatoriga/administratoriga xabar berish va
-RAM yetarliligini alohida muhokama qilish tavsiya etiladi.
+Haqiqiy HikCentral kompyuterida **15,7 GB RAM, 8 GB bo'sh (51%)**. Bizning
+stack yengil (Python+PostgreSQL, video kodlash/striming qilmaydi) - odatda
+200-400 MB RAM va past CPU talab qiladi oddiy yuklamada - 8 GB bo'sh joy
+oldida bu ahamiyatsiz qo'shimcha yuklama. CPU'da eng og'ir jarayonlar
+HikCentral'ning o'zi (media striming, BeeGuard, SYS) - bu kutilgan, video
+kuzatuv tizimi uchun normal holat, bizning qo'shimchamizga bog'liq emas.
 
 ## 4. ROLLBACK REJASI - bosqichma-bosqich, har bosqichdan keyin tekshiruv bilan
 
@@ -94,21 +122,27 @@ hali ham "Running" holatida ekanligi tasdiqlanadi (tekshiruv skriptining
 sifatida saqlanadi, har bosqichdan keyin shu ro'yxat bilan solishtiriladi).
 
 **0-bosqich (o'rnatishdan OLDIN, bir marta):**
-- Windows System Restore uchun "System Protection" C: diskda YOQILGANLIGINI
-  tasdiqlash (shu kalibrlash kompyuterida bu O'CHIRILGAN edi - hech qanday
-  restore point yo'q edi - bu ALBATTA tuzatilishi kerak bo'lgan holat).
-- Yangi restore point yaratish (`Checkpoint-Computer` yoki Boshqaruv paneli
-  orqali) - bu YAGONA to'liq, OS-darajasidagi orqaga qaytarish tarmog'i.
+- Haqiqiy HikCentral kompyuterida System Protection ALLAQACHON yoqilgan va
+  ishlamoqda - so'nggi 3 avtomatik checkpoint mavjud (2026-07-19, 2026-07-28,
+  2026-08-06). Shunga qaramay, o'rnatishdan bevosita OLDIN yangi, aniq
+  "bizning o'zgarishlardan oldingi" checkpoint qo'lda yaratiladi (pastdagi
+  4-bandga qarang) - eng so'nggi avtomatik checkpoint bir necha kun oldin
+  bo'lgani uchun.
 - HikCentral barcha xizmatlarining "boshlang'ich holati"ni (Running/Stopped
   ro'yxati) faylga yozib olish - keyingi har bir bosqichda solishtirish uchun.
 
 **1-bosqich: Python o'rnatish** → HikCentral xizmatlari holatini qayta
 tekshirish (baseline bilan solishtirish).
 
-**2-bosqich: PostgreSQL o'rnatish** - MAJBURIY: HikCentral'ning o'z Postgres
-portidan (odatda 5432) FARQLI portda (5433 yoki undan yuqori, tekshiruv
-skripti asosida band bo'lmagan port tanlanadi), alohida instance nomi bilan
-→ yana holatni tekshirish.
+**2-bosqich: PostgreSQL o'rnatish** - MAJBURIY: port **5544**da (HikCentral'ning
+o'z Postgres'i 5432'da - 5544 undan aniq, chalkashmaydigan darajada uzoq),
+alohida instance nomi bilan. Boshlashdan oldin 5544 bo'shligini quyidagi
+buyruq bilan tasdiqlang:
+```powershell
+Get-NetTCPConnection -LocalPort 5544 -State Listen -ErrorAction SilentlyContinue
+```
+(Hech narsa chiqmasa - port bo'sh, xavfsiz davom etish mumkin.) → yana
+holatni tekshirish.
 
 **3-bosqich: repo joylashtirish + `.env` sozlash + backend/frontend'ni
 QO'LDA (hali xizmat sifatida EMAS) ishga tushirib tekshirish** → yana
@@ -158,9 +192,21 @@ aniq nomlangan narsalarni olib tashlaydi.
 
 ## Keyingi qadam
 
-Tekshiruv skriptini (`hikcentral_tekshiruv.ps1`) haqiqiy HikCentral
-kompyuterida ishga tushirish va natijani (`%TEMP%\hikcentral_tekshiruv_natija_*.txt`)
-yuborish kerak. Shundan keyin - real ma'lumotlar asosida - yuqoridagi reja
-aniq raqamlar (tanlangan Postgres porti, disk, o'rnatish yo'li) bilan
-to'ldiriladi va faqat SIZNING tasdig'ingizdan keyin amalga oshirish
-bosqichiga o'tiladi.
+Tekshiruv YAKUNLANDI - xulosa: **o'rnatish xavfsiz**. Endi navbat amalga
+oshirish bosqichiga - lekin bu FAQAT sizning aniq tasdig'ingizdan keyin
+boshlanadi. Amalga oshirish quyidagi tartibda bo'ladi (4-band, "ROLLBACK
+REJASI"da tavsiflangan bosqichlar bo'yicha, har bosqichdan keyin HikCentral
+holatini tekshirib):
+
+0. Yangi System Restore checkpoint yaratish (buyruq yuqorida berilgan).
+1. Python o'rnatish.
+2. Port 5544 bo'shligini tasdiqlash, so'ng PostgreSQL'ni port **5544**da
+   o'rnatish (5432 - HikCentral'niki, band).
+3. Repo'ni joylashtirish, `.env` sozlash (`DATABASE_URL`da port 5544),
+   qo'lda ishga tushirib tekshirish.
+4. NSSM orqali Windows xizmati qilib o'rnatish.
+5. Kerak bo'lsa, Cloudflare Tunnel.
+
+Boshlashdan oldin: qaysi kunda/soatda amalga oshirish qulay (HikCentral
+operatorlari band bo'lmagan payt tavsiya etiladi) va davom etishga
+tasdiqingizni kutaman.

@@ -27,6 +27,5 @@ void main() {
     expect(find.text('SMART TAROZI'), findsOneWidget);
     expect(find.text('Mahsulot turini tanlang'), findsOneWidget);
     expect(find.text('Chigit'), findsOneWidget);
-    expect(find.text('BU_MATN_HECH_QACHON_TOPILMAYDI_CI_SINOVI'), findsOneWidget);
   });
 }

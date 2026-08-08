@@ -35,7 +35,7 @@ TAROZI_AGENT_KEY = os.getenv("TAROZI_AGENT_KEY", "")
 # QR kod (nakladnoy-korish ochiq sahifasi) uchun serverning tashqi manzili -
 # frontend'ning ApiService.baseUrl bilan bir xil (hozircha lokal tarmoq IP,
 # faqat shu WiFi'ga ulangan qurilmalar ocha oladi).
-SERVER_ASOSIY_URL = os.getenv("SERVER_ASOSIY_URL", "http://10.112.30.77:8001")
+SERVER_ASOSIY_URL = os.getenv("SERVER_ASOSIY_URL", "http://10.112.30.77:47001")
 
 # CORS - brauzerdan so'rov yuborishga ruxsat berilgan manzillar ro'yxati
 # (vergul bilan ajratilgan). Kelajakda domen/reverse-proxy qo'shilganda
@@ -43,7 +43,7 @@ SERVER_ASOSIY_URL = os.getenv("SERVER_ASOSIY_URL", "http://10.112.30.77:8001")
 ALLOWED_ORIGINS = [
     manzil.strip()
     for manzil in os.getenv(
-        "ALLOWED_ORIGINS", "http://10.112.30.77:8080,http://localhost:8080"
+        "ALLOWED_ORIGINS", "http://10.112.30.77:47080,http://localhost:47080"
     ).split(",")
     if manzil.strip()
 ]

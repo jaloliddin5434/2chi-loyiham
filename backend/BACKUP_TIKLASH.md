@@ -26,8 +26,8 @@ qilinishi shart (eskiroq versiya buni tushunmaydi).
   odatda `C:\Program Files\PostgreSQL\18\bin\`).
 - `backup\` papkasidagi kerakli `.sql` fayl.
 - `backend\.env`dagi `DATABASE_URL`dan foydalanuvchi/parol/port/baza nomini
-  bilish (masalan `postgresql+psycopg2://postgres:XXXXXX@localhost:5433/hazorasp_tarozi`
-  — bu yerda foydalanuvchi=`postgres`, port=`5433`, baza nomi=`hazorasp_tarozi`).
+  bilish (masalan `postgresql+psycopg2://postgres:XXXXXX@localhost:47432/hazorasp_tarozi`
+  — bu yerda foydalanuvchi=`postgres`, port=`47432`, baza nomi=`hazorasp_tarozi`).
 - Windows Administrator huquqi shart emas (agar Postgres xizmati allaqachon
   ishlab tursa) — faqat Postgres foydalanuvchi paroli kerak.
 
@@ -37,11 +37,11 @@ Bu — server migratsiyasi paytidagi holat (baza hali umuman yo'q).
 
 1. Yangi, bo'sh baza yaratish:
    ```
-   createdb -U postgres -p 5433 hazorasp_tarozi
+   createdb -U postgres -p 47432 hazorasp_tarozi
    ```
 2. Tanlangan backup faylni yuklash (eng so'nggisi tavsiya etiladi):
    ```
-   psql -U postgres -p 5433 -d hazorasp_tarozi -f "C:\hazorasp_tarozi\backup\backup_ENG_SONGGI.sql"
+   psql -U postgres -p 47432 -d hazorasp_tarozi -f "C:\hazorasp_tarozi\backup\backup_ENG_SONGGI.sql"
    ```
 3. Pastdagi **"Tiklashdan keyingi tekshiruv"** bo'limiga o'ting.
 
@@ -55,7 +55,7 @@ xato bo'lsa orqaga qaytish imkoni qoladi:
    oynasini yoping.
 2. Buzilgan bazani **o'chirmasdan**, boshqa nomga o'zgartiring:
    ```
-   psql -U postgres -p 5433 -d postgres -c "ALTER DATABASE hazorasp_tarozi RENAME TO hazorasp_tarozi_buzilgan_2026_08_08;"
+   psql -U postgres -p 47432 -d postgres -c "ALTER DATABASE hazorasp_tarozi RENAME TO hazorasp_tarozi_buzilgan_2026_08_08;"
    ```
    (agar faol ulanishlar bo'lgani uchun bu buyruq xato bersa — avval
    backend/boshqa hech kim ulanmaganini tasdiqlang, kerak bo'lsa
@@ -90,7 +90,7 @@ xato bo'lsa orqaga qaytish imkoni qoladi:
    from sqlalchemy import create_engine, inspect
    from database import Base
    import models
-   e = create_engine('postgresql+psycopg2://postgres:PAROL@localhost:5433/hazorasp_tarozi')
+   e = create_engine('postgresql+psycopg2://postgres:PAROL@localhost:47432/hazorasp_tarozi')
    insp = inspect(e)
    db = set(insp.get_table_names())
    model = set(Base.metadata.tables.keys())

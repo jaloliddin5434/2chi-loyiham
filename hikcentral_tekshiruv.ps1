@@ -70,10 +70,10 @@ Get-NetUDPEndpoint -ErrorAction SilentlyContinue |
 Write-Host "`n############################################################"
 Write-Host "# 4. BIZGA KERAK BO'LISHI MUMKIN BO'LGAN PORTLAR BAND-BAND EMASLIGI"
 Write-Host "############################################################" -ForegroundColor Cyan
-# 8001/8080 - bizning backend/frontend; 5432 - HikCentral'ning Postgres porti;
-# 5544 - bizning Postgres uchun tanlangan port (5432'dan aniq uzoq);
+# 47001/47080 - bizning backend/frontend; 5432 - HikCentral'ning Postgres porti;
+# 47432 - bizning Postgres uchun tanlangan port (5432'dan aniq uzoq);
 # 5000/8000/3000/8888 - Python/veb ilovalarda tez-tez uchraydigan qo'shimcha portlar
-foreach ($p in 8001, 8080, 5432, 5544, 5000, 8000, 3000, 8888) {
+foreach ($p in 47001, 47080, 5432, 47432, 5000, 8000, 3000, 8888) {
     $c = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
     if ($c) {
         $proc = Get-Process -Id $c[0].OwningProcess -ErrorAction SilentlyContinue

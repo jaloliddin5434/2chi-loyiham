@@ -13,7 +13,7 @@ import 'package:http/http.dart' as http;
 import 'package:frontend/services/offline_queue_service.dart';
 import 'package:frontend/services/offline_queue_executors.dart';
 
-const String _baseUrl = 'http://10.112.30.77:8001';
+const String _baseUrl = 'http://10.112.30.77:47001';
 
 Future<String> _login() async {
   final javob = await http.post(

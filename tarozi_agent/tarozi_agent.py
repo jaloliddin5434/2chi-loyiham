@@ -20,7 +20,7 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 
 TAROZI_PORT = os.getenv("TAROZI_PORT", "COM7")
 TAROZI_BAUD = int(os.getenv("TAROZI_BAUD", "9600"))
-SERVER_URL = os.getenv("SERVER_URL", "http://10.112.30.77:8001").rstrip("/")
+SERVER_URL = os.getenv("SERVER_URL", "http://10.112.30.77:47001").rstrip("/")
 TAROZI_AGENT_KEY = os.getenv("TAROZI_AGENT_KEY", "")
 YUBORISH_INTERVAL_SONIYA = float(os.getenv("YUBORISH_INTERVAL_SONIYA", "0.5"))
 

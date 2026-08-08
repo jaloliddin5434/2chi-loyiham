@@ -12,9 +12,8 @@ yuklanish 2026-08-01) tekshirildi:
 
 | Ko'rsatkich | Natija | Xulosa |
 |---|---|---|
-| Portlar (8001, 8080) | Barchasi BO'SH | To'qnashuv yo'q |
+| Portlar (dastlabki tekshiruvda 8001, 8080) | Barchasi BO'SH | To'qnashuv yo'q edi - lekin loyiha portlari endi o'zgardi, pastga qarang |
 | Port 5432 | HikCentral'ning o'z PostgreSQL'i band | Kutilgan, bizga aloqasi yo'q |
-| Port 5544 (Postgres uchun tanlangan yangi port) | **HALI TEKSHIRILMAGAN** | Dastlabki tekshiruvda faqat 5433 tekshirilgan edi - 5544'ni alohida tasdiqlash kerak (pastga qarang) |
 | Disk C: | 237,9 GB jami, **187,1 GB bo'sh (78,7%)** | Sog'lom - bizning ~1 GB'lik og'irligimiz uchun katta marja |
 | RAM | 15,7 GB jami, **8 GB bo'sh (51%)** | Sog'lom marja |
 | CPU | Eng og'ir jarayonlar - HikCentral'ning o'zi (media/BeeGuard/SYS) | Kutilgan (video striming), bizga bog'liq emas |
@@ -22,11 +21,21 @@ yuklanish 2026-08-01) tekshirildi:
 | Firewall | 3 profil ham yoqilgan, 503 qoida | HikCentral uchun mavjud qoidalar bor - namuna sifatida foydalanish mumkin |
 | System Restore | **FAOL** - so'nggi 3 checkpoint: 2026-07-19, 2026-07-28, 2026-08-06 | Rollback tarmog'i ALLAQACHON ishlaydi (kalibrlash kompyuteridan farqli o'laroq) |
 
-**Port qarori yangilandi**: dastlab Postgres uchun 5433 taklif qilingan edi,
-lekin HikCentral'ning o'z portidan (5432) yanada aniqroq, uzoqroq
-ajratilishi uchun **5544** portiga o'tildi. 5544 dastlabki tekshiruvda
-tekshirilmagan edi - o'rnatishdan oldin pastdagi buyruq bilan alohida
-tasdiqlanishi shart.
+**Port qarori YANGILANDI (butun loyiha bo'ylab izchillik uchun)**: loyihaning
+BARCHA joylarida (kod, `.env`, Cloudflare Tunnel, hujjatlar) endi yagona,
+yangi port to'plami ishlatiladi:
+
+| Xizmat | Eski port(lar) | YANGI, YAGONA port |
+|---|---|---|
+| Backend | 8001 | **47001** |
+| Frontend | 8080 | **47080** |
+| PostgreSQL | 5432/5433/5544 | **47432** |
+
+**MUHIM**: bu uch yangi port (47001, 47080, 47432) haqiqiy HikCentral
+kompyuterida HALI ALOHIDA TEKSHIRILMAGAN - dastlabki tekshiruvda faqat
+8001, 8080, 5432, 5433 tekshirilgan edi. O'rnatishdan oldin bu uchalasi
+ham pastdagi buyruq bilan qayta tasdiqlanishi SHART (`hikcentral_tekshiruv.ps1`
+ham shu uch portni tekshiradigan qilib yangilangan).
 
 Yagona diqqat talab qiladigan nuqta: video arxiv joyi alohida diskda emas,
 `C:\Program Files (x86)\HikCentral` ichida, ya'ni C: diskning o'zida
@@ -40,22 +49,24 @@ bo'sh joyini oylik tekshirib turish).
 
 `hikcentral_tekshiruv.ps1` skriptini (quyida) dastlab **shu dev-kompyuterda**
 ishga tushirdik - chunki bu kompyuterda ham (boshqa, ammo o'xshash) HikCentral
-Professional 3.0.1 allaqachon o'rnatilgan va bizning stack (backend:8001,
-frontend:8080, PostgreSQL 18:5433) bir necha kundan beri u bilan yonma-yon,
-muvaffaqiyatli ishlab turibdi. Bu haqiqiy o'rnatishga TEGISHLI EMAS (haqiqiy
-kompyuter boshqa), lekin HikCentral Professional nima ishlatishi mumkinligi
-haqida qimmatli, real namuna berdi:
+Professional 3.0.1 allaqachon o'rnatilgan va bizning stack (o'sha paytda hali
+eski portlarda: backend:8001, frontend:8080, PostgreSQL 5433) bir necha
+kundan beri u bilan yonma-yon, muvaffaqiyatli ishlab turgan edi (loyiha shundan
+keyin 47001/47080/47432 portlariga o'tkazildi - yuqoriga qarang). Bu haqiqiy
+o'rnatishga TEGISHLI EMAS (haqiqiy kompyuter boshqa), lekin HikCentral
+Professional nima ishlatishi mumkinligi haqida qimmatli, real namuna berdi:
 
 - HikCentral Professional **PostgreSQL'ning o'z instansiyasini** o'rnatadi
   (odatda port **5432**) - shu sabab bizning Postgres albatta BOSHQA portda
-  (5544 - HikCentral'ning 5432'sidan aniq uzoq) o'rnatilishi SHART.
+  (**47432** - HikCentral'ning 5432'sidan aniq uzoq) o'rnatilishi SHART.
 - HikCentral juda ko'p portdan foydalanadi: Nginx (80, 443, 18001-18010),
   Streaming Gateway/media (83, 554, 559, 1935), SYS core xizmati (6000-10000+
   oralig'ida o'nlab dinamik port), BeeAgent va boshqa "Bee*" nomli ichki
   komponentlar (5208, 6208, 7208, 8208 kabi).
-- Bizning odatiy portlarimiz (8001, 8080) HikCentral bilan hech qachon
-  to'qnashmagan - lekin bu HAR BIR o'rnatishda alohida tasdiqlanishi kerak,
-  chunki HikCentral versiyasi/sozlamalariga qarab portlar farq qilishi mumkin.
+- Bizning odatiy portlarimiz (eski 8001, 8080; yangi 47001, 47080) HikCentral
+  bilan hech qachon to'qnashmagan - lekin bu HAR BIR o'rnatishda alohida
+  tasdiqlanishi kerak, chunki HikCentral versiyasi/sozlamalariga qarab
+  portlar farq qilishi mumkin.
 - **Muhim ogohlantirish**: shu kalibrlash kompyuterida C: diskda atigi 6,6%
   (7,9 GB) bo'sh joy qolgan edi - bu HikCentral+dev vositalari yig'indisi
   natijasi. Bu HAQIQIY o'rnatish kompyuterida ham tekshirilishi SHART,
@@ -70,8 +81,8 @@ hech qanday iz qoldirmasdan quyidagilarni aniqlaydi:
 1. Tizim asosiy ma'lumotlari (OS, uptime)
 2. BARCHA tinglayotgan TCP portlar - to'liq exe yo'li va kompaniya nomi bilan
 3. BARCHA tinglayotgan UDP portlar
-4. Bizga kerak bo'lishi mumkin bo'lgan portlar (8001, 8080, 5432, 5544, 5000,
-   8000, 3000, 8888) band-bandligi
+4. Bizga kerak bo'lishi mumkin bo'lgan portlar (47001, 47080, 5432, 47432,
+   5000, 8000, 3000, 8888) band-bandligi
 5. BARCHA nostandart (Microsoft'dan boshqa) xizmatlar to'liq ro'yxati -
    nafaqat "Hik" nomi bilan, balki Redis/Mongo/RabbitMQ/Nginx/Postgres kabi
    HikCentral bilan birga o'rnatiladigan yordamchi komponentlarni ham
@@ -134,15 +145,15 @@ sifatida saqlanadi, har bosqichdan keyin shu ro'yxat bilan solishtiriladi).
 **1-bosqich: Python o'rnatish** → HikCentral xizmatlari holatini qayta
 tekshirish (baseline bilan solishtirish).
 
-**2-bosqich: PostgreSQL o'rnatish** - MAJBURIY: port **5544**da (HikCentral'ning
-o'z Postgres'i 5432'da - 5544 undan aniq, chalkashmaydigan darajada uzoq),
-alohida instance nomi bilan. Boshlashdan oldin 5544 bo'shligini quyidagi
-buyruq bilan tasdiqlang:
+**2-bosqich: PostgreSQL o'rnatish** - MAJBURIY: port **47432**da (HikCentral'ning
+o'z Postgres'i 5432'da - 47432 undan aniq, chalkashmaydigan darajada uzoq),
+alohida instance nomi bilan. Boshlashdan oldin 47001, 47080 va 47432
+bo'shligini quyidagi buyruq bilan tasdiqlang:
 ```powershell
-Get-NetTCPConnection -LocalPort 5544 -State Listen -ErrorAction SilentlyContinue
+Get-NetTCPConnection -LocalPort 47001,47080,47432 -State Listen -ErrorAction SilentlyContinue
 ```
-(Hech narsa chiqmasa - port bo'sh, xavfsiz davom etish mumkin.) → yana
-holatni tekshirish.
+(Hech narsa chiqmasa - barcha uch port bo'sh, xavfsiz davom etish mumkin.) →
+yana holatni tekshirish.
 
 **3-bosqich: repo joylashtirish + `.env` sozlash + backend/frontend'ni
 QO'LDA (hali xizmat sifatida EMAS) ishga tushirib tekshirish** → yana
@@ -200,10 +211,10 @@ holatini tekshirib):
 
 0. Yangi System Restore checkpoint yaratish (buyruq yuqorida berilgan).
 1. Python o'rnatish.
-2. Port 5544 bo'shligini tasdiqlash, so'ng PostgreSQL'ni port **5544**da
-   o'rnatish (5432 - HikCentral'niki, band).
-3. Repo'ni joylashtirish, `.env` sozlash (`DATABASE_URL`da port 5544),
-   qo'lda ishga tushirib tekshirish.
+2. Portlar 47001/47080/47432 bo'shligini tasdiqlash, so'ng PostgreSQL'ni
+   port **47432**da o'rnatish (5432 - HikCentral'niki, band).
+3. Repo'ni joylashtirish, `.env` sozlash (`DATABASE_URL`da port 47432,
+   backend porti 47001, frontend porti 47080), qo'lda ishga tushirib tekshirish.
 4. NSSM orqali Windows xizmati qilib o'rnatish.
 5. Kerak bo'lsa, Cloudflare Tunnel.
 

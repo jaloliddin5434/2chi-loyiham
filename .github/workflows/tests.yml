@@ -1,0 +1,68 @@
+name: Testlar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-testlari:
+    runs-on: ubuntu-latest
+
+    # Vaqtinchalik Postgres konteyner - faqat shu CI ishga tushishi davomida
+    # yashaydi, real production bazasiga hech qanday aloqasi yo'q.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_test_parol
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Kodni yuklab olish
+        uses: actions/checkout@v4
+
+      - name: Python o'rnatish
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Bog'liqliklarni o'rnatish
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Sinov uchun .env yaratish
+        # Bu yerdagi qiymatlar FAQAT shu vaqtinchalik CI konteyneri ichida
+        # ishlatiladi - hech biri real production .env'dagi haqiqiy
+        # maxfiy ma'lumot emas. backend/.env hech qachon git'ga
+        # commit qilinmaydi (.gitignore'da) - shu sabab CI'da har safar
+        # noldan, shu yerda yaratiladi.
+        working-directory: backend
+        run: |
+          cat <<'EOF' > .env
+          DATABASE_URL=postgresql+psycopg2://postgres:ci_test_parol@localhost:5432/hazorasp_tarozi?client_encoding=utf8
+          SECRET_KEY=ci-faqat-sinov-uchun-maxfiy-kalit-emas-9f3kQzP82nQeY
+          ALGORITHM=HS256
+          ACCESS_TOKEN_EXPIRE_MINUTES=480
+          TAROZI_AGENT_KEY=ci-test-kaliti
+          EOF
+
+      - name: Testlarni ishga tushirish
+        working-directory: backend
+        run: pytest tests/ -v
+
+# frontend-testlari job hozircha QO'SHILMADI - frontend/test/ papkasidagi
+# 5 ta test hozir mahalliy kompyuterda ham muvaffaqiyatsiz (widget_test.dart -
+# eski "counter" andozasi, ilova endi counter emas; offline_queue_integration_test.dart -
+# 3 ta test REAL, ishlab turgan backendga ulanishni talab qiladi, izolyatsiya
+# qilingan CI muhitida emas). Bularni CI'ga qo'shishdan oldin avval frontend
+# testlarining o'zini tuzatish/moslashtirish kerak - alohida vazifa sifatida.

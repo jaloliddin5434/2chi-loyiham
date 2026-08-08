@@ -11,6 +11,12 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+# Statistika/hisobot uchun ALOHIDA bot - ogohlantirish (xatolik) xabarlari
+# bilan aralashib ketmasligi uchun. Bo'sh bo'lsa (hali sozlanmagan bo'lsa)
+# telegram_hisobot_yuborish() shunchaki hech narsa yubormaydi.
+TELEGRAM_HISOBOT_TOKEN = os.getenv("TELEGRAM_HISOBOT_TOKEN")
+TELEGRAM_HISOBOT_CHAT_ID = os.getenv("TELEGRAM_HISOBOT_CHAT_ID")
+
 PG_DUMP_YOL = os.getenv("PG_DUMP_YOL")
 
 # Ikkinchi kompyuterga (bir xil LAN'dagi tashqi zaxira) backup nusxasini

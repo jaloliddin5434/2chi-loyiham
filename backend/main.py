@@ -1718,7 +1718,7 @@ def avtomatik_telegram_hisobot():
 🔴 Patoz: {mpatoz_son} ta | {mpatoz_netto} t
 
 🏭 Hazorasp Tekstil tarozi tizimi"""
-                    muvaffaqiyatli = telegram_xabar_yuborish(matn)
+                    muvaffaqiyatli = telegram_hisobot_yuborish(matn)
                     if muvaffaqiyatli:
                         if sozlama:
                             sozlama.qiymat = str(bugun)
@@ -2349,6 +2349,9 @@ def tizim_xatosini_saqla(turi: str, xabar: str):
 import requests as req
 
 def telegram_xabar_yuborish(matn: str) -> bool:
+    """Ogohlantirish/xatolik boti - tarozi, tunnel, kamera va shunga
+    o'xshash texnik muammolar shu yerdan yuboriladi. Kunlik hisobotlar
+    UCHUN EMAS - qarang: telegram_hisobot_yuborish()."""
     try:
         from config import TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
         if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
@@ -2364,6 +2367,30 @@ def telegram_xabar_yuborish(matn: str) -> bool:
     except Exception as e:
         print(f"Telegram xato: {e}")
         tizim_xatosini_saqla("telegram", str(e))
+        return False
+
+
+def telegram_hisobot_yuborish(matn: str) -> bool:
+    """Statistika/hisobot boti - kunlik ishlab chiqarish hisoboti shu
+    yerdan yuboriladi. ALOHIDA bot/chat - ogohlantirish xabarlari bilan
+    aralashmasligi uchun (masalan rahbar/buxgalter shu botga qo'shilishi
+    mumkin, texnik xatolik xabarlarini ko'rmasdan). Hali sozlanmagan
+    bo'lsa (token/chat_id bo'sh) - xato bermay, jimgina False qaytaradi."""
+    try:
+        from config import TELEGRAM_HISOBOT_TOKEN, TELEGRAM_HISOBOT_CHAT_ID
+        if not TELEGRAM_HISOBOT_TOKEN or not TELEGRAM_HISOBOT_CHAT_ID:
+            return False
+        url = f"https://api.telegram.org/bot{TELEGRAM_HISOBOT_TOKEN}/sendMessage"
+        javob = req.post(url, json={
+            "chat_id": TELEGRAM_HISOBOT_CHAT_ID,
+            "text": matn,
+            "parse_mode": "HTML"
+        }, timeout=5)
+        javob.raise_for_status()
+        return True
+    except Exception as e:
+        print(f"Telegram hisobot xato: {e}")
+        tizim_xatosini_saqla("telegram_hisobot", str(e))
         return False
 
 hisobot_thread = threading.Thread(target=avtomatik_telegram_hisobot, daemon=True)
@@ -2614,7 +2641,7 @@ def telegram_kunlik(db: Session = Depends(get_db), current_user: dict = Depends(
 
 🏭 Hazorasp Tekstil tarozi tizimi"""
     
-    telegram_xabar_yuborish(matn)
+    telegram_hisobot_yuborish(matn)
     return {"status": "ok", "xabar": matn}
  # ============ PDF SAQLASH ============
 

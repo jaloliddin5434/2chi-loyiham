@@ -1417,7 +1417,8 @@ def kunlik_statistika(db: Session = Depends(get_db), current_user: dict = Depend
     ).outerjoin(
         Olchov, Olchov.hujjat_id == Hujjat.id
     ).filter(
-        Hujjat.created_at >= bugun
+        Hujjat.created_at >= bugun,
+        Hujjat.holat == HujjatHolati.TUGALLANDI,
     ).group_by(Hujjat.mahsulot_id).all()
 
     natija = {}
@@ -1466,7 +1467,8 @@ def haftalik_statistika(db: Session = Depends(get_db), current_user: dict = Depe
     ).outerjoin(
         Olchov, Olchov.hujjat_id == Hujjat.id
     ).filter(
-        Hujjat.created_at >= hafta_boshi
+        Hujjat.created_at >= hafta_boshi,
+        Hujjat.holat == HujjatHolati.TUGALLANDI,
     ).group_by(Hujjat.mahsulot_id).all()
 
     natija = {}
@@ -1515,7 +1517,8 @@ def oylik_statistika(db: Session = Depends(get_db), current_user: dict = Depends
     ).outerjoin(
         Olchov, Olchov.hujjat_id == Hujjat.id
     ).filter(
-        Hujjat.created_at >= oy_boshi
+        Hujjat.created_at >= oy_boshi,
+        Hujjat.holat == HujjatHolati.TUGALLANDI,
     ).group_by(Hujjat.mahsulot_id).all()
 
     natija = {}
@@ -1567,7 +1570,8 @@ def mavsum_statistika(db: Session = Depends(get_db), current_user: dict = Depend
     ).outerjoin(
         Olchov, Olchov.hujjat_id == Hujjat.id
     ).filter(
-        Hujjat.created_at >= mavsum_boshi
+        Hujjat.created_at >= mavsum_boshi,
+        Hujjat.holat == HujjatHolati.TUGALLANDI,
     ).group_by(Hujjat.mahsulot_id).all()
 
     natija = {}
@@ -1618,8 +1622,10 @@ def _davr_boshlanishi(davr: str):
 @app.get("/statistika/firmalar")
 def firmalar_statistika(davr: str = "oylik", db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Firma boyicha jami hujjat soni/tonnaj/konditsion - eng kop
-    tonnajdan boshlab saralangan. Sinov yozuvlari ("Test Firma",
-    "Sinov Firma") ataylab chiqarib tashlanadi."""
+    tonnajdan boshlab saralangan. Faqat "tugallandi" holatidagi hujjatlar
+    hisoblanadi (jarayondagi va bekor qilinganlar chiqarib tashlanadi).
+    Sinov yozuvlari ("Test Firma", "Sinov Firma") ataylab chiqarib
+    tashlanadi."""
     boshlanish = _davr_boshlanishi(davr)
 
     natijalar = db.query(
@@ -1631,7 +1637,7 @@ def firmalar_statistika(davr: str = "oylik", db: Session = Depends(get_db), curr
         Olchov, Olchov.hujjat_id == Hujjat.id
     ).filter(
         Hujjat.created_at >= boshlanish,
-        Hujjat.holat != HujjatHolati.BEKOR_QILINDI,
+        Hujjat.holat == HujjatHolati.TUGALLANDI,
         Hujjat.firma.isnot(None),
         Hujjat.firma != "",
         Hujjat.firma.notin_(_SINOV_FIRMALARI),
@@ -1655,7 +1661,8 @@ def firmalar_statistika(davr: str = "oylik", db: Session = Depends(get_db), curr
 @app.get("/statistika/haydovchilar")
 def haydovchilar_statistika(davr: str = "oylik", db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Haydovchi (shofyor) boyicha jami hujjat soni/tonnaj - eng kop
-    tonnajdan boshlab saralangan."""
+    tonnajdan boshlab saralangan. Faqat "tugallandi" holatidagi hujjatlar
+    hisoblanadi (jarayondagi va bekor qilinganlar chiqarib tashlanadi)."""
     boshlanish = _davr_boshlanishi(davr)
 
     natijalar = db.query(
@@ -1667,7 +1674,7 @@ def haydovchilar_statistika(davr: str = "oylik", db: Session = Depends(get_db), 
         Olchov, Olchov.hujjat_id == Hujjat.id
     ).filter(
         Hujjat.created_at >= boshlanish,
-        Hujjat.holat != HujjatHolati.BEKOR_QILINDI,
+        Hujjat.holat == HujjatHolati.TUGALLANDI,
         Hujjat.shofyor.isnot(None),
         Hujjat.shofyor != "",
     ).group_by(Hujjat.shofyor).order_by(func.coalesce(func.sum(Olchov.netto), 0).desc()).all()

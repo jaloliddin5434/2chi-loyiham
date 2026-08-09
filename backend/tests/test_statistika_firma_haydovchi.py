@@ -124,3 +124,21 @@ def test_bekor_qilingan_hujjat_statistikaga_kirmaydi(client, admin_headers, db_s
     assert "Bekor Haydovchi" not in [h["nom"] for h in haydovchilar]
     assert "Faol Firma" in [f["nom"] for f in firmalar]
     assert "Faol Haydovchi" in [h["nom"] for h in haydovchilar]
+
+
+def test_jarayondagi_hujjat_statistikaga_kirmaydi(client, admin_headers, db_session, mahsulot_chigit):
+    """4-band (2-qism): endi faqat "tugallandi" holatidagi hujjatlar
+    hisoblanadi - "jarayon" (hali tugallanmagan) hujjatlar ham,
+    "bekor"gagilar kabi, tashqarida qolishi kerak."""
+    _hujjat_qosh(db_session, mahsulot_chigit.id, "Jarayon Firma", "Jarayon Haydovchi",
+                 18000, 25000, raqam="JARAYON-1", holat=HujjatHolati.JARAYON)
+    _hujjat_qosh(db_session, mahsulot_chigit.id, "Faol Firma 2", "Faol Haydovchi 2",
+                 18000, 25000, raqam="FAOL-2")
+
+    firmalar = client.get("/statistika/firmalar", headers=admin_headers).json()["firmalar"]
+    haydovchilar = client.get("/statistika/haydovchilar", headers=admin_headers).json()["haydovchilar"]
+
+    assert "Jarayon Firma" not in [f["nom"] for f in firmalar]
+    assert "Jarayon Haydovchi" not in [h["nom"] for h in haydovchilar]
+    assert "Faol Firma 2" in [f["nom"] for f in firmalar]
+    assert "Faol Haydovchi 2" in [h["nom"] for h in haydovchilar]

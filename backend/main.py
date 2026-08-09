@@ -637,9 +637,17 @@ def hujjatlar_royxati(
         for n in db.query(Navbat).filter(Navbat.hujjat_id.in_(hujjat_idlar)).all()
     }
 
+    # Navbat kabi, Olchov qatorlari ham shu sahifadagi barcha hujjat uchun
+    # BIR so'rovda (N+1 qilmasdan) oldindan olinadi - avval har bir hujjat
+    # uchun alohida so'rov yuborilardi (sahifa hajmi 50 tagacha bo'lsa, 50
+    # ta qo'shimcha so'rov).
+    olchovlar_dict = {}
+    for o in db.query(Olchov).filter(Olchov.hujjat_id.in_(hujjat_idlar)).order_by(Olchov.id.asc()).all():
+        olchovlar_dict.setdefault(o.hujjat_id, []).append(o)
+
     natija = []
     for h in hujjatlar:
-        olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).order_by(Olchov.id.asc()).all()
+        olchovlar = olchovlar_dict.get(h.id, [])
         jami_tara, jami_brutto, jami_netto, jami_konditsion = _olchovlar_jamlangan(olchovlar)
         # namlik/ifloslik Hujjatda emas, Olchov qatorlarida saqlanadi -
         # eksport uchun eng oxirgi NULL bo'lmagan qiymat olinadi
@@ -835,9 +843,18 @@ def hujjatlar_eksport(
         so_rov = so_rov.filter(Hujjat.created_at < sana_gacha)
     hujjatlar = so_rov.order_by(Hujjat.created_at.asc()).all()
 
+    # Barcha hujjat uchun Olchov qatorlari BIR so'rovda (N+1 qilmasdan)
+    # oldindan olinadi - bu eksport cheklanmagan (butun mavsum/sana
+    # oralig'i) bo'lishi mumkin, shuning uchun avvalgi har-hujjat-uchun-
+    # alohida-so'rov naqshi eng katta ta'sirga ega edi.
+    hujjat_idlar = [h.id for h in hujjatlar]
+    olchovlar_dict = {}
+    for o in db.query(Olchov).filter(Olchov.hujjat_id.in_(hujjat_idlar)).order_by(Olchov.id.asc()).all():
+        olchovlar_dict.setdefault(o.hujjat_id, []).append(o)
+
     satrlar = []
     for h in hujjatlar:
-        olchovlar = db.query(Olchov).filter(Olchov.hujjat_id == h.id).order_by(Olchov.id.asc()).all()
+        olchovlar = olchovlar_dict.get(h.id, [])
         tara, brutto, netto, konditsion = _olchovlar_jamlangan(olchovlar)
         satrlar.append({
             "sana": h.created_at.date(),
@@ -1170,8 +1187,29 @@ def hujjat_tahrir_tarixi(hujjat_id: int, db: Session = Depends(get_db), current_
 
 # ============ OLCHOVLAR ============
 
+# Har qanday haqiqiy yuklangan (yoki bo'sh) mashina/aravaning og'irligi
+# bundan ancha yuqori bo'ladi - bundan past qiymat tarozi shovqini,
+# platformada hech narsa yo'qligi yoki operatorning tasodifiy chala
+# o'qishni saqlab qo'yishidan darak beradi (real productionda topilgan:
+# "tugallandi" holatidagi hujjatlarda netto -244..+50 kg oralig'ida,
+# haqiqiy yukka mos kelmaydigan qiymatlar aniqlangan).
+_OLCHOV_MINIMAL_OGIRLIK_KG = 500.0
+
+
 @app.post("/olchovlar")
 def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    for maydon in ("tara", "brutto"):
+        qiymat = getattr(olchov, maydon)
+        if qiymat is not None and qiymat < _OLCHOV_MINIMAL_OGIRLIK_KG:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{maydon.capitalize()} qiymati juda kichik ({qiymat} kg) - "
+                    f"kamida {_OLCHOV_MINIMAL_OGIRLIK_KG:.0f} kg bo'lishi kerak. "
+                    "Tarozi platformasida mashina to'g'ri turganini tekshiring."
+                ),
+            )
+
     # Operator odatda shu (hujjat_id, arava_raqam) uchun avval faqat TARA,
     # keyin TARA+BRUTTO birga saqlaydi - shu sabab har safar yangi qator
     # QO'SHISH o'rniga, mavjud qator bo'lsa shu YANGILANADI (faqat so'rovda
@@ -1266,6 +1304,17 @@ def navbat_qosh(data: dict, db: Session = Depends(get_db), current_user: dict = 
 def navbat_get(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from models import Navbat
     navbat = db.query(Navbat).filter(Navbat.tugallandi == False).order_by(Navbat.kelgan_vaqt.asc()).all()
+
+    # Bu endpoint operator ekranida HAR 5 SONIYADA avtomatik so'raladi -
+    # shu sabab har bir navbat qatori uchun alohida Hujjat so'rovi
+    # (faqat .raqam olish uchun) ayniqsa ta'sirli edi. Endi barcha kerakli
+    # hujjat_raqam BIR so'rovda oldindan olinadi.
+    hujjat_idlar = [n.hujjat_id for n in navbat if n.hujjat_id]
+    hujjat_raqam_dict = {
+        h.id: h.raqam
+        for h in db.query(Hujjat.id, Hujjat.raqam).filter(Hujjat.id.in_(hujjat_idlar)).all()
+    }
+
     natija = []
     for n in navbat:
         natija.append({
@@ -1287,7 +1336,7 @@ def navbat_get(db: Session = Depends(get_db), current_user: dict = Depends(get_c
             "namlik": n.namlik,
             "ifloslik": n.ifloslik,
             "aravalar": json.loads(n.aravalar_json) if n.aravalar_json else {},
-            "hujjatRaqam": db.query(Hujjat).filter(Hujjat.id == n.hujjat_id).first().raqam if n.hujjat_id else '',
+            "hujjatRaqam": hujjat_raqam_dict.get(n.hujjat_id, '') if n.hujjat_id else '',
         })
         
     return natija

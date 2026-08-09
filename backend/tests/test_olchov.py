@@ -73,3 +73,31 @@ def test_ikkita_alohida_arava_ikkita_qator_yaratadi(client, admin_headers, hujja
     }, headers=admin_headers)
     royxat = client.get(f"/olchovlar/{hujjat['id']}", headers=admin_headers)
     assert len(royxat.json()) == 2
+
+
+def test_500kg_dan_past_tara_rad_etiladi(client, admin_headers, hujjat):
+    """Real productionda topilgan xato: tarozi platformasida hech narsa
+    yo'qligi yoki shovqin sabab juda kichik (hatto manfiy netto beruvchi)
+    qiymatlar to'siqsiz saqlanardi. Endi hech qanday haqiqiy mashina/
+    aravaga mos kelmaydigan (<500kg) qiymat rad etiladi."""
+    javob = client.post("/olchovlar", json={
+        "hujjat_id": hujjat["id"], "arava_raqam": 1, "tara": 60,
+    }, headers=admin_headers)
+    assert javob.status_code == 400
+
+    royxat = client.get(f"/olchovlar/{hujjat['id']}", headers=admin_headers)
+    assert royxat.json() == []
+
+
+def test_500kg_dan_past_brutto_rad_etiladi(client, admin_headers, hujjat):
+    javob = client.post("/olchovlar", json={
+        "hujjat_id": hujjat["id"], "arava_raqam": 1, "tara": 1000, "brutto": 10,
+    }, headers=admin_headers)
+    assert javob.status_code == 400
+
+
+def test_500kg_chegara_qiymatining_ozi_qabul_qilinadi(client, admin_headers, hujjat):
+    javob = client.post("/olchovlar", json={
+        "hujjat_id": hujjat["id"], "arava_raqam": 1, "tara": 500, "brutto": 3000,
+    }, headers=admin_headers)
+    assert javob.status_code == 200

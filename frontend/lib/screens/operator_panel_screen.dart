@@ -99,6 +99,13 @@ class OperatorPanelScreen extends StatefulWidget {
 
 class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     with TickerProviderStateMixin {
+  // Haqiqiy yuklangan (yoki bo'sh) mashina/aravaning og'irligi bundan
+  // ancha yuqori bo'ladi - bundan past, "barqaror" ko'rinadigan qiymat
+  // odatda tarozi platformasida hech narsa yo'qligi yoki shovqindan
+  // darak beradi. Backend ham xuddi shu chegarani mustaqil tekshiradi
+  // (qarang: backend/main.py, _OLCHOV_MINIMAL_OGIRLIK_KG).
+  static const double _minimalOgirlikKg = 500.0;
+
   double taroziKg = 0;
   double _oldingiTaroziKg = 0;
   int _barqarorSoniya = 0;
@@ -2629,7 +2636,8 @@ try {
                           onPressed: (saqlanmoqda ||
                                   tanlanganArava == 0 ||
                                   !taroziUlangan ||
-                                  !taroziBarqaror)
+                                  !taroziBarqaror ||
+                                  taroziKg < _minimalOgirlikKg)
                               ? null
                               : saqlash,
                           icon: Icon(

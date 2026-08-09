@@ -1,58 +1,114 @@
-import os
+from typing import Optional
+
 from dotenv import load_dotenv
+from pydantic import ValidationError
+from pydantic_settings import BaseSettings
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+class _Sozlamalar(BaseSettings):
+    """.env faylidagi barcha sozlamalar - Pydantic orqali yuklanadi va
+    tekshiriladi. Avval har bir qiymat alohida os.getenv() bilan qo'lda
+    o'qilardi, faqat DATABASE_URL/SECRET_KEY yo'qligi aniq tekshirilardi
+    - boshqa notog'ri turdagi qiymat (masalan ACCESS_TOKEN_EXPIRE_MINUTES
+    ustiga son bo'lmagan matn yozilsa) darrov emas, faqat o'sha qiymat
+    birinchi marta ishlatilganda (masalan birinchi login so'rovida)
+    tushunarsiz xato bilan buzilardi. Endi HAMMASI server ishga
+    tushganda, BITTA aniq xato xabari bilan tekshiriladi.
 
-# Statistika/hisobot uchun ALOHIDA bot - ogohlantirish (xatolik) xabarlari
-# bilan aralashib ketmasligi uchun. Bo'sh bo'lsa (hali sozlanmagan bo'lsa)
-# telegram_hisobot_yuborish() shunchaki hech narsa yubormaydi.
-TELEGRAM_HISOBOT_TOKEN = os.getenv("TELEGRAM_HISOBOT_TOKEN")
-TELEGRAM_HISOBOT_CHAT_ID = os.getenv("TELEGRAM_HISOBOT_CHAT_ID")
+    `load_dotenv()` yuqorida ALLAQACHON .env faylini `os.environ`ga
+    yuklagan - shu sabab bu yerda alohida `env_file` ko'rsatilmaydi,
+    Pydantic standart tarzda `os.environ`dan o'qiydi (avvalgi
+    `os.getenv()` bilan bir xil manba)."""
 
-PG_DUMP_YOL = os.getenv("PG_DUMP_YOL")
+    DATABASE_URL: str
+    SECRET_KEY: str
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
 
-# Ikkinchi kompyuterga (bir xil LAN'dagi tashqi zaxira) backup nusxasini
-# ko'chirish uchun SMB ulanish ma'lumotlari. Barchasi to'ldirilmaguncha
-# (IP, foydalanuvchi, parol) tarmoqqa ko'chirish urinilmaydi.
-TARMOQ_BACKUP_IP = os.getenv("TARMOQ_BACKUP_IP", "")
-TARMOQ_BACKUP_SHARE = os.getenv("TARMOQ_BACKUP_SHARE", "Backup")
-TARMOQ_BACKUP_FOYDALANUVCHI = os.getenv("TARMOQ_BACKUP_FOYDALANUVCHI", "")
-TARMOQ_BACKUP_PAROL = os.getenv("TARMOQ_BACKUP_PAROL", "")
+    TELEGRAM_TOKEN: Optional[str] = None
+    TELEGRAM_CHAT_ID: Optional[str] = None
 
-KAMERA_1_IP = os.getenv("KAMERA_1_IP")
-KAMERA_2_IP = os.getenv("KAMERA_2_IP")
-KAMERA_LOGIN = os.getenv("KAMERA_LOGIN")
-KAMERA_PAROL = os.getenv("KAMERA_PAROL")
+    # Statistika/hisobot uchun ALOHIDA bot - ogohlantirish (xatolik)
+    # xabarlari bilan aralashib ketmasligi uchun. Bo'sh bo'lsa (hali
+    # sozlanmagan bo'lsa) telegram_hisobot_yuborish() shunchaki hech
+    # narsa yubormaydi.
+    TELEGRAM_HISOBOT_TOKEN: Optional[str] = None
+    TELEGRAM_HISOBOT_CHAT_ID: Optional[str] = None
 
-# Tarozixonadagi kompyuterda ishlaydigan "Tarozi agenti" (tarozi_agent.py)
-# POST /tarozi/yubor so'rovida shu kalitni X-Tarozi-Agent-Key sarlavhasida
-# yuborishi shart - mos kelmasa so'rov rad etiladi. Ikkala tomonda ham
-# (server .env va agent .env) bir xil qiymat turishi kerak.
-TAROZI_AGENT_KEY = os.getenv("TAROZI_AGENT_KEY", "")
+    PG_DUMP_YOL: Optional[str] = None
 
-# QR kod (nakladnoy-korish ochiq sahifasi) uchun serverning tashqi manzili -
-# frontend'ning ApiService.baseUrl bilan bir xil (hozircha lokal tarmoq IP,
-# faqat shu WiFi'ga ulangan qurilmalar ocha oladi).
-SERVER_ASOSIY_URL = os.getenv("SERVER_ASOSIY_URL", "http://10.112.30.77:47001")
+    # Ikkinchi kompyuterga (bir xil LAN'dagi tashqi zaxira) backup
+    # nusxasini ko'chirish uchun SMB ulanish ma'lumotlari. Barchasi
+    # to'ldirilmaguncha (IP, foydalanuvchi, parol) tarmoqqa ko'chirish
+    # urinilmaydi.
+    TARMOQ_BACKUP_IP: str = ""
+    TARMOQ_BACKUP_SHARE: str = "Backup"
+    TARMOQ_BACKUP_FOYDALANUVCHI: str = ""
+    TARMOQ_BACKUP_PAROL: str = ""
 
-# CORS - brauzerdan so'rov yuborishga ruxsat berilgan manzillar ro'yxati
-# (vergul bilan ajratilgan). Kelajakda domen/reverse-proxy qo'shilganda
-# faqat shu .env qiymatini yangilash kifoya - kodga tegish shart emas.
+    KAMERA_1_IP: Optional[str] = None
+    KAMERA_2_IP: Optional[str] = None
+    KAMERA_LOGIN: Optional[str] = None
+    KAMERA_PAROL: Optional[str] = None
+
+    # Tarozixonadagi kompyuterda ishlaydigan "Tarozi agenti"
+    # (tarozi_agent.py) POST /tarozi/yubor so'rovida shu kalitni
+    # X-Tarozi-Agent-Key sarlavhasida yuborishi shart - mos kelmasa
+    # so'rov rad etiladi. Ikkala tomonda ham (server .env va agent
+    # .env) bir xil qiymat turishi kerak.
+    TAROZI_AGENT_KEY: str = ""
+
+    # QR kod (nakladnoy-korish ochiq sahifasi) uchun serverning tashqi
+    # manzili - frontend'ning ApiService.baseUrl bilan bir xil
+    # (hozircha lokal tarmoq IP, faqat shu WiFi'ga ulangan qurilmalar
+    # ocha oladi).
+    SERVER_ASOSIY_URL: str = "http://10.112.30.77:47001"
+
+    # CORS - brauzerdan so'rov yuborishga ruxsat berilgan manzillar
+    # ro'yxati (vergul bilan ajratilgan). Kelajakda domen/reverse-proxy
+    # qo'shilganda faqat shu .env qiymatini yangilash kifoya - kodga
+    # tegish shart emas.
+    ALLOWED_ORIGINS: str = "http://10.112.30.77:47080,http://localhost:47080"
+
+
+try:
+    _sozlama = _Sozlamalar()
+except ValidationError as e:
+    raise RuntimeError(
+        f".env faylida xato yoki yetishmayotgan majburiy sozlama(lar) bor:\n{e}"
+    ) from e
+
+DATABASE_URL = _sozlama.DATABASE_URL
+SECRET_KEY = _sozlama.SECRET_KEY
+ALGORITHM = _sozlama.ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = _sozlama.ACCESS_TOKEN_EXPIRE_MINUTES
+
+TELEGRAM_TOKEN = _sozlama.TELEGRAM_TOKEN
+TELEGRAM_CHAT_ID = _sozlama.TELEGRAM_CHAT_ID
+
+TELEGRAM_HISOBOT_TOKEN = _sozlama.TELEGRAM_HISOBOT_TOKEN
+TELEGRAM_HISOBOT_CHAT_ID = _sozlama.TELEGRAM_HISOBOT_CHAT_ID
+
+PG_DUMP_YOL = _sozlama.PG_DUMP_YOL
+
+TARMOQ_BACKUP_IP = _sozlama.TARMOQ_BACKUP_IP
+TARMOQ_BACKUP_SHARE = _sozlama.TARMOQ_BACKUP_SHARE
+TARMOQ_BACKUP_FOYDALANUVCHI = _sozlama.TARMOQ_BACKUP_FOYDALANUVCHI
+TARMOQ_BACKUP_PAROL = _sozlama.TARMOQ_BACKUP_PAROL
+
+KAMERA_1_IP = _sozlama.KAMERA_1_IP
+KAMERA_2_IP = _sozlama.KAMERA_2_IP
+KAMERA_LOGIN = _sozlama.KAMERA_LOGIN
+KAMERA_PAROL = _sozlama.KAMERA_PAROL
+
+TAROZI_AGENT_KEY = _sozlama.TAROZI_AGENT_KEY
+
+SERVER_ASOSIY_URL = _sozlama.SERVER_ASOSIY_URL
+
 ALLOWED_ORIGINS = [
     manzil.strip()
-    for manzil in os.getenv(
-        "ALLOWED_ORIGINS", "http://10.112.30.77:47080,http://localhost:47080"
-    ).split(",")
+    for manzil in _sozlama.ALLOWED_ORIGINS.split(",")
     if manzil.strip()
 ]
-
-if not DATABASE_URL or not SECRET_KEY:
-    raise RuntimeError(".env faylida DATABASE_URL yoki SECRET_KEY topilmadi!")

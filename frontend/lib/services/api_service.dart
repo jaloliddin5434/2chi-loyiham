@@ -17,6 +17,20 @@ class ApiService {
   static const String _cloudBaseUrl = "https://api.smart-tarozi.uz";
   static String baseUrl = _cloudBaseUrl;
 
+  // Standart HTTP so'rov timeout'i - avval BIRON so'rovda ham (LAN
+  // tekshiruvi va login'dan tashqari) timeout yo'q edi: server osilib
+  // qolsa (javob bermasa, lekin ulanishni ham yopmasa), so'rov ABADIY
+  // kutar edi - shu ekran/tugma butunlay "muzlab" qolar edi, hech qanday
+  // qayta urinish yoki xato xabarisiz. Mavjud try/catch'lar TimeoutException'ni
+  // ham oddiy tarmoq xatosi sifatida ushlaydi (offline navbat/debugPrint) -
+  // shu sabab bu yerga qo'shish xavfsiz, qo'shimcha mantiq shart emas.
+  static const Duration _httpTimeout = Duration(seconds: 15);
+  // Backup (pg_dump) va kamera so'rovlari odatiy so'rovlardan sezilarli
+  // uzoqroq davom etishi kutiladi (backend'ning o'z ichki timeout'i:
+  // backup uchun 300s, kamera uchun bir necha soniya) - standart 15s
+  // ular uchun juda qisqa bo'lardi.
+  static const Duration _uzunHttpTimeout = Duration(seconds: 60);
+
   /// Ilova ishga tushganda BIR MARTA chaqiriladi (runApp()dan oldin).
   /// Mahalliy backendga qisqa muddatli (timeout bilan) urinish - agar
   /// javob bermasa (LAN'da emasmiz, yoki server o'chiq), Cloudflare
@@ -130,7 +144,7 @@ class ApiService {
 
   static Future<List<dynamic>> getMahsulotlar() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/mahsulotlar'), headers: _headers());
+      final response = await http.get(Uri.parse('$baseUrl/mahsulotlar'), headers: _headers()).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
@@ -155,7 +169,7 @@ class ApiService {
   /// erkin matn kiritishda davom eta oladi.
   static Future<List<String>> getFirmalar() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/firmalar'), headers: _headers());
+      final response = await http.get(Uri.parse('$baseUrl/firmalar'), headers: _headers()).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) {
         final List natija = jsonDecode(utf8.decode(response.bodyBytes));
@@ -179,7 +193,7 @@ class ApiService {
   /// kerak.
   static Future<({double ogirlikKg, bool ulangan})?> joriyOgirlikOl() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/tarozi/joriy'), headers: _headers());
+      final response = await http.get(Uri.parse('$baseUrl/tarozi/joriy'), headers: _headers()).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) {
         final natija = jsonDecode(utf8.decode(response.bodyBytes));
@@ -207,7 +221,7 @@ class ApiService {
         Uri.parse('$baseUrl/moliyaviy/pin-tekshir'),
         headers: _headers(),
         body: jsonEncode({'pin': pin}),
-      );
+      ).timeout(_httpTimeout);
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         _moliyaviyToken = data['moliyaviy_token'];
@@ -228,7 +242,7 @@ class ApiService {
         Uri.parse('$baseUrl/moliyaviy/pin'),
         headers: _headers(),
         body: jsonEncode({'eski_pin': eskiPin, 'yangi_pin': yangiPin}),
-      );
+      ).timeout(_httpTimeout);
       if (response.statusCode == 200) return null;
       final govda = jsonDecode(utf8.decode(response.bodyBytes));
       return govda['detail']?.toString() ?? "PIN o'rnatishda xatolik yuz berdi!";
@@ -245,7 +259,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/moliyaviy/hisobot?davr=$davr'),
         headers: _moliyaviyHeaders(),
-      );
+      ).timeout(_httpTimeout);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
@@ -267,7 +281,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/mahsulotlar/narxlar'),
         headers: _moliyaviyHeaders(),
-      );
+      ).timeout(_httpTimeout);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
@@ -290,7 +304,7 @@ class ApiService {
         Uri.parse('$baseUrl/mahsulotlar/$mahsulotId/narx'),
         headers: _moliyaviyHeaders(),
         body: jsonEncode({'narx': narx}),
-      );
+      ).timeout(_httpTimeout);
       if (response.statusCode == 200) return null;
       if (response.statusCode == 403) moliyaviyChiqish();
       final govda = jsonDecode(utf8.decode(response.bodyBytes));
@@ -349,7 +363,7 @@ class ApiService {
           'firma': firma,
           'viloyat': viloyat,
         }),
-      );
+      ).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
@@ -418,7 +432,7 @@ class ApiService {
             'aravalar_soni': aravalarSoni,
             'mijoz_kaliti': mijozKaliti,
           }),
-        );
+        ).timeout(_httpTimeout);
         _check401(response);
         if (response.statusCode == 200) {
           return jsonDecode(utf8.decode(response.bodyBytes));
@@ -457,7 +471,7 @@ class ApiService {
           Uri.parse('$baseUrl/hujjatlar/$hujjatId'),
           headers: _headers(),
           body: jsonEncode(maydonlar),
-        );
+        ).timeout(_httpTimeout);
         _check401(response);
         if (response.statusCode == 200) return;
       } catch (e) {
@@ -503,7 +517,7 @@ class ApiService {
           Uri.parse('$baseUrl/olchovlar'),
           headers: _headers(),
           body: jsonEncode(asl),
-        );
+        ).timeout(_httpTimeout);
         _check401(response);
         if (response.statusCode == 200) {
           return jsonDecode(utf8.decode(response.bodyBytes));
@@ -530,7 +544,7 @@ class ApiService {
           Uri.parse('$baseUrl/navbat/qosh'),
           headers: _headers(),
           body: jsonEncode(mashina),
-        );
+        ).timeout(_httpTimeout);
         _check401(response);
         if (response.statusCode == 200) return;
       } catch (e) {
@@ -549,7 +563,7 @@ class ApiService {
 
   static Future<List<dynamic>> navbatOl() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/navbat'), headers: _headers());
+      final response = await http.get(Uri.parse('$baseUrl/navbat'), headers: _headers()).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
@@ -569,7 +583,7 @@ class ApiService {
           Uri.parse('$baseUrl/navbat/tugallandi'),
           headers: _headers(),
           body: jsonEncode(mashina),
-        );
+        ).timeout(_httpTimeout);
       } catch (e) {
         response = null;
       }
@@ -602,7 +616,7 @@ class ApiService {
   }
 
   static Future<List<dynamic>> tugallanganlarOl() async {
-    final response = await http.get(Uri.parse('$baseUrl/navbat/tugallanganlar'), headers: _headers());
+    final response = await http.get(Uri.parse('$baseUrl/navbat/tugallanganlar'), headers: _headers()).timeout(_httpTimeout);
     _check401(response);
     if (response.statusCode == 200) {
       return jsonDecode(utf8.decode(response.bodyBytes));
@@ -616,7 +630,7 @@ class ApiService {
         Uri.parse('$baseUrl/navbat/bekor'),
         headers: _headers(),
         body: jsonEncode({'hujjatId': hujjatId}),
-      );
+      ).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) return;
     } catch (e) {
@@ -648,7 +662,7 @@ class ApiService {
       if (sanaGacha != null) 'sana_gacha': sanaGacha,
     };
     final uri = Uri.parse('$baseUrl/hujjatlar').replace(queryParameters: params);
-    final response = await http.get(uri, headers: _headers());
+    final response = await http.get(uri, headers: _headers()).timeout(_httpTimeout);
     _check401(response);
     if (response.statusCode == 200) {
       return jsonDecode(utf8.decode(response.bodyBytes));
@@ -661,7 +675,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/hujjatlar/$hujjatId'),
         headers: _headers(),
-      );
+      ).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
@@ -681,7 +695,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/tahrirlar-tarixi/$hujjatId'),
         headers: _headers(),
-      );
+      ).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
@@ -700,7 +714,7 @@ class ApiService {
     try {
       final uri = Uri.parse('$baseUrl/tahrirlar-tarixi')
           .replace(queryParameters: {'limit': limit.toString()});
-      final response = await http.get(uri, headers: _headers());
+      final response = await http.get(uri, headers: _headers()).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
@@ -718,7 +732,7 @@ class ApiService {
   static Future<List<dynamic>> _grafikDetalOl(String davr, String mahsulot) async {
     final uri = Uri.parse('$baseUrl/statistika/grafik-detal/$davr')
         .replace(queryParameters: {'mahsulot': mahsulot});
-    final response = await http.get(uri, headers: _headers());
+    final response = await http.get(uri, headers: _headers()).timeout(_httpTimeout);
     _check401(response);
     if (response.statusCode == 200) {
       return jsonDecode(utf8.decode(response.bodyBytes));
@@ -740,7 +754,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> _statistikaOl(String davr) async {
     final response = await http.get(
-        Uri.parse('$baseUrl/statistika/$davr'), headers: _headers());
+        Uri.parse('$baseUrl/statistika/$davr'), headers: _headers()).timeout(_httpTimeout);
     _check401(response);
     if (response.statusCode == 200) {
       return jsonDecode(utf8.decode(response.bodyBytes));
@@ -759,7 +773,7 @@ class ApiService {
   static Future<List<dynamic>> getFirmalarStat(String davr) async {
     final uri = Uri.parse('$baseUrl/statistika/firmalar')
         .replace(queryParameters: {'davr': davr});
-    final response = await http.get(uri, headers: _headers());
+    final response = await http.get(uri, headers: _headers()).timeout(_httpTimeout);
     _check401(response);
     if (response.statusCode == 200) {
       return jsonDecode(utf8.decode(response.bodyBytes))['firmalar'];
@@ -770,7 +784,7 @@ class ApiService {
   static Future<List<dynamic>> getHaydovchilarStat(String davr) async {
     final uri = Uri.parse('$baseUrl/statistika/haydovchilar')
         .replace(queryParameters: {'davr': davr});
-    final response = await http.get(uri, headers: _headers());
+    final response = await http.get(uri, headers: _headers()).timeout(_httpTimeout);
     _check401(response);
     if (response.statusCode == 200) {
       return jsonDecode(utf8.decode(response.bodyBytes))['haydovchilar'];
@@ -799,7 +813,7 @@ class ApiService {
           'mahsulot_nomi': mahsulotNomi,
           'tur': tur,
         }),
-      );
+      ).timeout(_uzunHttpTimeout);
     } catch (e) {
       response = null;
     }
@@ -835,7 +849,7 @@ class ApiService {
         Uri.parse('$baseUrl/sozlamalar'),
         headers: _headers(),
         body: jsonEncode(data),
-      );
+      ).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) return;
     } catch (e) {
@@ -852,7 +866,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> sozlamalarOl() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/sozlamalar'), headers: _headers());
+      final response = await http.get(Uri.parse('$baseUrl/sozlamalar'), headers: _headers()).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
@@ -887,7 +901,7 @@ class ApiService {
           'hujjat_id': hujjatId,
           'nakladnoy_raqam': nakladnoyRaqam,
         }),
-      );
+      ).timeout(_httpTimeout);
       _check401(response);
    } catch (e) {
       // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
@@ -903,7 +917,7 @@ class ApiService {
   /// aks holda {'status': 'error', 'message'} qaytaradi.
   static Future<Map<String, dynamic>> backupOl() async {
     try {
-      final response = await http.post(Uri.parse('$baseUrl/backup'), headers: _headers());
+      final response = await http.post(Uri.parse('$baseUrl/backup'), headers: _headers()).timeout(_uzunHttpTimeout);
       _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
@@ -916,7 +930,7 @@ class ApiService {
 
   static Future<List<dynamic>> backupRoyxatOl() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/backup/royxat'), headers: _headers());
+      final response = await http.get(Uri.parse('$baseUrl/backup/royxat'), headers: _headers()).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) {
         final govda = jsonDecode(utf8.decode(response.bodyBytes));
@@ -934,7 +948,7 @@ class ApiService {
 
   static Future<List<dynamic>> tizimXatolariOl() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/tizim-xatolari'), headers: _headers());
+      final response = await http.get(Uri.parse('$baseUrl/tizim-xatolari'), headers: _headers()).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
@@ -954,7 +968,7 @@ class ApiService {
       final response = await http.post(
         Uri.parse('$baseUrl/tizim-xatolari/$xatoId/korildi'),
         headers: _headers(),
-      );
+      ).timeout(_httpTimeout);
       _check401(response);
       return response.statusCode == 200;
     } catch (e) {
@@ -965,7 +979,7 @@ class ApiService {
   /// Telegram bot ulanishini sinash uchun qisqa test xabari yuboradi.
   static Future<bool> telegramTest() async {
     try {
-      final response = await http.post(Uri.parse('$baseUrl/telegram/test'), headers: _headers());
+      final response = await http.post(Uri.parse('$baseUrl/telegram/test'), headers: _headers()).timeout(_httpTimeout);
       _check401(response);
       return response.statusCode == 200;
     } catch (e) {
@@ -979,7 +993,7 @@ class ApiService {
   /// null.
   static Future<String?> telegramKunlikYubor() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/telegram/kunlik'), headers: _headers());
+      final response = await http.get(Uri.parse('$baseUrl/telegram/kunlik'), headers: _headers()).timeout(_httpTimeout);
       _check401(response);
       if (response.statusCode == 200) {
         final govda = jsonDecode(utf8.decode(response.bodyBytes));

@@ -888,7 +888,7 @@ void _jsonNavbatOchir(Map<String, dynamic> m) {
           ),
         ],
       ),
-    );
+    ).then((_) => sababCtrl.dispose());
   }
 
  
@@ -1984,6 +1984,13 @@ Widget _mashinaGrafik() {
         ),
       ),
     );
+    for (final ctrl in [
+      mashinaRaqamiCtrl, shofyorCtrl, firmaCtrl, tiketCtrl, tudaCtrl,
+      klassCtrl, sinfCtrl, seleksiyaCtrl, terimCtrl, qabulCtrl, yukCtrl,
+      namlikCtrl, ifloslikCtrl, sababCtrl,
+    ]) {
+      ctrl.dispose();
+    }
   }
 
   Future<void> hujjatOchir(int id) async {
@@ -2057,6 +2064,7 @@ Widget _mashinaGrafik() {
         );
       }
     }
+    sababCtrl2.dispose();
   }
 
   Future<void> hujjatTarixi(int hujjatId, String hujjatRaqam) async {
@@ -2930,6 +2938,8 @@ Widget _mashinaGrafik() {
                 ],
               ),
             );
+            parolCtrl2.dispose();
+            parol2Ctrl.dispose();
           },
           icon: const Icon(Icons.lock_reset, size: 14),
           label: const Text("Parol o'zgartirish",
@@ -3896,6 +3906,8 @@ Widget _mashinaGrafik() {
         ],
       ),
     );
+    eskiPinCtrl.dispose();
+    yangiPinCtrl.dispose();
   }
 
   String _moliyaviyDavrYorligi(String davr) {
@@ -4110,6 +4122,7 @@ Widget _mashinaGrafik() {
         ],
       ),
     );
+    narxCtrl.dispose();
   }
 
   // ============ SIDEBAR ICON ============

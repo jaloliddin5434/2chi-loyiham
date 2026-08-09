@@ -62,7 +62,9 @@ class Hujjat(Base):
     id = Column(Integer, primary_key=True, index=True)
     raqam = Column(String, unique=True, index=True)
     mashina_id = Column(Integer, ForeignKey("mashinalar.id", ondelete="RESTRICT"))
-    mahsulot_id = Column(Integer, ForeignKey("mahsulotlar.id", ondelete="RESTRICT"))
+    # GET /hujjatlar?mahsulot_id= va GET /hujjatlar/eksport (CHEKLANMAGAN
+    # diapazon) shu ustun boyicha filtrlaydi, shu sabab index=True.
+    mahsulot_id = Column(Integer, ForeignKey("mahsulotlar.id", ondelete="RESTRICT"), index=True)
     operator_id = Column(Integer)
     aravalar_soni = Column(Integer, default=1)
     tuda_raqam = Column(String, nullable=True)
@@ -155,7 +157,9 @@ class Navbat(Base):
     terim_turi = Column(String, nullable=True)
     namlik = Column(Float, nullable=True)
     ifloslik = Column(Float, nullable=True)
-    tugallandi = Column(Boolean, default=False)
+    # GET /navbat (operator ekranida HAR 5 SONIYADA so'raladi) shu ustun
+    # boyicha filtrlaydi (WHERE tugallandi == False), shu sabab index=True.
+    tugallandi = Column(Boolean, default=False, index=True)
     tugallangan_vaqt = Column(DateTime, nullable=True)
     aravalar_json = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now())

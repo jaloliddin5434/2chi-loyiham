@@ -6,7 +6,39 @@ import 'offline_queue_service.dart';
 import 'navbat_service.dart';
 
 class ApiService {
-static const String baseUrl = "https://api.smart-tarozi.uz";
+  // Ofis kompyuterlari (operator/admin/tarozixona) ilovaning o'zini
+  // mahalliy tarmoq orqali (http://<server>:47080) ochadi - lekin API
+  // so'rovlari avval doim Cloudflare Tunnel orqali (internetga bog'liq
+  // holda) yuborilardi, garchi backend jismonan bir xil LAN'da tursa
+  // ham. Endi ilova ishga tushganda avval mahalliy manzilga (tezroq,
+  // internetsiz ham ishlaydigan) urinadi - javob bermasa, Cloudflare
+  // domeniga o'tadi (qarang: baseUrlniAniqlash(), main.dart'da chaqiriladi).
+  static const String _lanBaseUrl = "http://10.112.30.77:47001";
+  static const String _cloudBaseUrl = "https://api.smart-tarozi.uz";
+  static String baseUrl = _cloudBaseUrl;
+
+  /// Ilova ishga tushganda BIR MARTA chaqiriladi (runApp()dan oldin).
+  /// Mahalliy backendga qisqa muddatli (timeout bilan) urinish - agar
+  /// javob bermasa (LAN'da emasmiz, yoki server o'chiq), Cloudflare
+  /// domeniga qaytiladi. `baseUrl` shundan keyin butun ilova davomida
+  /// shu qiymatda qoladi (Navbat kabi doimiy so'rovlar ham shu yerdan
+  /// o'qiydi) - sessiya davomida qayta tekshirilmaydi.
+  static Future<void> baseUrlniAniqlash() async {
+    try {
+      final javob = await http
+          .get(Uri.parse('$_lanBaseUrl/health'))
+          .timeout(const Duration(seconds: 2));
+      if (javob.statusCode == 200) {
+        baseUrl = _lanBaseUrl;
+        return;
+      }
+    } catch (_) {
+      // Mahalliy manzilga ulanib bo'lmadi (LAN'da emasmiz yoki server
+      // o'chiq) - Cloudflare domeniga o'tamiz.
+    }
+    baseUrl = _cloudBaseUrl;
+  }
+
   static String? _token;
   // Moliyaviy hisobot uchun ALOHIDA, qisqa muddatli (20 daqiqalik) token -
   // oddiy login tokenidan MUSTAQIL. Faqat to'g'ri PIN kiritilgandan

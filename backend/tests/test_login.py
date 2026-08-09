@@ -2,7 +2,7 @@
 Login endpointi - to'g'ri/xato ma'lumotlar, bloklangan (is_active=False)
 hisob, va tezlik cheklovi (5/daqiqa).
 
-Har bir test o'ziga xos X-Forwarded-For qiymati bilan so'rov yuboradi -
+Har bir test o'ziga xos CF-Connecting-IP qiymati bilan so'rov yuboradi -
 shu bilan slowapi'ning IP-bo'yicha hisoblagichi testlar orasida
 ARALASHIB KETMAYDI (aks holda testlar ijro tartibiga qarab beqaror
 bo'lib qolardi, chunki limiter butun test jarayoni davomida bitta
@@ -31,7 +31,7 @@ def test_togri_login_muvaffaqiyatli(client, db_session):
     _foydalanuvchi_yarat(db_session, "login_ok", "parol123", "operator")
     javob = client.post("/login", json={
         "username": "login_ok", "password": "parol123", "role": "operator",
-    }, headers={"X-Forwarded-For": _ip()})
+    }, headers={"CF-Connecting-IP": _ip()})
     assert javob.status_code == 200
     natija = javob.json()
     assert natija["username"] == "login_ok"
@@ -43,7 +43,7 @@ def test_xato_parol_rad_etiladi(client, db_session):
     _foydalanuvchi_yarat(db_session, "login_xatoparol", "togriparol", "operator")
     javob = client.post("/login", json={
         "username": "login_xatoparol", "password": "notogri", "role": "operator",
-    }, headers={"X-Forwarded-For": _ip()})
+    }, headers={"CF-Connecting-IP": _ip()})
     assert javob.status_code == 401
 
 
@@ -51,7 +51,7 @@ def test_xato_rol_rad_etiladi(client, db_session):
     _foydalanuvchi_yarat(db_session, "login_xatorol", "parol123", "operator")
     javob = client.post("/login", json={
         "username": "login_xatorol", "password": "parol123", "role": "admin",
-    }, headers={"X-Forwarded-For": _ip()})
+    }, headers={"CF-Connecting-IP": _ip()})
     assert javob.status_code == 401
 
 
@@ -60,7 +60,7 @@ def test_bloklangan_hisob_kira_olmaydi(client, db_session):
                           is_active=False)
     javob = client.post("/login", json={
         "username": "login_bloklangan", "password": "parol123", "role": "operator",
-    }, headers={"X-Forwarded-For": _ip()})
+    }, headers={"CF-Connecting-IP": _ip()})
     assert javob.status_code == 401
     # Bloklangan hisob uchun ALOHIDA xabar EMAS - oddiy login xatosi bilan
     # bir xil bo'lishi kerak (hisob mavjudligini oshkor qilmaslik uchun).
@@ -70,7 +70,7 @@ def test_bloklangan_hisob_kira_olmaydi(client, db_session):
 def test_mavjud_bolmagan_foydalanuvchi_rad_etiladi(client):
     javob = client.post("/login", json={
         "username": "hech_qachon_mavjud_bolmagan", "password": "parol123", "role": "operator",
-    }, headers={"X-Forwarded-For": _ip()})
+    }, headers={"CF-Connecting-IP": _ip()})
     assert javob.status_code == 401
 
 
@@ -81,10 +81,10 @@ def test_tezlik_cheklovi_5tadan_keyin_ishga_tushadi(client, db_session):
     for _ in range(5):
         javob = client.post("/login", json={
             "username": "login_ratelimit", "password": "notogri", "role": "operator",
-        }, headers={"X-Forwarded-For": ip})
+        }, headers={"CF-Connecting-IP": ip})
         assert javob.status_code == 401
     # 6-chi urinish - endi 429 (Too Many Requests) bo'lishi kerak.
     javob = client.post("/login", json={
         "username": "login_ratelimit", "password": "notogri", "role": "operator",
-    }, headers={"X-Forwarded-For": ip})
+    }, headers={"CF-Connecting-IP": ip})
     assert javob.status_code == 429

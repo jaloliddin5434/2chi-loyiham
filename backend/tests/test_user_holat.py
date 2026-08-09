@@ -19,7 +19,7 @@ def test_operatorni_faolsizlantirish_va_qayta_faollashtirish(
     # Login endi ishlamasligi kerak.
     login_javob = client.post("/login", json={
         "username": operator_user.username, "password": "parol123", "role": "operator",
-    }, headers={"X-Forwarded-For": "10.50.1.1"})
+    }, headers={"CF-Connecting-IP": "10.50.1.1"})
     assert login_javob.status_code == 401
 
     # Qayta faollashtirish
@@ -32,7 +32,7 @@ def test_operatorni_faolsizlantirish_va_qayta_faollashtirish(
     # Login endi qayta ishlashi kerak.
     login_javob2 = client.post("/login", json={
         "username": operator_user.username, "password": "parol123", "role": "operator",
-    }, headers={"X-Forwarded-For": "10.50.1.2"})
+    }, headers={"CF-Connecting-IP": "10.50.1.2"})
     assert login_javob2.status_code == 200
 
 

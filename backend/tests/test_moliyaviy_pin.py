@@ -5,7 +5,7 @@ sizib chiqmasligi.
 
 DIQQAT: /moliyaviy/pin va /moliyaviy/pin-tekshir 5/daqiqa tezlik
 cheklovi bilan himoyalangan (qarang: main.py). Shu sabab HAR BIR test
-o'ziga xos X-Forwarded-For qiymati bilan so'rov yuboradi - aks holda
+o'ziga xos CF-Connecting-IP qiymati bilan so'rov yuboradi - aks holda
 testlar bir-biriga aralashib (umumiy IP-hisoblagichni bo'lishib),
 ijro tartibiga qarab beqaror natija berardi (xuddi test_login.py'dagi
 kabi sabab).
@@ -15,7 +15,7 @@ import uuid
 
 def _headers(admin_headers):
     ip = f"10.77.{uuid.uuid4().fields[0] % 255}.{uuid.uuid4().fields[1] % 255}"
-    return {**admin_headers, "X-Forwarded-For": ip}
+    return {**admin_headers, "CF-Connecting-IP": ip}
 
 
 def test_birinchi_marta_pin_ornatish_eski_pinsiz_ishlaydi(client, admin_headers):
@@ -88,7 +88,7 @@ def test_4_xonadan_boshqa_pin_rad_etiladi(client, admin_headers):
 def test_operator_pin_ornata_olmaydi(client, operator_headers):
     ip = f"10.77.{uuid.uuid4().fields[0] % 255}.{uuid.uuid4().fields[1] % 255}"
     javob = client.put("/moliyaviy/pin", json={"yangi_pin": "1234"},
-                        headers={**operator_headers, "X-Forwarded-For": ip})
+                        headers={**operator_headers, "CF-Connecting-IP": ip})
     assert javob.status_code == 403
 
 

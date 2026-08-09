@@ -45,13 +45,21 @@ app.add_middleware(
 
 def _mijoz_ip(request: Request) -> str:
     """IP-boshiga tezlik cheklovi uchun haqiqiy mijoz IP'sini aniqlaydi.
-    Hozircha backend to'g'ridan-to'g'ri (proxysiz) ishlaydi, lekin
-    kelajakda reverse-proxy (Cloudflare Tunnel/Caddy) orqasiga o'tganda
-    barcha so'rovlar bitta (proxy) IP'dan kelib qolmasligi uchun
-    ATAYLAB avval `X-Forwarded-For` sarlavhasiga qaraladi."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    XAVFSIZLIK: `X-Forwarded-For` ATAYLAB ishlatilmaydi - bu sarlavha
+    mijozning o'zi tomonidan erkin, cheklovsiz sozlanadi (oddiy HTTP
+    so'rov sarlavhasi), shuning uchun har bir so'rovda boshqa-boshqa
+    soxta qiymat yuborib, tezlik-cheklovini (login/PIN brute-force
+    himoyasi) BUTUNLAY chetlab o'tish mumkin edi - bu real sinovda
+    tasdiqlangan haqiqiy zaiflik edi.
+    Backend doimo Cloudflare Tunnel orqasida ishlaydi - Cloudflare
+    edge'ining o'zi qo'yadigan `CF-Connecting-IP` sarlavhasini mijoz
+    SOXTALASHTIRA OLMAYDI (Cloudflare buni har doim o'zi, haqiqiy
+    ulanish asosida qayta yozadi). Agar bu sarlavha yo'q bo'lsa
+    (masalan lokal tarmoqdan to'g'ridan-to'g'ri ulanish), oddiy TCP
+    ulanish IP'siga qaytiladi."""
+    cf_ip = request.headers.get("cf-connecting-ip")
+    if cf_ip:
+        return cf_ip.strip()
     return request.client.host if request.client else "noma-lum"
 
 

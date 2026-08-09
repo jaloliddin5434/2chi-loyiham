@@ -86,6 +86,9 @@ class Hujjat(Base):
     yuk_olindi = Column(String, nullable=True)
     dostaverka = Column(String, nullable=True)
     dostaverka_vaqt = Column(String, nullable=True)
+    # Deyarli barcha statistika/hisobot so'rovlari holat boyicha
+    # filtrlaydi (masalan BEKOR_QILINDI'ni chiqarib tashlash uchun),
+    # shu sabab index=True qoshildi.
     holat = Column(
         SQLEnum(
             HujjatHolati,
@@ -94,9 +97,13 @@ class Hujjat(Base):
         ),
         default=HujjatHolati.JARAYON,
         nullable=False,
+        index=True,
     )
     bekor_sabab = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=func.now())
+    # Deyarli barcha statistika so'rovlari (kunlik/haftalik/oylik/mavsum/
+    # firma/haydovchi) shu ustun boyicha davr filtrlaydi - eng kop
+    # ishlatiladigan filtr ustuni, shu sabab index=True qoshildi.
+    created_at = Column(DateTime, default=func.now(), index=True)
     # Offlineda yaratilgan hujjatlar uchun mijoz (frontend) tomonidan
     # generatsiya qilingan noyob kalit - qayta yuborilgan (retry) so'rov
     # ikkilamchi hujjat yaratib qo'ymasligi uchun (idempotentlik).
@@ -111,7 +118,10 @@ class Hujjat(Base):
 class Olchov(Base):
     __tablename__ = "olchovlar"
     id = Column(Integer, primary_key=True, index=True)
-    hujjat_id = Column(Integer, ForeignKey("hujjatlar.id", ondelete="CASCADE"))
+    # PostgreSQL FK ustunlarini avtomatik indekslamaydi - bu ustun
+    # deyarli HAR BIR statistika so'rovida hujjatlar bilan JOIN qilish
+    # uchun ishlatiladi, shu sabab index=True aniq qo'shilgan.
+    hujjat_id = Column(Integer, ForeignKey("hujjatlar.id", ondelete="CASCADE"), index=True)
     arava_raqam = Column(Integer)
     tara = Column(Float, nullable=True)
     brutto = Column(Float, nullable=True)

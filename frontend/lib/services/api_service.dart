@@ -724,6 +724,28 @@ static const String baseUrl = "https://api.smart-tarozi.uz";
 
   static Future<Map<String, dynamic>> getMavsumStat() => _statistikaOl('mavsum');
 
+  static Future<List<dynamic>> getFirmalarStat(String davr) async {
+    final uri = Uri.parse('$baseUrl/statistika/firmalar')
+        .replace(queryParameters: {'davr': davr});
+    final response = await http.get(uri, headers: _headers());
+    _check401(response);
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes))['firmalar'];
+    }
+    throw Exception('Firma statistikasi yuklanmadi (status ${response.statusCode})');
+  }
+
+  static Future<List<dynamic>> getHaydovchilarStat(String davr) async {
+    final uri = Uri.parse('$baseUrl/statistika/haydovchilar')
+        .replace(queryParameters: {'davr': davr});
+    final response = await http.get(uri, headers: _headers());
+    _check401(response);
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes))['haydovchilar'];
+    }
+    throw Exception('Haydovchi statistikasi yuklanmadi (status ${response.statusCode})');
+  }
+
   /// Muvaffaqiyatli bo'lsa backend javobini (kamera1/kamera2 ichida
   /// operator ekranida DARHOL ko'rsatish uchun kichik "rasm_base64"
   /// bilan) qaytaradi; aks holda `null`. Chaqiruvchi buni `await`

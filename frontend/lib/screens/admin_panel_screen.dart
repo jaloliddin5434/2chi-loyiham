@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart';
 import 'operator_panel_screen.dart';
+import 'firma_haydovchi_tahlili.dart';
 import '../services/navbat_service.dart';
 import '../services/api_service.dart';
 import '../services/excel_export_service.dart';
@@ -4401,6 +4402,7 @@ Widget _mashinaGrafik() {
                     Icons.description_outlined, 1, "Hujjatlar"),
                 _sidebarIcon(Icons.bar_chart, 2, "Statistika",
                     onExtraTap: grafikDetalniYukla),
+                _sidebarIcon(Icons.groups_outlined, 8, "Firma/Haydovchi"),
                 _sidebarIcon(
                     Icons.people_outline, 3, "Foydalanuvchilar",
                     onExtraTap: foydalanuvchilarniYukla),
@@ -4442,7 +4444,10 @@ Widget _mashinaGrafik() {
                                             ? _tahrirlarTarixi()
                                             : tanlanganSidebar == 7
                                                 ? _moliyaviyBolimi()
-                                                : _dashboard(),
+                                                : tanlanganSidebar == 8
+                                                    ? FirmaHaydovchiTahlili(
+                                                        kechagiRejim: kechagiRejim)
+                                                    : _dashboard(),
               ),
             ),
           ]),

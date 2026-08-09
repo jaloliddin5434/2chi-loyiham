@@ -1585,6 +1585,99 @@ def mavsum_statistika(db: Session = Depends(get_db), current_user: dict = Depend
         "jami_tonnaj": jami_tonnaj,
     }
 
+# ============ FIRMA / HAYDOVCHI TAHLILI ============
+# Sinov paytida bazaga qolib ketgan, haqiqiy biznes faoliyati bolmagan
+# firma nomlari - bular firmalar hisobotidan ATAYLAB chiqarib
+# tashlanadi (foydalanuvchi tomonidan tasdiqlangan royxat). Haydovchi
+# tahlilida bunday royxat yoq - chunki sinov shofyor nomlari
+# (masalan "Integration Test", "Stsenariy...") turlicha va bashorat
+# qilib bolmaydigan, shu sabab alohida tozalash/kelishuv talab qiladi.
+_SINOV_FIRMALARI = {"Test Firma", "Sinov Firma"}
+
+
+def _davr_boshlanishi(davr: str):
+    from datetime import date, timedelta
+    bugun = date.today()
+    if davr == "kunlik":
+        return bugun
+    if davr == "haftalik":
+        return bugun - timedelta(days=7)
+    if davr == "mavsum":
+        return date(bugun.year, 8, 1) if bugun.month >= 8 else date(bugun.year - 1, 8, 1)
+    return bugun.replace(day=1)  # oylik (standart)
+
+
+@app.get("/statistika/firmalar")
+def firmalar_statistika(davr: str = "oylik", db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """Firma boyicha jami hujjat soni/tonnaj/konditsion - eng kop
+    tonnajdan boshlab saralangan. Sinov yozuvlari ("Test Firma",
+    "Sinov Firma") ataylab chiqarib tashlanadi."""
+    boshlanish = _davr_boshlanishi(davr)
+
+    natijalar = db.query(
+        Hujjat.firma,
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
+    ).outerjoin(
+        Olchov, Olchov.hujjat_id == Hujjat.id
+    ).filter(
+        Hujjat.created_at >= boshlanish,
+        Hujjat.holat != HujjatHolati.BEKOR_QILINDI,
+        Hujjat.firma.isnot(None),
+        Hujjat.firma != "",
+        Hujjat.firma.notin_(_SINOV_FIRMALARI),
+    ).group_by(Hujjat.firma).order_by(func.coalesce(func.sum(Olchov.netto), 0).desc()).all()
+
+    firmalar = []
+    for row in natijalar:
+        jami_tonnaj = round(row.jami_netto / 1000, 2)
+        jami_konditsion = round(row.jami_konditsion / 1000, 2)
+        firmalar.append({
+            "nom": row.firma,
+            "soni": row.soni,
+            "jami_tonnaj": jami_tonnaj,
+            "jami_konditsion": jami_konditsion,
+            "ortacha_konditsion": round(jami_konditsion / row.soni, 2) if row.soni else 0.0,
+        })
+
+    return {"davr": davr, "boshlanish": str(boshlanish), "firmalar": firmalar}
+
+
+@app.get("/statistika/haydovchilar")
+def haydovchilar_statistika(davr: str = "oylik", db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """Haydovchi (shofyor) boyicha jami hujjat soni/tonnaj - eng kop
+    tonnajdan boshlab saralangan."""
+    boshlanish = _davr_boshlanishi(davr)
+
+    natijalar = db.query(
+        Hujjat.shofyor,
+        func.count(func.distinct(Hujjat.id)).label('soni'),
+        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
+    ).outerjoin(
+        Olchov, Olchov.hujjat_id == Hujjat.id
+    ).filter(
+        Hujjat.created_at >= boshlanish,
+        Hujjat.holat != HujjatHolati.BEKOR_QILINDI,
+        Hujjat.shofyor.isnot(None),
+        Hujjat.shofyor != "",
+    ).group_by(Hujjat.shofyor).order_by(func.coalesce(func.sum(Olchov.netto), 0).desc()).all()
+
+    haydovchilar = []
+    for row in natijalar:
+        jami_tonnaj = round(row.jami_netto / 1000, 2)
+        jami_konditsion = round(row.jami_konditsion / 1000, 2)
+        haydovchilar.append({
+            "nom": row.shofyor,
+            "soni": row.soni,
+            "jami_tonnaj": jami_tonnaj,
+            "jami_konditsion": jami_konditsion,
+            "ortacha_konditsion": round(jami_konditsion / row.soni, 2) if row.soni else 0.0,
+        })
+
+    return {"davr": davr, "boshlanish": str(boshlanish), "haydovchilar": haydovchilar}
+
     # ============ BACKUP ============
 
 import os

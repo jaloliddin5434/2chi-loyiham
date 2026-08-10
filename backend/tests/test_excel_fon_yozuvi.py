@@ -24,10 +24,14 @@ ulanishga umuman ko'rinmaydi). Shu sabab bu yerda ma'lumotlar HAQIQATAN
 (alohida SessionLocal() + real commit bilan) yoziladi va test oxirida
 QO'LDA tozalanadi - xuddi audit 1-bosqichidagi (yuklama) benchmark
 skriptlaridagi xavfsizlik naqshi bilan bir xil: soxta, aniq
-ajratiladigan mahsulot nomi ishlatiladi (C:/RASMLAR/<nom>/... - haqiqiy
-Chigit/Chiganoq fayllariga HECH QANDAY ta'sir qilmaydi), test oldidan
-VA oxirida (muvaffaqiyatli yoki muvaffaqiyatsiz bo'lishidan qat'i
-nazar) barcha DB qatorlari + disk papkasi butunlay o'chiriladi.
+ajratiladigan mahsulot nomi ishlatiladi. Fayllar RASMLAR_DIR ostiga
+yoziladi - `sinov_mahsuloti` fixturasi buni pytest'ning vaqtinchalik
+`tmp_path`iga yo'naltiradi (haqiqiy Chigit/Chiganoq fayllariga HECH
+QANDAY ta'sir qilmaydi, VA Windows'ga qattiq bog'liq bo'lmaydi - avval
+"C:/RASMLAR" qattiq yozilgan edi, bu GitHub Actions'ning Linux
+runner'ida mavjud emasligi sabab CI'da muvaffaqiyatsiz tugardi), test
+oldidan VA oxirida (muvaffaqiyatli yoki muvaffaqiyatsiz bo'lishidan
+qat'i nazar) barcha DB qatorlari + disk papkasi butunlay o'chiriladi.
 """
 import shutil
 import threading
@@ -58,13 +62,22 @@ def _tozala():
         db.commit()
     finally:
         db.close()
-    papka = Path(f"C:/RASMLAR/{MAHSULOT_NOMI}")
+    papka = Path(main.RASMLAR_DIR) / MAHSULOT_NOMI
     if papka.exists():
         shutil.rmtree(papka)
 
 
 @pytest.fixture()
-def sinov_mahsuloti():
+def sinov_mahsuloti(tmp_path, monkeypatch):
+    # RASMLAR_DIR pytest'ning vaqtinchalik (har test uchun ALOHIDA,
+    # o'zi tozalanadigan) papkasiga yo'naltiriladi - avval qattiq
+    # yozilgan "C:/RASMLAR" ishlatilardi, bu Windows'da ishlar edi,
+    # lekin GitHub Actions CI Linux'da bu yo'l umuman mavjud emas -
+    # CI'da xato bilan tugardi (mahalliy Windows'da esa yashirin
+    # qolardi). Bonus: bu bilan haqiqiy productiondagi RASMLAR
+    # papkasiga ham hech qachon tegilmaydi.
+    monkeypatch.setattr(main, "RASMLAR_DIR", str(tmp_path))
+
     _tozala()  # oldingi uzilib qolgan urinishdan qoldiq bo'lsa, tozalab boshlanadi
     db = SessionLocal()
     try:
@@ -109,7 +122,7 @@ def _hujjat_yarat(mahsulot_id, raqam_suffiks, tara, brutto, namlik=8.0, ifloslik
 
 def _fayl_yoli():
     yil = datetime.now().year
-    return Path(f"C:/RASMLAR/{MAHSULOT_NOMI}/hisobot_{MAHSULOT_NOMI}_{yil}.xlsx")
+    return Path(main.RASMLAR_DIR) / MAHSULOT_NOMI / f"hisobot_{MAHSULOT_NOMI}_{yil}.xlsx"
 
 
 def _qatorni_top(ws, mashina_raqami):

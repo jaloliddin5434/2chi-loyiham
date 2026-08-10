@@ -114,6 +114,82 @@ def _holatni_yangila(ogirlik_kg=None, ulangan=None):
             _holat["ulangan"] = ulangan
 
 
+# ============ MUZLAB QOLISHNI KUZATUVCHI (watchdog) ============
+# _serial_oquvchisi()dagi keng `except Exception` FAQAT haqiqiy istisnolarni
+# (xato chiqishini) ushlaydi. Ba'zi USB-RS232 perexodniklar (ayniqsa CH340
+# chipli arzon qurilmalar, sanoat muhitidagi elektr shovqinida) drayver
+# darajasida CHEKSIZ BLOKLANIB (hang) qolishi mumkin - bu istisno EMAS,
+# `serial.Serial(...)` yoki `ser.read()` chaqiruvi shunchaki HECH QACHON
+# qaytmaydi, try/except buni umuman ko'ra olmaydi. Real productionda
+# (2026-08-09/10) aynan shu holat yuz berdi - xizmat "Running" ko'rinsa
+# ham, tarozi ma'lumoti soatlab kelmadi, faqat butun kompyuterni qayta
+# yoqish yordam berdi.
+#
+# Bu watchdog _serial_oquvchisi() qancha vaqtdan beri "faol" ekanini
+# (muvaffaqiyatli o'qishmi, oddiy xatomi - farqi yo'q, HAR sikl
+# aylanishida) kuzatadi. Agar juda uzoq (oddiy holatda soniyalar ichida
+# yangilanishi kerak bo'lgan belgi, _MUZLAB_QOLISH_CHEGARA_SONIYA dan
+# ko'p) yangilanmasa - bu chaqiruvning o'zi qayerdadir abadiy bloklanib
+# qolganidan darak beradi. Shunda butun jarayon MAJBURAN to'xtatiladi
+# (`os._exit`) - NSSM (allaqachon `AppExit=Restart` bilan sozlangan,
+# qarang: install_service.bat) uni darhol qayta ko'taradi - bu OS
+# darajasida COM tutqichini to'liq yopib-ochishga majburlaydi (garchi
+# 100% kafolat bermasa ham - agar aynan operatsion tizim/drayverning
+# o'zi chalkashib qolgan bo'lsa, baribir jismoniy aralashuv kerak
+# bo'lishi mumkin).
+_soglomlik_qulf = threading.Lock()
+_soglomlik_holati = {"oxirgi_faollik": time.time()}
+_MUZLAB_QOLISH_CHEGARA_SONIYA = 60
+_WATCHDOG_TEKSHIRUV_OSIYA = 15
+
+
+def _soglomlik_belgisini_yangila():
+    with _soglomlik_qulf:
+        _soglomlik_holati["oxirgi_faollik"] = time.time()
+
+
+def _watchdog_bir_tekshiruv():
+    """Bitta tekshiruv sikli - alohida funksiya qilib ajratilgan, shunda
+    sinovlarda `while True`/`time.sleep`ga va haqiqiy `os._exit()`ga
+    tegmasdan to'g'ridan-to'g'ri chaqirish mumkin (`os._exit` sinovlarda
+    monkeypatch qilinadi)."""
+    with _soglomlik_qulf:
+        oxirgi = _soglomlik_holati["oxirgi_faollik"]
+    muddat_otdi = time.time() - oxirgi
+    if muddat_otdi > _MUZLAB_QOLISH_CHEGARA_SONIYA:
+        # DIQQAT: konsol/log (NSSM'ning agent_stdout.log'i) uchun ATAYLAB
+        # emojisiz, faqat ASCII matn ishlatiladi - real sinovda aniqlandi:
+        # ba'zi Windows konsollari/log kodировkalari (masalan cp1251)
+        # emojini o'z ichiga olgan `print()`ni UnicodeEncodeError bilan
+        # QULATIB QO'YADI. Bu ESA aynan shu watchdog thread'ining o'zini
+        # o'ldirib qo'yar edi - ya'ni muzlab qolishni aniqlagan payti,
+        # reaksiya berishdan OLDIN qulab, hech narsa qilolmay qolardi
+        # (ironik, lekin haqiqiy xato - shu funksiyaning o'zini sinashda
+        # topilgan). Telegram xabari HTTP JSON orqali yuboriladi - konsol
+        # kodировkasiga bog'liq emas, shu sabab u yerda emoji xavfsiz.
+        log_xabar = (
+            f"DIQQAT: Tarozi agentining o'quvchi qismi {int(muddat_otdi)} "
+            f"soniyadan buyon javob bermayapti (drayver/COM port darajasida "
+            f"muzlab qolgan bo'lishi mumkin) - jarayon avtomatik qayta "
+            f"ishga tushirilmoqda."
+        )
+        telegram_xabar = (
+            f"🔴 <b>Diqqat!</b> Tarozi agentining o'quvchi qismi "
+            f"{int(muddat_otdi)} soniyadan buyon javob bermayapti (drayver/"
+            f"COM port darajasida muzlab qolgan bo'lishi mumkin) - jarayon "
+            f"avtomatik qayta ishga tushirilmoqda."
+        )
+        print(log_xabar)
+        _telegram_xabar_yuborish(telegram_xabar)
+        os._exit(1)
+
+
+def _watchdog_kuzatuvchisi():
+    while True:
+        time.sleep(_WATCHDOG_TEKSHIRUV_OSIYA)
+        _watchdog_bir_tekshiruv()
+
+
 def _serial_oquvchisi():
     """COM portini fon oqimida uzluksiz o'qiydi. Port ochilmasa yoki aloqa
     uzilib qolsa, 3 soniyadan keyin avtomatik qayta urinadi - agent process
@@ -121,6 +197,13 @@ def _serial_oquvchisi():
     buffer = bytearray()
     oldingi_erkin_nomzod = None
     while True:
+        # Har OUTER (qayta ulanish) va INNER (o'qish) sikl aylanishida
+        # sog'lomlik belgisi yangilanadi - qarang: _watchdog_bir_tekshiruv().
+        # Agar `serial.Serial(...)`ning o'zi (portni ochish) yoki `ser.read()`
+        # drayver darajasida CHEKSIZ bloklanib qolsa (bu try/except
+        # ushlay OLMAYDIGAN holat - chaqiruv oddiy hech qachon qaytmaydi),
+        # belgi yangilanishni to'xtatadi va watchdog buni aniqlaydi.
+        _soglomlik_belgisini_yangila()
         try:
             with serial.Serial(
                 TAROZI_PORT,
@@ -135,6 +218,7 @@ def _serial_oquvchisi():
                 oldingi_erkin_nomzod = None
                 print(f"Tarozi ({TAROZI_PORT}) bilan aloqa o'rnatildi.")
                 while True:
+                    _soglomlik_belgisini_yangila()
                     chunk = ser.read(256)
                     if chunk:
                         buffer += chunk
@@ -210,6 +294,7 @@ def _serverga_yuboruvchi():
 def main():
     print(f"Tarozi agenti ishga tushdi. Port={TAROZI_PORT}@{TAROZI_BAUD}, Server={SERVER_URL}")
     threading.Thread(target=_serial_oquvchisi, daemon=True).start()
+    threading.Thread(target=_watchdog_kuzatuvchisi, daemon=True).start()
     _serverga_yuboruvchi()  # asosiy thread shu yerda "abadiy" qoladi
 
 

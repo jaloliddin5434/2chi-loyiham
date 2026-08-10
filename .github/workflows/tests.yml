@@ -60,6 +60,21 @@ jobs:
         working-directory: backend
         run: pytest tests/ -v
 
+      - name: Bog'liqliklarni xavfsizlik bo'yicha skanerlash
+        # requirements.txt'dagi paketlarni PyPI/OSV zaifliklar bazasi
+        # bilan solishtiradi - agar mashhur CVE'ga ega eski versiya
+        # aniqlansa, build QIZARADI (build'ni to'xtatmaydigan skaner
+        # amalda e'tiborsiz qoldiriladi). `ecdsa`dagi PYSEC-2026-1325
+        # ATAYLAB e'tiborsiz qoldirilgan - eng so'nggi versiyada ham
+        # tuzatilmagan (yuqori darajadagi python-jose kutubxonasining
+        # bilvosita bog'liqligi), va biz FAQAT HS256 (HMAC) algoritmini
+        # ishlatamiz - ecdsa'ning zaif elliptik egri chiziq kodi
+        # umuman chaqirilmaydi.
+        working-directory: backend
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt --ignore-vuln PYSEC-2026-1325
+
   frontend-testlari:
     runs-on: ubuntu-latest
 

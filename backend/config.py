@@ -39,6 +39,14 @@ class _Sozlamalar(BaseSettings):
 
     PG_DUMP_YOL: Optional[str] = None
 
+    # Baza zaxira nusxalari (.sql) va tortish tasdiqlovchi rasmlar/
+    # nakladnoy fayllari qayerga saqlanishi - avval main.py ichida
+    # to'g'ridan-to'g'ri qattiq yozilgan edi (C:\hazorasp_tarozi\backup,
+    # C:\RASMLAR), boshqa kompyuterga (masalan diski boshqacha
+    # tuzilgan) ko'chirilsa kodga tegish kerak bo'lardi.
+    BACKUP_DIR: str = r"C:\hazorasp_tarozi\backup"
+    RASMLAR_DIR: str = r"C:\RASMLAR"
+
     # Ikkinchi kompyuterga (bir xil LAN'dagi tashqi zaxira) backup
     # nusxasini ko'chirish uchun SMB ulanish ma'lumotlari. Barchasi
     # to'ldirilmaguncha (IP, foydalanuvchi, parol) tarmoqqa ko'chirish
@@ -92,6 +100,8 @@ TELEGRAM_HISOBOT_TOKEN = _sozlama.TELEGRAM_HISOBOT_TOKEN
 TELEGRAM_HISOBOT_CHAT_ID = _sozlama.TELEGRAM_HISOBOT_CHAT_ID
 
 PG_DUMP_YOL = _sozlama.PG_DUMP_YOL
+BACKUP_DIR = _sozlama.BACKUP_DIR
+RASMLAR_DIR = _sozlama.RASMLAR_DIR
 
 TARMOQ_BACKUP_IP = _sozlama.TARMOQ_BACKUP_IP
 TARMOQ_BACKUP_SHARE = _sozlama.TARMOQ_BACKUP_SHARE

@@ -207,3 +207,22 @@ class Sozlama(Base):
     kalit = Column(String, unique=True, index=True)
     qiymat = Column(Text, nullable=True)
     updated_at = Column(DateTime, default=func.now())
+
+class QoraRoyxatToken(Base):
+    # JWT o'zi stateless - token muddati tugamaguncha (standart 8 soat)
+    # serverda "bekor qilib" bo'lmaydi. POST /logout chaqirilganda, shu
+    # tokenning noyob `jti` da'vosi shu jadvalga yoziladi - get_current_user()
+    # HAR so'rovda shu ro'yxatni tekshiradi, agar topilsa 401 qaytaradi
+    # (garchi token imzosi va muddati hali yaroqli bo'lsa ham). Eski
+    # (bu funksiya qo'shilishidan OLDIN chiqarilgan, `jti`siz) tokenlar
+    # bu tekshiruvdan tabiiy ravishda o'tib ketaveradi - ular baribir
+    # o'z tabiiy muddatida (8 soat) tugaydi.
+    __tablename__ = "qora_royxat_tokenlar"
+    id = Column(Integer, primary_key=True, index=True)
+    jti = Column(String, unique=True, index=True, nullable=False)
+    # Tokenning O'ZINING amal qilish muddati (JWT `exp`) - shundan keyin
+    # token o'zi allaqachon yaroqsiz bo'lgani uchun, shu qora ro'yxat
+    # yozuvi ham keraksiz bo'lib qoladi (avtomatik backup fon oqimida
+    # kunlik tozalanadi, jadval abadiy o'sib ketmasin uchun).
+    amal_qilish_muddati = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, default=func.now())

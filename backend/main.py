@@ -6,12 +6,12 @@ from sqlalchemy import func, cast, Date
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from database import engine, get_db, Base, SessionLocal
-from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi, Firma, MahsulotNarxi, Sozlama
+from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi, Firma, MahsulotNarxi, Sozlama, QoraRoyxatToken
 from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash, UserHolatYangilash, FirmaCreate, MahsulotNarxiCreate, PinOrnatish, PinTekshirish, TaroziYubor
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role, require_moliyaviy_ruxsat
-from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL, TAROZI_AGENT_KEY
+from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL, TAROZI_AGENT_KEY, BACKUP_DIR, RASMLAR_DIR
 from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import html
 import io
 import threading
@@ -143,6 +143,24 @@ def login(request: Request, user_data: UserLogin, db: Session = Depends(get_db))
         )
     token = create_access_token({"sub": user.username, "role": user.role, "id": user.id})
     return {"access_token": token, "token_type": "bearer", "role": user.role, "username": user.username}
+
+@app.post("/logout")
+def logout(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Joriy tokenni darhol bekor qiladi (qora ro'yxatga qo'shadi) -
+    aks holda JWT stateless bo'lgani uchun, "chiqish" faqat frontend
+    tokenni mahalliy o'chirishi bilan cheklanardi - agar shu token
+    boshqa joyda (masalan qurilma o'g'irlangan/kompyuter ulashilgan
+    bo'lsa) qo'lga tushgan bo'lsa, u hali ham o'z tabiiy muddatigacha
+    (8 soat) ishlayverardi."""
+    jti = current_user.get("jti")
+    if jti:
+        exp = current_user.get("exp")
+        amal_muddati = datetime.utcfromtimestamp(exp) if exp else datetime.now() + timedelta(hours=8)
+        mavjud = db.query(QoraRoyxatToken).filter(QoraRoyxatToken.jti == jti).first()
+        if not mavjud:
+            db.add(QoraRoyxatToken(jti=jti, amal_qilish_muddati=amal_muddati))
+            db.commit()
+    return {"status": "ok"}
 
 @app.post("/setup")
 def setup(db: Session = Depends(get_db)):
@@ -970,7 +988,7 @@ def hujjatlar_eksport(
     # (probelli, asl mahsulot.nom) bo'lishi SHART - aks holda "Chiganoq
     # po'chog'i" va "Chiganoq_po'chog'i" kabi ikkita boshqa-boshqa papka
     # hosil bo'lib, bitta mahsulotning fayllari ikkiga bo'linib qoladi.
-    papka = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(mahsulot.nom)}")
+    papka = Path(RASMLAR_DIR) / xavfsiz_papka_nomi(mahsulot.nom)
     papka.mkdir(parents=True, exist_ok=True)
     davr = f"{sana_dan or 'boshidan'}_{sana_gacha or 'hozirgacha'}"
     fayl_nomi = f"{mahsulot.nom.replace(' ', '_')}_{davr}.xlsx"
@@ -1836,7 +1854,7 @@ def backup_qilish(current_user: dict = Depends(require_role("admin"))):
     # tekshiring - aks holda xato "muvaffaqiyat" deb qabul qilinishi
     # mumkin.
     try:
-        backup_dir = r"C:\hazorasp_tarozi\backup"
+        backup_dir = BACKUP_DIR
         os.makedirs(backup_dir, exist_ok=True)
 
         sana = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -1870,7 +1888,7 @@ def backup_qilish(current_user: dict = Depends(require_role("admin"))):
 @app.get("/backup/royxat")
 def backup_royxat(current_user: dict = Depends(require_role("admin"))):
     try:
-        backup_dir = r"C:\hazorasp_tarozi\backup"
+        backup_dir = BACKUP_DIR
         os.makedirs(backup_dir, exist_ok=True)
         fayllar = os.listdir(backup_dir)
         fayllar.sort(reverse=True)
@@ -1977,6 +1995,24 @@ TARMOQ_BACKUP_SOZLAMA_KALIT = "oxirgi_tarmoq_backup_sanasi"
 RASMLAR_BACKUP_SOZLAMA_KALIT = "oxirgi_rasmlar_backup_sanasi"
 
 
+def _tarmoqqa_ulan(unc_yol: str, foydalanuvchi: str, parol: str, timeout: int = 30):
+    """`net use`ga parolni oddiy PROCESS ARGUMENTI sifatida EMAS, standart
+    kirish (stdin) orqali uzatadi. AVVAL parol to'g'ridan-to'g'ri
+    process argumentida yuborilardi - bu buyruq ishlab turgan payt
+    davomida BOSHQA HAR QANDAY dasturga (Task Manager "Buyruq qatori"
+    ustuni, `Get-CimInstance Win32_Process`/`wmic process list full`)
+    ko'rinib turardi - real sinovda tasdiqlangan haqiqiy zaiflik. `*`
+    maxsus belgi net.exe'ga parolni interaktiv so'rashni buyuradi - biz
+    shu so'rovga to'g'ridan-to'g'ri `input=` orqali javob beramiz,
+    parol hech qachon argv (jarayon buyruq qatori) ichida ko'rinmaydi."""
+    import subprocess
+    return subprocess.run(
+        ["net", "use", unc_yol, "*", f"/user:{foydalanuvchi}"],
+        input=f"{parol}\n",
+        capture_output=True, text=True, errors="replace", timeout=timeout,
+    )
+
+
 def tarmoqqa_backup_yubor(backup_dir: str) -> bool:
     """Lokal backup papkasini (barcha .sql fayllar) ikkinchi kompyuterdagi
     SMB ulashuvga robocopy bilan nusxalaydi. Robocopy manba/manzilda mos
@@ -1993,11 +2029,7 @@ def tarmoqqa_backup_yubor(backup_dir: str) -> bool:
         # dekodlanavermaydi (masalan xato xabari boshqa kodировkada
         # kelsa) - shu sabab dekodlash xatosi butun urinishni
         # (returncode allaqachon to'g'ri bo'lsa ham) buzib qo'ymasin.
-        subprocess.run(
-            ["net", "use", unc_yol, TARMOQ_BACKUP_PAROL,
-             f"/user:{TARMOQ_BACKUP_FOYDALANUVCHI}"],
-            capture_output=True, text=True, errors="replace", timeout=30
-        )
+        _tarmoqqa_ulan(unc_yol, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL)
         natija = subprocess.run(
             ["robocopy", backup_dir, unc_yol, "*.sql", "/R:2", "/W:5"],
             capture_output=True, text=True, errors="replace", timeout=90
@@ -2024,16 +2056,13 @@ def rasmlar_tarmoqqa_backup_yubor() -> bool:
     saqlash uchun); robocopy odatdagidek faqat yangi/o'zgargan
     fayllarni ko'chiradi - qayta-qayta chaqirish arzon."""
     import subprocess
-    manba = r"C:\RASMLAR"
+    manba = RASMLAR_DIR
     if not os.path.isdir(manba):
         return True  # hali birorta rasm yo'q - qilinadigan ish yo'q
     unc_yol = fr"\\{TARMOQ_BACKUP_IP}\{TARMOQ_BACKUP_SHARE}\RASMLAR"
     try:
-        subprocess.run(
-            ["net", "use", fr"\\{TARMOQ_BACKUP_IP}\{TARMOQ_BACKUP_SHARE}",
-             TARMOQ_BACKUP_PAROL, f"/user:{TARMOQ_BACKUP_FOYDALANUVCHI}"],
-            capture_output=True, text=True, errors="replace", timeout=30
-        )
+        _tarmoqqa_ulan(fr"\\{TARMOQ_BACKUP_IP}\{TARMOQ_BACKUP_SHARE}",
+                       TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL)
         natija = subprocess.run(
             ["robocopy", manba, unc_yol, "/E", "/R:2", "/W:5"],
             capture_output=True, text=True, errors="replace", timeout=1800
@@ -2051,6 +2080,7 @@ def rasmlar_tarmoqqa_backup_yubor() -> bool:
 
 BACKUP_RETENSIYA_KUN = 30
 BACKUP_TOZALASH_SOZLAMA_KALIT = "oxirgi_backup_tozalash_sanasi"
+QORA_ROYXAT_TOZALASH_SOZLAMA_KALIT = "oxirgi_qora_royxat_tozalash_sanasi"
 
 
 def eski_backuplarni_tozala(backup_dir: str, kun_soni: int = BACKUP_RETENSIYA_KUN) -> int:
@@ -2091,7 +2121,7 @@ def avtomatik_backup():
         db = SessionLocal()
         try:
             bugun = date.today()
-            backup_dir = r"C:\hazorasp_tarozi\backup"
+            backup_dir = BACKUP_DIR
             os.makedirs(backup_dir, exist_ok=True)
 
             sozlama = db.query(Sozlama).filter(
@@ -2175,6 +2205,28 @@ def avtomatik_backup():
                     tozalash_sozlama.updated_at = datetime.now()
                 else:
                     db.add(Sozlama(kalit=BACKUP_TOZALASH_SOZLAMA_KALIT, qiymat=str(bugun)))
+                db.commit()
+
+            # Eskirgan qora ro'yxat (logout) yozuvlarini tozalash - token
+            # o'zining tabiiy muddati (JWT `exp`) o'tgandan keyin, u
+            # baribir yaroqsiz bo'lgani uchun qora ro'yxat yozuvi ham
+            # keraksiz bo'lib qoladi (aks holda jadval yillar davomida
+            # cheksiz o'sib borar edi).
+            qora_royxat_tozalash_sozlama = db.query(Sozlama).filter(
+                Sozlama.kalit == QORA_ROYXAT_TOZALASH_SOZLAMA_KALIT).first()
+            qora_royxat_tozalash_bugun_bajarilgan = (
+                qora_royxat_tozalash_sozlama is not None
+                and qora_royxat_tozalash_sozlama.qiymat == str(bugun))
+            if not qora_royxat_tozalash_bugun_bajarilgan:
+                ochirilgan_token = db.query(QoraRoyxatToken).filter(
+                    QoraRoyxatToken.amal_qilish_muddati < datetime.now()).delete()
+                if ochirilgan_token:
+                    print(f"Eskirgan qora royxat tokenlari tozalandi: {ochirilgan_token} ta")
+                if qora_royxat_tozalash_sozlama:
+                    qora_royxat_tozalash_sozlama.qiymat = str(bugun)
+                    qora_royxat_tozalash_sozlama.updated_at = datetime.now()
+                else:
+                    db.add(Sozlama(kalit=QORA_ROYXAT_TOZALASH_SOZLAMA_KALIT, qiymat=str(bugun)))
                 db.commit()
         except Exception as e:
             print(f"Backup xato: {e}")
@@ -2361,7 +2413,7 @@ def excel_qatorga_yoz(hujjat_id, db):
         # mahsulot_nomi) bo'lishi SHART - aks holda "Chiganoq po'chog'i" va
         # "Chiganoq_po'chog'i" kabi ikkita boshqa-boshqa papka hosil bo'lib,
         # bitta mahsulotning fayllari ikkiga bo'linib qoladi.
-        mahsulot_papkasi = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(mahsulot_nomi)}")
+        mahsulot_papkasi = Path(RASMLAR_DIR) / xavfsiz_papka_nomi(mahsulot_nomi)
         mahsulot_papkasi.mkdir(parents=True, exist_ok=True)
         fayl_yol = str(mahsulot_papkasi / f"hisobot_{fayl_nomi_qismi}_{yil}.xlsx")
 
@@ -3232,7 +3284,7 @@ def nakladnoy_saqlash(data: dict, db: Session = Depends(get_db), current_user: d
         # jurnali (excel_qatorga_yoz) va qo'lda eksport BUNGA kirmaydi -
         # ular ataylab faqat mahsulot darajasida (sana segmentisiz)
         # qoladi.
-        papka = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(m['mahsulot_nomi'])}/{sana[:7]}/{sana}/{raqam_papka}")
+        papka = Path(RASMLAR_DIR) / xavfsiz_papka_nomi(m['mahsulot_nomi']) / sana[:7] / sana / raqam_papka
         papka.mkdir(parents=True, exist_ok=True)
 
         html_fayl = papka / "nakladnoy.html"
@@ -3529,7 +3581,7 @@ def rasm_ol(data: dict, current_user: dict = Depends(get_current_user)):
     # nakladnoy_saqlash) - shu ikkalasi ALOHIDA joyda hisoblansada,
     # bitta mahsulot+sana+mashina uchun AYNAN bir xil papkaga tushishi
     # SHART, aks holda rasmlar va nakladnoy ikkiga bo'linib qoladi.
-    papka = Path(f"C:/RASMLAR/{xavfsiz_papka_nomi(mahsulot_nomi, 'Chigit')}/{sana[:7]}/{sana}/{raqam}")
+    papka = Path(RASMLAR_DIR) / xavfsiz_papka_nomi(mahsulot_nomi, 'Chigit') / sana[:7] / sana / raqam
     papka.mkdir(parents=True, exist_ok=True)
 
     fayl1 = papka / f"{tur}_cam1_{vaqt}.jpg"

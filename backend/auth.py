@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.hash import bcrypt
@@ -6,7 +7,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from database import get_db
-from models import User
+from models import User, QoraRoyxatToken
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -20,7 +21,12 @@ def create_access_token(data: dict, expires_minutes: int = None):
     to_encode = data.copy()
     muddat = expires_minutes if expires_minutes is not None else ACCESS_TOKEN_EXPIRE_MINUTES
     expire = datetime.utcnow() + timedelta(minutes=muddat)
-    to_encode.update({"exp": expire})
+    # `jti` (JWT ID) - har bir tokenga noyob identifikator. Faqat
+    # logout qora ro'yxati (qarang: QoraRoyxatToken) uchun kerak -
+    # tokenning o'zi shu bitta qatorini qora ro'yxatga qo'shish orqali,
+    # boshqa (shu foydalanuvchining boshqa qurilmadagi) tokenlariga
+    # tegmasdan, aynan shu SESSIYANI bekor qilish imkonini beradi.
+    to_encode.update({"exp": expire, "jti": str(uuid.uuid4())})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def verify_token(token: str):
@@ -46,6 +52,17 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     # faqat KELAJAKDAGI login urinishlarini to'xtatardi, joriy (allaqachon
     # qo'lga kiritilgan) sessiyaga umuman ta'sir qilmasdi - audit orqali
     # topilgan xavfsizlik teshigi.
+    # Token qora ro'yxatga (POST /logout orqali) qo'shilganmi? Eski
+    # (bu funksiya qo'shilishidan oldin chiqarilgan) tokenlarda `jti`
+    # yo'q - ular bu tekshiruvni oddiy o'tkazib yuboradi (baribir o'z
+    # tabiiy muddatida tugaydi).
+    jti = payload.get("jti")
+    if jti and db.query(QoraRoyxatToken).filter(QoraRoyxatToken.jti == jti).first():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sessiya tugatilgan (chiqish qilingan) - qayta kiring",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     foydalanuvchi = db.query(User).filter(User.id == payload.get("id")).first()
     if foydalanuvchi is None or not foydalanuvchi.is_active:
         raise HTTPException(

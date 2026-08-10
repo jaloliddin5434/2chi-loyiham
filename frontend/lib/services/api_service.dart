@@ -131,9 +131,22 @@ class ApiService {
   /// moliyaviy ma'lumotlarga kirib qolishi mumkin edi - audit orqali
   /// topilgan xavfsizlik teshigi.
   static void chiqish() {
+    final eskiToken = _token;
     _token = null;
     NavbatService.tozala();
     moliyaviyChiqish();
+    // Serverga ham xabar beramiz - shu bilan token backend'ning qora
+    // ro'yxatiga qo'shiladi va o'z tabiiy muddati (8 soat) tugashini
+    // kutmasdan DARHOL yaroqsiz bo'ladi. Fire-and-forget: chiqish
+    // ekrandan darhol, tarmoq holatidan qat'i nazar amalga oshishi
+    // kerak - shu sabab bu chaqiruv navigatsiyani bloklamaydi va xatosi
+    // e'tiborsiz qoldiriladi (mahalliy chiqish allaqachon sodir bo'ldi).
+    if (eskiToken != null) {
+      http.post(
+        Uri.parse('$baseUrl/logout'),
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $eskiToken'},
+      ).timeout(_httpTimeout).catchError((_) => http.Response('', 0));
+    }
   }
 
   static void _check401(http.Response response) {

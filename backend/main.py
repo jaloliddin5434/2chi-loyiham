@@ -1274,7 +1274,7 @@ def hujjat_tahrir_tarixi(hujjat_id: int, db: Session = Depends(get_db), current_
 # o'qishni saqlab qo'yishidan darak beradi (real productionda topilgan:
 # "tugallandi" holatidagi hujjatlarda netto -244..+50 kg oralig'ida,
 # haqiqiy yukka mos kelmaydigan qiymatlar aniqlangan).
-_OLCHOV_MINIMAL_OGIRLIK_KG = 500.0
+_OLCHOV_MINIMAL_OGIRLIK_KG = 10.0
 
 
 @app.post("/olchovlar")

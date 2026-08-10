@@ -104,7 +104,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   // odatda tarozi platformasida hech narsa yo'qligi yoki shovqindan
   // darak beradi. Backend ham xuddi shu chegarani mustaqil tekshiradi
   // (qarang: backend/main.py, _OLCHOV_MINIMAL_OGIRLIK_KG).
-  static const double _minimalOgirlikKg = 500.0;
+  static const double _minimalOgirlikKg = 10.0;
 
   double taroziKg = 0;
   double _oldingiTaroziKg = 0;

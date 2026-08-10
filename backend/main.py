@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import IntegrityError
 from database import engine, get_db, Base, SessionLocal
 from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi, Firma, MahsulotNarxi, Sozlama
 from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash, UserHolatYangilash, FirmaCreate, MahsulotNarxiCreate, PinOrnatish, PinTekshirish, TaroziYubor
@@ -269,8 +270,26 @@ def mashina_qoshish(mashina: MashinaCreate, db: Session = Depends(get_db), curre
     ).first()
     if mavjud:
         return mavjud
-    yangi = Mashina(**mashina.dict())
-    db.add(yangi)
+
+    # Ikkita so'rov bir vaqtda BIR XIL davlat_raqami bilan shu yerga
+    # yetib kelishi mumkin (ikkalasi ham yuqoridagi tekshiruvda "topilmadi"
+    # deb ko'radi) - shu sabab INSERT alohida SAVEPOINT ichida qilinadi:
+    # agar Mashina.davlat_raqami'dagi unique indeks buzilsa, faqat shu
+    # SAVEPOINT bekor qilinadi, va boshqa so'rov ALLAQACHON yaratgan qator
+    # qaytariladi - foydalanuvchiga tushunarsiz 500 o'rniga.
+    try:
+        with db.begin_nested():
+            yangi = Mashina(**mashina.dict())
+            db.add(yangi)
+            db.flush()
+    except IntegrityError:
+        mavjud = db.query(Mashina).filter(
+            Mashina.davlat_raqami == mashina.davlat_raqami
+        ).first()
+        if mavjud:
+            return mavjud
+        raise
+
     firma_royxatga_qoshish(db, mashina.firma)
     db.commit()
     db.refresh(yangi)
@@ -513,9 +532,23 @@ def keyingi_hujjat_raqami(db: Session, yil: int, mahsulot_id: int) -> str:
     ).with_for_update().first()
 
     if not hisoblagich:
-        hisoblagich = HujjatRaqamHisoblagich(yil=yil, mahsulot_id=mahsulot_id, oxirgi_raqam=0)
-        db.add(hisoblagich)
-        db.flush()
+        # Yangi yil/mahsulot uchun BIRINCHI hujjat - hisoblagich qatori
+        # hali yo'q. `SELECT ... FOR UPDATE` mavjud bo'lmagan qatorni
+        # qulflay OLMAYDI - shu sabab ikkita so'rov (masalan ikki
+        # operator, mavsum boshida) bir vaqtda shu yerga yetib kelsa,
+        # ikkalasi ham "qator yo'q" deb ko'rishi va ikkalasi ham INSERT
+        # qilishga urinishi mumkin edi - biri UniqueConstraint xatosiga
+        # (500) uchrardi. Endi INSERT alohida SAVEPOINT ichida qilinadi:
+        # agar to'qnashuv bo'lsa, faqat shu SAVEPOINT bekor qilinadi
+        # (butun so'rov emas), va qator ENDI HAQIQATAN mavjud bo'lgani
+        # uchun pastdagi FOR UPDATE uni topib, xavfsiz davom etadi.
+        try:
+            with db.begin_nested():
+                hisoblagich = HujjatRaqamHisoblagich(yil=yil, mahsulot_id=mahsulot_id, oxirgi_raqam=0)
+                db.add(hisoblagich)
+                db.flush()
+        except IntegrityError:
+            pass
         hisoblagich = db.query(HujjatRaqamHisoblagich).filter(
             HujjatRaqamHisoblagich.yil == yil,
             HujjatRaqamHisoblagich.mahsulot_id == mahsulot_id
@@ -2597,6 +2630,59 @@ def telegram_hisobot_yuborish(matn: str) -> bool:
 
 hisobot_thread = threading.Thread(target=avtomatik_telegram_hisobot, daemon=True)
 hisobot_thread.start()
+
+# ============ MAHSULOT ID MOSLIGI TEKSHIRUVI ============
+# Backend (MAHSULOT_RAQAM_PREFIKS, kunlik/haftalik/oylik/mavsum
+# statistikasi - natija.get(1)/get(2)/get(3)/get(4)) va frontend
+# (operator_panel_screen.dart'dagi konditsionBor/dostavernaBor)
+# ikkalasi ham "Chigit har doim id=1, Chiganoq=2, Pochog=3, Patoz=4"
+# degan taxminni QATTIQ YOZILGAN holda ishlatadi - Mahsulotlar
+# jadvalidagi HAQIQIY ID'larga bog'liq emas. Agar bu ID'lar kelajakda
+# (masalan jadval qayta yaratilsa) o'zgarib qolsa, statistika va
+# operator ekrani HECH QANDAY XATOSIZ, lekin NOTO'G'RI ishlay
+# boshlaydi. Bu tekshiruv server ishga tushganda BIR MARTA ishlaydi -
+# agar taxmin buzilgan bo'lsa, tizim_xatolari jadvaliga va Telegram'ga
+# darhol ogohlantirish yuboradi (server ishga tushishini to'xtatmaydi -
+# bu faqat ogohlantirish, qattiq talab emas).
+def _mahsulot_id_moslik_tekshiruvi(db: Session = None):
+    # `db` parametri sinovlar uchun (mavjud sessiyani in'yeksiya qilish,
+    # haqiqiy commit/alohida ulanish murakkabligisiz) - server ishga
+    # tushganda esa argumentsiz chaqiriladi, o'zi yangi sessiya ochadi.
+    _ozimiz_ochdik = db is None
+    if _ozimiz_ochdik:
+        db = SessionLocal()
+    try:
+        mahsulotlar = db.query(Mahsulot).all()
+        if not mahsulotlar:
+            # Baza hali /setup orqali urug'lanmagan (yoki bo'sh sinov
+            # bazasi) - tekshirishning ma'nosi yo'q.
+            return
+        xatolar = []
+        birinchi = next((m for m in mahsulotlar if m.id == 1), None)
+        if birinchi is None:
+            xatolar.append("id=1 bilan mahsulot topilmadi")
+        elif not birinchi.konditsiya_bor:
+            xatolar.append(
+                f"id=1 mahsuloti ('{birinchi.nom}') konditsiya_bor=False - "
+                "backend/frontend id=1'ni doim 'Chigit' (konditsiyali) deb "
+                "hisoblaydi"
+            )
+        for tekshiriladigan_id in MAHSULOT_RAQAM_PREFIKS:
+            if not any(m.id == tekshiriladigan_id for m in mahsulotlar):
+                xatolar.append(
+                    f"id={tekshiriladigan_id} (MAHSULOT_RAQAM_PREFIKS'da "
+                    "kutilgan) Mahsulotlar jadvalida topilmadi"
+                )
+        if xatolar:
+            xabar = "Mahsulot ID moslik tekshiruvi MUVAFFAQIYATSIZ:\n" + "\n".join(xatolar)
+            print(f"OGOHLANTIRISH: {xabar}")
+            tizim_xatosini_saqla("mahsulot_id_moslik", xabar)
+            telegram_xabar_yuborish(f"⚠️ <b>Diqqat!</b> {xabar}")
+    finally:
+        if _ozimiz_ochdik:
+            db.close()
+
+_mahsulot_id_moslik_tekshiruvi()
 
 # ============ TUNNEL/SERVER O'Z-O'ZINI KUZATISH ============
 # Ilgari hech narsa serverning/tunnel'ning o'zi ishlamay qolganini

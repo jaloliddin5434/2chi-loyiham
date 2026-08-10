@@ -50,7 +50,13 @@ class MahsulotNarxi(Base):
 class Mashina(Base):
     __tablename__ = "mashinalar"
     id = Column(Integer, primary_key=True, index=True)
-    davlat_raqami = Column(String, index=True)
+    # mashina_qoshish() "topilsa qaytar, topilmasa yarat" mantig'ini
+    # ilova darajasida amalga oshiradi, lekin DB darajasidagi cheklovsiz
+    # ikkita bir vaqtdagi so'rov (masalan ikki operator) bir xil
+    # davlat_raqami bilan ikkita QATOR yaratishi mumkin edi - shu sabab
+    # unique=True qo'shildi (real productionda hozircha dublikat
+    # topilmadi, tekshirilgan).
+    davlat_raqami = Column(String, unique=True, index=True)
     turi = Column(String)
     shofyor = Column(String)
     firma = Column(String)

@@ -104,3 +104,25 @@ def test_royxat_ustunlar_hali_ham_toliq(client, admin_headers, hujjat):
     satr = next(h for h in javob.json()["natijalar"] if h["id"] == hujjat["id"])
     assert satr["raqam"] == hujjat["raqam"]
     assert satr["mahsulot_id"] == hujjat["mahsulot_id"]
+
+
+def test_notogri_sana_formati_422_qaytaradi(client, admin_headers):
+    """Avval sana_dan/sana_gacha `str` edi - istalgan matn to'g'ridan-
+    to'g'ri SQL solishtirishga borib, PostgreSQL'da xom 500 xato
+    berardi. Endi `date` turi FastAPI/Pydantic orqali OLDINDAN
+    tekshiriladi, aniq 422 qaytishi kerak."""
+    javob = client.get("/hujjatlar?sana_dan=notogri-sana", headers=admin_headers)
+    assert javob.status_code == 422
+
+
+def test_notogri_sana_formati_eksportda_ham_422_qaytaradi(client, admin_headers, mahsulot_chigit):
+    javob = client.get(
+        f"/hujjatlar/eksport?mahsulot_id={mahsulot_chigit.id}&sana_gacha=xxx",
+        headers=admin_headers,
+    )
+    assert javob.status_code == 422
+
+
+def test_togri_sana_formati_ishlayveradi(client, admin_headers, hujjat):
+    javob = client.get("/hujjatlar?sana_dan=2020-01-01", headers=admin_headers)
+    assert javob.status_code == 200

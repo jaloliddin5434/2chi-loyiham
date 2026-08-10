@@ -49,6 +49,21 @@ def test_firma_qoshish_admin_talab_qiladi(client, operator_headers):
     assert javob.status_code == 403
 
 
+def test_mashinalar_royxati_sahifalanadi(client, admin_headers):
+    """Avval GET /mashinalar BUTUN jadvalni bir so'rovda qaytarardi -
+    endi GET /hujjatlar bilan bir xil sahifalash naqshi qo'llaniladi."""
+    for i in range(3):
+        client.post("/mashinalar", json={
+            "davlat_raqami": f"SAHIFA0{i}XX", "turi": "FAW",
+            "shofyor": f"Sahifa Shofyor {i}", "firma": "Sahifa Firma",
+            "viloyat": "Xorazm",
+        }, headers=admin_headers)
+
+    javob = client.get("/mashinalar?sahifa=1&sahifa_hajmi=2", headers=admin_headers)
+    assert javob.status_code == 200
+    assert len(javob.json()) == 2
+
+
 def test_firma_mavjud_nom_409_qaytaradi(client, admin_headers):
     client.post("/firmalar", json={"nom": "Dublikat Test Firma"}, headers=admin_headers)
     javob = client.post("/firmalar", json={"nom": "Dublikat Test Firma"}, headers=admin_headers)

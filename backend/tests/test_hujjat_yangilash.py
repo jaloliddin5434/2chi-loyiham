@@ -101,3 +101,25 @@ def test_sababsiz_ozgartirish_rad_etiladi(client, admin_headers, hujjat):
         "shofyor": "Sababsiz Ozgartirish",
     }, headers=admin_headers)
     assert javob.status_code == 400
+
+
+def test_namlik_ifloslik_0_ga_ozgartirilsa_konditsion_hisoblanadi(
+        client, admin_headers, hujjat):
+    """Real xato: namlik=0 yoki ifloslik=0 (masalan mutlaqo toza paxta)
+    haqiqiy, yaroqli qiymat - lekin avvalgi kod `if namlik and ifloslik:`
+    (truthy tekshiruv) ishlatgani uchun admin buni 0'ga o'zgartirganda
+    ham konditsion HECH QACHON qayta hisoblanmasdi."""
+    from utils import konditsion_hisobla
+
+    client.post("/olchovlar", json={
+        "hujjat_id": hujjat["id"], "arava_raqam": 1, "tara": 1000, "brutto": 3000,
+    }, headers=admin_headers)
+
+    javob = client.put(f"/hujjatlar/{hujjat['id']}", json={
+        "namlik": 0, "ifloslik": 0, "sabab": "Sinov natijasi qayta kiritildi",
+    }, headers=admin_headers)
+    assert javob.status_code == 200
+
+    olchovlar = client.get(f"/olchovlar/{hujjat['id']}", headers=admin_headers).json()
+    assert olchovlar[0]["konditsion"] == pytest.approx(konditsion_hisobla(2000, 0, 0))
+    assert olchovlar[0]["konditsion"] is not None

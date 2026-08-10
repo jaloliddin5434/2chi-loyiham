@@ -10,7 +10,7 @@ from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate,
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role, require_moliyaviy_ruxsat
 from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL, TAROZI_AGENT_KEY
 from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
-from datetime import datetime
+from datetime import datetime, date
 import html
 import io
 import threading
@@ -277,8 +277,21 @@ def mashina_qoshish(mashina: MashinaCreate, db: Session = Depends(get_db), curre
     return yangi
 
 @app.get("/mashinalar")
-def mashinalar_royxati(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    return db.query(Mashina).all()
+def mashinalar_royxati(
+    sahifa: int = 1,
+    sahifa_hajmi: int = 50,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    # Avval BUTUN jadval bir so'rovda qaytardi - hozircha frontend bu
+    # endpointni chaqirmaydi (faqat POST /mashinalar ishlatiladi), lekin
+    # jadval mavsumdan-mavsumga o'sib boradi (hozir 293 qator) va
+    # tashqi/kelajakdagi chaqiruvchilar uchun cheklanmagan javob xavfli -
+    # GET /hujjatlar bilan bir xil sahifalash naqshi qo'shildi.
+    return db.query(Mashina).order_by(Mashina.id.desc()) \
+        .offset((sahifa - 1) * sahifa_hajmi) \
+        .limit(sahifa_hajmi) \
+        .all()
 
 @app.get("/mashinalar/qidiruv/{raqam}")
 def mashina_qidiruv(raqam: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -602,8 +615,13 @@ def _hujjat_navbat_fallback(hujjat_qiymat, navbat, maydon_nomi):
 def hujjatlar_royxati(
     mahsulot_id: int = None,
     bekor_qilinganlarni_korsat: bool = False,
-    sana_dan: str = None,
-    sana_gacha: str = None,
+    # Avval `str` edi - istalgan matn (masalan "notogri-sana") to'g'ridan-
+    # to'g'ri SQL solishtirishga borib, PostgreSQL'da xom (tushunarsiz)
+    # 500 xato berardi. `date` turi FastAPI/Pydantic'ga bu yerga
+    # yetib kelishdan OLDIN, avtomatik ravishda aniq 422 xato bilan
+    # tekshirishni topshiradi.
+    sana_dan: date = None,
+    sana_gacha: date = None,
     sahifa: int = 1,
     sahifa_hajmi: int = 50,
     db: Session = Depends(get_db),
@@ -814,8 +832,13 @@ def _kun_oy_guruhlab_yoz(ws, itemlar, konditsiya_bormi, qator_yozuvchi,
 @app.get("/hujjatlar/eksport")
 def hujjatlar_eksport(
     mahsulot_id: int,
-    sana_dan: str = None,
-    sana_gacha: str = None,
+    # Avval `str` edi - istalgan matn (masalan "notogri-sana") to'g'ridan-
+    # to'g'ri SQL solishtirishga borib, PostgreSQL'da xom (tushunarsiz)
+    # 500 xato berardi. `date` turi FastAPI/Pydantic'ga bu yerga
+    # yetib kelishdan OLDIN, avtomatik ravishda aniq 422 xato bilan
+    # tekshirishni topshiradi.
+    sana_dan: date = None,
+    sana_gacha: date = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -1113,7 +1136,14 @@ def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, background_tasks: Backg
             for o in olchovlar:
                 setattr(o, maydon, yangi_qiymat)
         for o in olchovlar:
-            if o.netto and o.namlik and o.ifloslik:
+            # DIQQAT: `and` (truthy) tekshiruvi EMAS - namlik=0 yoki
+            # ifloslik=0 (masalan mutlaqo toza paxta) haqiqiy, yaroqli
+            # qiymat, lekin Python'da falsy hisoblanadi. Avval shu sabab
+            # bunday holatlarda konditsion HECH QACHON qayta
+            # hisoblanmasdi, garchi admin to'g'ri qiymat kiritgan bo'lsa
+            # ham - bu moliyaviy hisobotga (daromad konditsion asosida
+            # hisoblanadi) bevosita ta'sir qilardi.
+            if o.netto is not None and o.namlik is not None and o.ifloslik is not None:
                 o.konditsion = konditsion_hisobla(o.netto, o.namlik, o.ifloslik)
 
     for maydon, eski_matn, yangi_matn in ozgarishlar:
@@ -1198,6 +1228,16 @@ _OLCHOV_MINIMAL_OGIRLIK_KG = 500.0
 
 @app.post("/olchovlar")
 def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    # hujjat_id mavjudligi OLDINDAN tekshiriladi - aks holda mavjud
+    # bo'lmagan ID yuborilsa (masalan mijoz eskirgan/xato ma'lumot bilan),
+    # Olchov.hujjat_id'dagi FK cheklovi keyinroq xom holda otilib,
+    # chiroyli 404 o'rniga tushunarsiz 500 xato berardi (xuddi
+    # hujjat_yaratish()da mahsulot_id/mashina_id uchun qilingan
+    # tekshiruv kabi).
+    if not db.query(Hujjat.id).filter(Hujjat.id == olchov.hujjat_id).first():
+        raise HTTPException(
+            status_code=404, detail=f"Hujjat topilmadi (id={olchov.hujjat_id})")
+
     for maydon in ("tara", "brutto"):
         qiymat = getattr(olchov, maydon)
         if qiymat is not None and qiymat < _OLCHOV_MINIMAL_OGIRLIK_KG:
@@ -1238,7 +1278,12 @@ def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_
 
     if yangi.brutto and yangi.tara:
         yangi.netto = yangi.brutto - yangi.tara
-        if yangi.namlik and yangi.ifloslik:
+        # DIQQAT: `and` (truthy) EMAS - namlik=0 yoki ifloslik=0 (masalan
+        # mutlaqo toza paxta) haqiqiy, yaroqli qiymat, lekin Python'da
+        # falsy. Avval shu sabab bunday holatlarda konditsion HECH
+        # QACHON hisoblanmasdi (moliyaviy hisobotga bevosita ta'sir
+        # qiladi - daromad konditsion asosida hisoblanadi).
+        if yangi.namlik is not None and yangi.ifloslik is not None:
             yangi.konditsion = konditsion_hisobla(yangi.netto, yangi.namlik, yangi.ifloslik)
     db.add(yangi)
     db.commit()

@@ -75,13 +75,19 @@ def test_ikkita_alohida_arava_ikkita_qator_yaratadi(client, admin_headers, hujja
     assert len(royxat.json()) == 2
 
 
-def test_500kg_dan_past_tara_rad_etiladi(client, admin_headers, hujjat):
+def test_minimal_ogirlikdan_past_tara_rad_etiladi(client, admin_headers, hujjat):
     """Real productionda topilgan xato: tarozi platformasida hech narsa
     yo'qligi yoki shovqin sabab juda kichik (hatto manfiy netto beruvchi)
     qiymatlar to'siqsiz saqlanardi. Endi hech qanday haqiqiy mashina/
-    aravaga mos kelmaydigan (<500kg) qiymat rad etiladi."""
+    aravaga mos kelmaydigan (chegaradan past) qiymat rad etiladi.
+    Chegaraning o'zi (_OLCHOV_MINIMAL_OGIRLIK_KG) main.py'dan o'qiladi -
+    shu bilan test qiymati sozlansa ham (masalan sinov uchun) test
+    buzilmaydi."""
+    import main
+    past_qiymat = main._OLCHOV_MINIMAL_OGIRLIK_KG - 1
+
     javob = client.post("/olchovlar", json={
-        "hujjat_id": hujjat["id"], "arava_raqam": 1, "tara": 60,
+        "hujjat_id": hujjat["id"], "arava_raqam": 1, "tara": past_qiymat,
     }, headers=admin_headers)
     assert javob.status_code == 400
 
@@ -89,15 +95,48 @@ def test_500kg_dan_past_tara_rad_etiladi(client, admin_headers, hujjat):
     assert royxat.json() == []
 
 
-def test_500kg_dan_past_brutto_rad_etiladi(client, admin_headers, hujjat):
+def test_minimal_ogirlikdan_past_brutto_rad_etiladi(client, admin_headers, hujjat):
+    import main
+    past_qiymat = main._OLCHOV_MINIMAL_OGIRLIK_KG - 1
+
     javob = client.post("/olchovlar", json={
-        "hujjat_id": hujjat["id"], "arava_raqam": 1, "tara": 1000, "brutto": 10,
+        "hujjat_id": hujjat["id"], "arava_raqam": 1, "tara": 1000, "brutto": past_qiymat,
     }, headers=admin_headers)
     assert javob.status_code == 400
 
 
-def test_500kg_chegara_qiymatining_ozi_qabul_qilinadi(client, admin_headers, hujjat):
+def test_minimal_ogirlik_chegarasining_ozi_qabul_qilinadi(client, admin_headers, hujjat):
+    import main
+
     javob = client.post("/olchovlar", json={
-        "hujjat_id": hujjat["id"], "arava_raqam": 1, "tara": 500, "brutto": 3000,
+        "hujjat_id": hujjat["id"], "arava_raqam": 1,
+        "tara": main._OLCHOV_MINIMAL_OGIRLIK_KG, "brutto": 3000,
     }, headers=admin_headers)
     assert javob.status_code == 200
+
+
+def test_mavjud_bolmagan_hujjat_id_404_qaytaradi(client, admin_headers):
+    """Avval hujjat_id mavjudligi OLDINDAN tekshirilmasdi - notogri ID
+    yuborilsa, Olchov.hujjat_id'dagi FK cheklovi xom holda otilib,
+    chiroyli 404 ornida tushunarsiz 500 xato berardi."""
+    javob = client.post("/olchovlar", json={
+        "hujjat_id": 999999, "arava_raqam": 1, "tara": 15000, "brutto": 25000,
+    }, headers=admin_headers)
+    assert javob.status_code == 404
+
+
+def test_namlik_yoki_ifloslik_0_bolsa_ham_konditsion_hisoblanadi(client, admin_headers, hujjat):
+    """Real xato: namlik=0 yoki ifloslik=0 (masalan mutlaqo toza paxta)
+    haqiqiy, yaroqli qiymat - lekin avvalgi kod `if namlik and ifloslik:`
+    (truthy tekshiruv) ishlatgani uchun bunday hollarda konditsion HECH
+    QACHON hisoblanmasdi, garchi haqiqiy ma'lumot kiritilgan bo'lsa ham."""
+    from utils import konditsion_hisobla
+
+    javob = client.post("/olchovlar", json={
+        "hujjat_id": hujjat["id"], "arava_raqam": 1,
+        "tara": 1000, "brutto": 3000, "namlik": 0, "ifloslik": 0,
+    }, headers=admin_headers)
+    assert javob.status_code == 200
+    natija = javob.json()
+    assert natija["konditsion"] == pytest.approx(konditsion_hisobla(2000, 0, 0))
+    assert natija["konditsion"] is not None

@@ -3371,6 +3371,14 @@ def nakladnoy_korish(token: str, db: Session = Depends(get_db)):
 
     m = nakladnoy_uchun_malumot(db, hujjat.id)
 
+    # XSS himoyasi: bu - LOGIN TALAB QILMAYDIGAN ochiq sahifa, shu sabab
+    # bazadagi HAR QANDAY qiymat (shofyor, firma va h.k. - operator qo'lda
+    # kiritishi mumkin bo'lgan maydonlar) HTML'ga qo'yilishidan oldin
+    # albatta escape qilinishi shart - aks holda <script> kabi matn
+    # ochiq sahifada bajarilib, XSS hujumiga imkon berardi.
+    def e(qiymat):
+        return html.escape(str(qiymat))
+
     def arava_qatori(n):
         a = m["aravalar"].get(n)
         if not a or not a.get("tara"):
@@ -3392,13 +3400,13 @@ def nakladnoy_korish(token: str, db: Session = Depends(get_db)):
     jami_netto = jami_brutto - jami_tara
     jami_konditsion = sum((m["aravalar"].get(n) or {}).get("konditsion") or 0 for n in (1, 2, 3))
 
-    namlik = m["namlik"] if m["namlik"] != "" else "—"
-    ifloslik = m["ifloslik"] if m["ifloslik"] != "" else "—"
+    namlik = e(m["namlik"]) if m["namlik"] != "" else "—"
+    ifloslik = e(m["ifloslik"]) if m["ifloslik"] != "" else "—"
 
     html_content = f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nakladnoy {m['raqam']}</title>
+<title>Nakladnoy {e(m['raqam'])}</title>
 <style>
 body {{ font-family: Arial, sans-serif; font-size: 16px; margin: 0; padding: 16px; background: #F5F7FA; color: #0D1B2A; }}
 .karta {{ background: white; border-radius: 12px; padding: 16px; max-width: 480px; margin: 0 auto 12px auto; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }}
@@ -3418,23 +3426,23 @@ th {{ background: #1A4A08; color: white; font-weight: 600; }}
 </style></head>
 <body>
 <div class="karta">
-  <h2>Nakladnoy № {m['raqam']}</h2>
-  <h3>{m['mashina_turi']} · {m['mashina_raqami']} · {m['sana']}</h3>
+  <h2>Nakladnoy № {e(m['raqam'])}</h2>
+  <h3>{e(m['mashina_turi'])} · {e(m['mashina_raqami'])} · {e(m['sana'])}</h3>
   <div>
-    <span class="vaqt-badge kirgan">Kirgan: {m['kirgan_vaqt'] or '—'}</span>
-    <span class="vaqt-badge chiqqan">Chiqqan: {m['chiqqan_vaqt'] or '—'}</span>
+    <span class="vaqt-badge kirgan">Kirgan: {e(m['kirgan_vaqt']) if m['kirgan_vaqt'] else '—'}</span>
+    <span class="vaqt-badge chiqqan">Chiqqan: {e(m['chiqqan_vaqt']) if m['chiqqan_vaqt'] else '—'}</span>
   </div>
 </div>
 <div class="karta">
-  <div class="maydon"><span class="label">Shofyor</span><span class="qiymat">{m['shofyor']}</span></div>
-  <div class="maydon"><span class="label">Firma</span><span class="qiymat">{m['firma']}</span></div>
-  <div class="maydon"><span class="label">Mahsulot</span><span class="qiymat">{m['mahsulot_nomi']}</span></div>
-  <div class="maydon"><span class="label">Tiket №</span><span class="qiymat">{m['tiket_raqam'] or '—'}</span></div>
-  <div class="maydon"><span class="label">Tuda №</span><span class="qiymat">{m['tuda_raqam'] or '—'}</span></div>
-  <div class="maydon"><span class="label">Klass</span><span class="qiymat">{m['klass'] or '—'}</span></div>
-  <div class="maydon"><span class="label">Sinf</span><span class="qiymat">{m['sinf'] or '—'}</span></div>
-  <div class="maydon"><span class="label">Seleksiya navi</span><span class="qiymat">{m['seleksiya_navi'] or '—'}</span></div>
-  <div class="maydon"><span class="label">Terim turi</span><span class="qiymat">{m['terim_turi'] or '—'}</span></div>
+  <div class="maydon"><span class="label">Shofyor</span><span class="qiymat">{e(m['shofyor'])}</span></div>
+  <div class="maydon"><span class="label">Firma</span><span class="qiymat">{e(m['firma'])}</span></div>
+  <div class="maydon"><span class="label">Mahsulot</span><span class="qiymat">{e(m['mahsulot_nomi'])}</span></div>
+  <div class="maydon"><span class="label">Tiket №</span><span class="qiymat">{e(m['tiket_raqam']) if m['tiket_raqam'] else '—'}</span></div>
+  <div class="maydon"><span class="label">Tuda №</span><span class="qiymat">{e(m['tuda_raqam']) if m['tuda_raqam'] else '—'}</span></div>
+  <div class="maydon"><span class="label">Klass</span><span class="qiymat">{e(m['klass']) if m['klass'] else '—'}</span></div>
+  <div class="maydon"><span class="label">Sinf</span><span class="qiymat">{e(m['sinf']) if m['sinf'] else '—'}</span></div>
+  <div class="maydon"><span class="label">Seleksiya navi</span><span class="qiymat">{e(m['seleksiya_navi']) if m['seleksiya_navi'] else '—'}</span></div>
+  <div class="maydon"><span class="label">Terim turi</span><span class="qiymat">{e(m['terim_turi']) if m['terim_turi'] else '—'}</span></div>
   <div class="maydon"><span class="label">Namlik %</span><span class="qiymat">{namlik}</span></div>
   <div class="maydon"><span class="label">Ifloslik %</span><span class="qiymat">{ifloslik}</span></div>
 </div>

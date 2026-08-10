@@ -9,7 +9,7 @@ from database import engine, get_db, Base, SessionLocal
 from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi, Firma, MahsulotNarxi, Sozlama, QoraRoyxatToken
 from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash, UserHolatYangilash, FirmaCreate, MahsulotNarxiCreate, PinOrnatish, PinTekshirish, TaroziYubor
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role, require_moliyaviy_ruxsat
-from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL, TAROZI_AGENT_KEY, BACKUP_DIR, RASMLAR_DIR
+from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, TUNNEL_TEKSHIRUV_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL, TAROZI_AGENT_KEY, BACKUP_DIR, RASMLAR_DIR
 from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
 from datetime import datetime, date, timedelta
 import html
@@ -2740,9 +2740,18 @@ _mahsulot_id_moslik_tekshiruvi()
 # Ilgari hech narsa serverning/tunnel'ning o'zi ishlamay qolganini
 # kuzatmasdi - faqat operator ilovani ochishga urinib, ishlamasligini
 # payqashi orqaligina ma'lum bo'lardi. Bu fon oqim davriy ravishda
-# serverning O'Z ommaviy manziliga (SERVER_ASOSIY_URL) so'rov yuborib,
-# butun zanjir (backend -> Cloudflare Tunnel -> Cloudflare edge)
+# TUNNEL_TEKSHIRUV_URL'ga (haqiqiy ommaviy domen, masalan
+# https://api.smart-tarozi.uz/health) so'rov yuborib, butun zanjir
+# (backend -> Cloudflare Tunnel -> Cloudflare edge -> qaytib backend'ga)
 # ishlab turganini tekshiradi.
+#
+# DIQQAT: bu ATAYLAB SERVER_ASOSIY_URL'ni ISHLATMAYDI - u mahalliy
+# tarmoq (LAN) manzili (nakladnoy QR kod uchun mo'ljallangan), shu
+# manzilga so'rov yuborish aslida FAQAT backend jarayonining o'zi
+# tirikligini tekshirardi, Cloudflare Tunnel/internet uzilishini HECH
+# QACHON aniqlay olmasdi (real productionda 2026-08-10'da real tunnel
+# uzilishlari paytida bu tekshiruv hech qachon signal bermagani
+# tahlil orqali tasdiqlangan monitoring teshigi edi).
 _TUNNEL_TEKSHIRUV_OSIYA = 180
 _TUNNEL_XATO_CHEGARA = 2
 
@@ -2755,7 +2764,7 @@ def _tunnel_bir_tekshiruv():
     sinovlarda `while True`/`time.sleep`ga tegmasdan to'g'ridan-to'g'ri
     chaqirish mumkin."""
     try:
-        javob = req.get(f"{SERVER_ASOSIY_URL}/health", timeout=10)
+        javob = req.get(TUNNEL_TEKSHIRUV_URL, timeout=10)
         muvaffaqiyat = javob.status_code == 200
     except Exception:
         muvaffaqiyat = False
@@ -2769,7 +2778,7 @@ def _tunnel_bir_tekshiruv():
                 _tunnel_holati["ogohlantirilgan"] = True
                 yuboriladigan_matn = (
                     f"🔴 <b>Diqqat!</b> Server o'zining ommaviy manziliga "
-                    f"({html.escape(SERVER_ASOSIY_URL)}) yeta olmayapti - "
+                    f"({html.escape(TUNNEL_TEKSHIRUV_URL)}) yeta olmayapti - "
                     f"Cloudflare Tunnel yoki tarmoq muammosi bo'lishi mumkin."
                 )
         else:

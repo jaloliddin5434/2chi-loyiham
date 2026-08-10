@@ -74,6 +74,16 @@ class _Sozlamalar(BaseSettings):
     # ocha oladi).
     SERVER_ASOSIY_URL: str = "http://10.112.30.77:47001"
 
+    # Tunnel/tarmoq o'z-o'zini kuzatish (_tunnel_bir_tekshiruv) uchun -
+    # ATAYLAB SERVER_ASOSIY_URL'dan ALOHIDA. SERVER_ASOSIY_URL mahalliy
+    # tarmoq (LAN) manzili - shu bilan tekshirish aslida hech qachon
+    # Cloudflare Tunnel/internet muammosini aniqlay olmasdi (faqat
+    # backend jarayonining o'zi tirikligini tekshirardi). Bu real
+    # productionda topilgan monitoring teshigi edi (2026-08-10) - shu
+    # sabab tunnel tekshiruvi ENDI haqiqiy ommaviy domenga (Cloudflare
+    # Tunnel orqali) so'rov yuboradi.
+    TUNNEL_TEKSHIRUV_URL: str = "https://api.smart-tarozi.uz/health"
+
     # CORS - brauzerdan so'rov yuborishga ruxsat berilgan manzillar
     # ro'yxati (vergul bilan ajratilgan). Kelajakda domen/reverse-proxy
     # qo'shilganda faqat shu .env qiymatini yangilash kifoya - kodga
@@ -116,6 +126,7 @@ KAMERA_PAROL = _sozlama.KAMERA_PAROL
 TAROZI_AGENT_KEY = _sozlama.TAROZI_AGENT_KEY
 
 SERVER_ASOSIY_URL = _sozlama.SERVER_ASOSIY_URL
+TUNNEL_TEKSHIRUV_URL = _sozlama.TUNNEL_TEKSHIRUV_URL
 
 ALLOWED_ORIGINS = [
     manzil.strip()

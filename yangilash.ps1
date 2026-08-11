@@ -12,9 +12,22 @@
 #   7) Xizmatlarni to'xtatish - SHU YERDAN BOSHLAB to'xtash vaqti
 #   8) alembic upgrade head
 #   9) flutter build web --release
-#   10) Xizmatlarni qayta ishga tushirish (start.bat orqali - bir xil
-#       mexanizm, ikki joyda takrorlanmasin)
+#   10) Xizmatlarni qayta ishga tushirish (Start-Service - HazoraspBackend
+#       va HazoraspFrontend Windows xizmatlari, qarang: backend\
+#       install_service.bat, frontend\install_service.bat)
 #   11) GET /health orqali sog'lomlikni tekshirish
+#
+# TALAB (2026-08-11'dan boshlab): backend VA frontend HAR IKKALASI ham
+# oldindan NSSM Windows xizmati sifatida o'rnatilgan bo'lishi SHART
+# ("HazoraspBackend", "HazoraspFrontend") - bu skript ularni
+# Stop-Service/Start-Service orqali boshqaradi, ESKI (oddiy jarayonni
+# qidirib topib o'ldirish + start.bat orqali qayta ishga tushirish)
+# usuli EMAS. Stop-Service NSSM'ga "graceful" to'xtashni bildiradi -
+# shu bilan NSSM'ning o'zi AppExit Default Restart orqali migratsiya
+# paytida ESKI kodni qayta ko'tarib, yangilash bilan "poyga"ga
+# kirishining oldi olinadi (agar jarayon shunchaki o'ldirilsa, NSSM buni
+# CHINDAN HAM kutilmagan chiqish deb hisoblab, darhol qayta ko'targan
+# bo'lardi).
 #
 # 6-11 orasidagi ISTALGAN qadamda xato chiqsa - Orqaga-Qaytarish
 # chaqiriladi: git reset --hard <eski-commit> + frontend build zaxirasi
@@ -44,6 +57,8 @@ $FrontendDir = "$RepoRoot\frontend"
 $LogFile = "$RepoRoot\yangilash_tarixi.log"
 $BaseUrl = "http://127.0.0.1:47001"
 $WebDir = "$FrontendDir\build\web"
+$BackendServis = "HazoraspBackend"
+$FrontendServis = "HazoraspFrontend"
 
 # DIQQAT: bu faylda ATAYLAB hech qanday emoji/lotin-bo'lmagan belgi
 # to'g'ridan-to'g'ri yozilmaydi - Windows PowerShell 5.1, BOM'siz UTF-8
@@ -111,24 +126,29 @@ function Xizmat-Portini-Topish($port) {
 }
 
 function Xizmatlarni-Toxtatish {
-    $backendPid = Xizmat-Portini-Topish 47001
-    $frontendPid = Xizmat-Portini-Topish 47080
-    if ($backendPid) {
-        Log "Backend jarayoni to'xtatilmoqda (PID $backendPid)..."
-        Stop-Process -Id $backendPid -Force -ErrorAction SilentlyContinue
-    }
-    if ($frontendPid) {
-        Log "Frontend jarayoni to'xtatilmoqda (PID $frontendPid)..."
-        Stop-Process -Id $frontendPid -Force -ErrorAction SilentlyContinue
+    foreach ($nom in @($BackendServis, $FrontendServis)) {
+        try {
+            $xizmat = Get-Service -Name $nom -ErrorAction Stop
+            if ($xizmat.Status -ne "Stopped") {
+                Log "$nom to'xtatilmoqda (Stop-Service)..."
+                Stop-Service -Name $nom -Force -ErrorAction Stop
+            }
+        } catch {
+            Log "OGOHLANTIRISH: $nom xizmatini to'xtatishda xato: $_"
+        }
     }
     Start-Sleep -Seconds 2
 }
 
 function Xizmatlarni-Ishga-Tushirish {
-    # Aynan start.bat orqali - qo'lda ishga tushirishdagi bilan bir xil
-    # mexanizm, ikki joyda (bu yerda va start.bat'da) takrorlanmasin.
-    Log "Xizmatlar ishga tushirilmoqda (start.bat)..."
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "`"$RepoRoot\start.bat`"" -WindowStyle Minimized | Out-Null
+    foreach ($nom in @($BackendServis, $FrontendServis)) {
+        try {
+            Log "$nom ishga tushirilmoqda (Start-Service)..."
+            Start-Service -Name $nom -ErrorAction Stop
+        } catch {
+            Log "XATOLIK: $nom xizmatini ishga tushirishda xato: $_"
+        }
+    }
 
     $urinish = 0
     $backendOchildi = $false
@@ -220,6 +240,12 @@ Set-Location $RepoRoot
 if (-not (Test-Path "$RepoRoot\.git")) {
     Log "XATOLIK: $RepoRoot git repositoriyasi emas."
     exit 1
+}
+foreach ($nom in @($BackendServis, $FrontendServis)) {
+    if (-not (Get-Service -Name $nom -ErrorAction SilentlyContinue)) {
+        Log "XATOLIK: '$nom' Windows xizmati topilmadi - avval uni o'rnating (backend\install_service.bat / frontend\install_service.bat). Yangilash BOSHLANMADI."
+        exit 1
+    }
 }
 $iflosHolat = git status --porcelain
 if ($iflosHolat) {

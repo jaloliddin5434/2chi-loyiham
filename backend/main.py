@@ -1994,6 +1994,20 @@ BACKUP_SOZLAMA_KALIT = "oxirgi_backup_sanasi"
 TARMOQ_BACKUP_SOZLAMA_KALIT = "oxirgi_tarmoq_backup_sanasi"
 RASMLAR_BACKUP_SOZLAMA_KALIT = "oxirgi_rasmlar_backup_sanasi"
 
+# Tarmoq backup MUVAFFAQIYATSIZ bo'lganda, avtomatik_backup() sikli har
+# 30 soniyada (asosiy sikl navbati) qayta urinib ko'rardi - ikkinchi
+# kompyuter uzoq vaqt (masalan bir necha kun) ishlamay qolsa, bu
+# tizim_xatolari jadvalini MINGLAB deyarli bir xil yozuv bilan
+# to'ldirar edi (real production'da 2026-08-02...08-10 oralig'ida
+# ~2100+ ta yozuv to'plangan edi - shu sabab admin panelida ESKI,
+# ALLAQACHON TUZATILGAN xato operatorni chalg'itib, uni yangi/dolzarb
+# muammo deb o'ylashiga olib kelgan edi). Endi qayta urinish faqat shu
+# necha daqiqada bir marta - muvaffaqiyatsizlik holida ham tarmoqqa
+# ortiqcha, tez-tez urinilmaydi, jadval ortiqcha to'lmaydi.
+TARMOQ_BACKUP_URINISH_SOZLAMA_KALIT = "oxirgi_tarmoq_backup_urinish_vaqti"
+RASMLAR_BACKUP_URINISH_SOZLAMA_KALIT = "oxirgi_rasmlar_backup_urinish_vaqti"
+BACKUP_QAYTA_URINISH_DAQIQA = 15
+
 
 def _tarmoqqa_ulan(unc_yol: str, foydalanuvchi: str, parol: str, timeout: int = 30):
     """`net use`ga parolni oddiy PROCESS ARGUMENTI sifatida EMAS, standart
@@ -2104,6 +2118,30 @@ def eski_backuplarni_tozala(backup_dir: str, kun_soni: int = BACKUP_RETENSIYA_KU
     return ochirilgan
 
 
+def _shu_zahoti_urinish_kerakmi(db, kalit: str, daqiqa: int) -> bool:
+    """Tarmoq backup MUVAFFAQIYATSIZ bo'lganda qayta urinishni
+    kamaytiradi - qarang: TARMOQ_BACKUP_URINISH_SOZLAMA_KALIT izohi."""
+    from datetime import timedelta
+    sozlama = db.query(Sozlama).filter(Sozlama.kalit == kalit).first()
+    if not sozlama or not sozlama.qiymat:
+        return True
+    try:
+        oxirgi = datetime.fromisoformat(sozlama.qiymat)
+    except ValueError:
+        return True
+    return datetime.now() - oxirgi >= timedelta(minutes=daqiqa)
+
+
+def _urinish_vaqtini_belgila(db, kalit: str):
+    sozlama = db.query(Sozlama).filter(Sozlama.kalit == kalit).first()
+    if sozlama:
+        sozlama.qiymat = datetime.now().isoformat()
+        sozlama.updated_at = datetime.now()
+    else:
+        db.add(Sozlama(kalit=kalit, qiymat=datetime.now().isoformat()))
+    db.commit()
+
+
 def avtomatik_backup():
     import time
     import subprocess
@@ -2159,7 +2197,9 @@ def avtomatik_backup():
                     Sozlama.kalit == TARMOQ_BACKUP_SOZLAMA_KALIT).first()
                 tarmoq_bugun_bajarilgan = (
                     tarmoq_sozlama is not None and tarmoq_sozlama.qiymat == str(bugun))
-                if not tarmoq_bugun_bajarilgan:
+                if not tarmoq_bugun_bajarilgan and _shu_zahoti_urinish_kerakmi(
+                        db, TARMOQ_BACKUP_URINISH_SOZLAMA_KALIT, BACKUP_QAYTA_URINISH_DAQIQA):
+                    _urinish_vaqtini_belgila(db, TARMOQ_BACKUP_URINISH_SOZLAMA_KALIT)
                     if tarmoqqa_backup_yubor(backup_dir):
                         if tarmoq_sozlama:
                             tarmoq_sozlama.qiymat = str(bugun)
@@ -2179,7 +2219,9 @@ def avtomatik_backup():
                     Sozlama.kalit == RASMLAR_BACKUP_SOZLAMA_KALIT).first()
                 rasmlar_bugun_bajarilgan = (
                     rasmlar_sozlama is not None and rasmlar_sozlama.qiymat == str(bugun))
-                if not rasmlar_bugun_bajarilgan:
+                if not rasmlar_bugun_bajarilgan and _shu_zahoti_urinish_kerakmi(
+                        db, RASMLAR_BACKUP_URINISH_SOZLAMA_KALIT, BACKUP_QAYTA_URINISH_DAQIQA):
+                    _urinish_vaqtini_belgila(db, RASMLAR_BACKUP_URINISH_SOZLAMA_KALIT)
                     if rasmlar_tarmoqqa_backup_yubor():
                         if rasmlar_sozlama:
                             rasmlar_sozlama.qiymat = str(bugun)
@@ -2579,7 +2621,15 @@ def tizim_xatolari_royxati(db: Session = Depends(get_db), current_user: dict = D
             "turi": x.turi,
             "xabar": x.xabar,
             "korilgan": x.korilgan,
-            "vaqt": str(x.created_at),
+            # DIQQAT: avval `str(x.created_at)` ishlatilardi - bu Python
+            # datetime'ning xom ko'rinishi, mikrosekundlarni HAM o'z
+            # ichiga oladi (masalan "2026-08-10 08:07:09.897079").
+            # Real production'da bu, xatolar ro'yxatida xabar matni
+            # ("...kod bilan tugadi: 16") bilan yonma-yon ko'rinib,
+            # operator mikrosekund qismini ("897079") xato kodining bir
+            # qismi deb noto'g'ri o'qishiga sabab bo'lgan edi. Odatiy
+            # foydalanuvchiga mikrosekund umuman kerak emas.
+            "vaqt": x.created_at.strftime("%Y-%m-%d %H:%M:%S") if x.created_at else "",
         }
         for x in xatolar
     ]

@@ -2726,6 +2726,8 @@ Widget _mashinaGrafik() {
         return 'Admin';
       case 'hisobchi':
         return 'Hisobchi';
+      case 'rahbar':
+        return 'Rahbar';
       default:
         return 'Operator';
     }
@@ -2737,6 +2739,8 @@ Widget _mashinaGrafik() {
         return 'AD';
       case 'hisobchi':
         return 'HI';
+      case 'rahbar':
+        return 'RH';
       default:
         return 'OP';
     }
@@ -2748,6 +2752,8 @@ Widget _mashinaGrafik() {
         return blueColor;
       case 'hisobchi':
         return goldColor;
+      case 'rahbar':
+        return oylikRang;
       default:
         return greenLight;
     }
@@ -3075,6 +3081,9 @@ Widget _mashinaGrafik() {
                 DropdownMenuItem(
                     value: 'hisobchi',
                     child: Text("Hisobchi")),
+                DropdownMenuItem(
+                    value: 'rahbar',
+                    child: Text("Rahbar")),
                 DropdownMenuItem(
                     value: 'admin',
                     child: Text("Admin")),

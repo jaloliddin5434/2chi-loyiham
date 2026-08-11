@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'operator_panel_screen.dart';
 import 'admin_panel_screen.dart';
+import 'rahbar_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final int mahsulotId;
@@ -52,6 +53,15 @@ class _LoginScreenState extends State<LoginScreen> {
               mahsulotId: widget.mahsulotId,
               mahsulotNomi: widget.mahsulotNomi,
               mahsulotRang: widget.mahsulotRang,
+            ),
+          ),
+        );
+      } else if (widget.rol == "rahbar") {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RahbarDashboardScreen(
+              username: natija['username'],
             ),
           ),
         );

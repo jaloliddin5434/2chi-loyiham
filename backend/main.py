@@ -438,7 +438,7 @@ def moliyaviy_pin_ornatish(request: Request, data: PinOrnatish, db: Session = De
 
 @app.post("/moliyaviy/pin-tekshir")
 @limiter.limit("5/minute")
-def moliyaviy_pin_tekshir(request: Request, data: PinTekshirish, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+def moliyaviy_pin_tekshir(request: Request, data: PinTekshirish, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin", "rahbar"))):
     sozlama = db.query(Sozlama).filter(Sozlama.kalit == MOLIYAVIY_PIN_SOZLAMA_KALIT).first()
     if not sozlama or not sozlama.qiymat:
         raise HTTPException(status_code=400, detail="PIN hali o'rnatilmagan - avval PIN o'rnating!")

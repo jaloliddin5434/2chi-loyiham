@@ -72,15 +72,24 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         )
     return payload
 
-def require_role(role: str):
+def require_role(*rollar: str):
+    """Bir yoki bir nechta rolga ruxsat beradi - masalan
+    require_role("admin", "rahbar") ikkalasini ham qabul qiladi."""
     def checker(current_user: dict = Depends(get_current_user)):
-        if current_user.get("role") != role:
+        if current_user.get("role") not in rollar:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Bu amal uchun ruxsatingiz yo'q",
             )
         return current_user
     return checker
+
+# Moliyaviy (PIN-himoyalangan) ma'lumotlarni ko'ra oladigan rollar - admin
+# (to'liq boshqaruv) va rahbar (faqat o'qish uchun mobil dashboard,
+# qarang: GET /statistika/kunlik va h.k. atrofidagi "rahbar" izohlari).
+# "hisobchi" ATAYLAB bu yerda YO'Q - moliyaviy hisobot hozircha faqat
+# admin/rahbar uchun mo'ljallangan.
+MOLIYAVIY_RUXSAT_ROLLARI = ("admin", "rahbar")
 
 def require_moliyaviy_ruxsat(current_user: dict = Depends(get_current_user)):
     """Moliyaviy hisobot/narx endpointlari uchun - oddiy admin login
@@ -90,7 +99,8 @@ def require_moliyaviy_ruxsat(current_user: dict = Depends(get_current_user)):
     tokenlarda mavjud bo'ladi. Shu bilan boshqa admin PIN oynasini
     chetlab o'tib, to'g'ridan-to'g'ri so'rov yuborsa ham (masalan devtools
     orqali), oddiy login tokeni bilan bu ma'lumotni ola olmaydi."""
-    if current_user.get("role") != "admin" or not current_user.get("moliyaviy_ruxsat"):
+    if (current_user.get("role") not in MOLIYAVIY_RUXSAT_ROLLARI
+            or not current_user.get("moliyaviy_ruxsat")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Moliyaviy ma'lumotlarga kirish uchun PIN tasdiqlanishi kerak!",

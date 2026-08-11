@@ -2,7 +2,7 @@ from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
 from models import HujjatHolati
 
-RUXSAT_ETILGAN_ROLLAR = ("admin", "operator", "hisobchi")
+RUXSAT_ETILGAN_ROLLAR = ("admin", "operator", "hisobchi", "rahbar")
 
 class UserCreate(BaseModel):
     username: str

@@ -177,6 +177,26 @@ def operator_headers(operator_user):
 
 
 @pytest.fixture()
+def rahbar_user(db_session):
+    from models import User
+    from auth import hash_password
+    user = User(username="test_rahbar", password=hash_password("parol123"),
+                role="rahbar", is_active=True)
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture()
+def rahbar_headers(rahbar_user):
+    from auth import create_access_token
+    token = create_access_token(
+        {"sub": rahbar_user.username, "role": rahbar_user.role, "id": rahbar_user.id})
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
 def moliyaviy_headers(admin_user):
     """To'g'ridan-to'g'ri (PIN/tezlik-cheklovisiz) moliyaviy token -
     admin_headers kabi, faqat hisobot/narx testlari uchun. PIN'ning

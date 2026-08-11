@@ -38,16 +38,16 @@
 # ishlayveradi; downgrade skriptlariga ishonch darajasi kodni reset
 # qilishga qaraganda pastroq.
 #
-# MA'LUM CHEKLOV (real sinovda topilgan): orqaga qaytarishda KOD va
-# XIZMATLAR har doim tiklanadi va sog'lomligi tasdiqlanadi (bu - asosiy
-# xavfsizlik kafolati). Lekin frontend build/web papkasini zaxiradan
-# ALMASHTIRISH bosqichi ba'zan (disk/antivirus band bo'lganda) fayl
-# tutqichi hali bo'shamagani sabab muvaffaqiyatsiz bo'lishi mumkin - bu
-# holatda log'da aniq OGOHLANTIRISH yoziladi va zaxira nusxa
-# (web_zaxira_*) YONIDA qoldiriladi, xizmatlar esa BARIBIR ishga
-# tushiriladi (garchi frontend eski emas, joriy build bilan). Bunday
-# holatda kerak bo'lsa web_zaxira_* papkasini qo'lda build/web'ga
-# nusxalash kifoya.
+# MUHIM DIZAYN QARORI (real sinovda IKKI MARTA, 2026-08-11, aniqlangan
+# xato asosida): frontend build/web'ni zaxiradan tiklash ENDI SO'ZSIZ
+# bajariladi (Copy-Item -Force har doim chaqiriladi), oraliq
+# "Remove-Item muvaffaqiyatli bo'ldimi/papka bo'shmi" holatiga
+# ASLO ishonilmaydi. Avval bu oraliq holat tekshirilib, "xavfsiz,
+# tegma" deb ikki marta NOTO'G'RI xulosa chiqargan edi (Windows fayl
+# tutqichi bo'shashi POYGA HOLATI keltirib chiqargan) - natijada sayt
+# BUTUNLAY BO'SH (ishlamaydigan) holatda qolib ketgan edi. Xavfsizroq,
+# sodda qoida: ORALIQ holatga ishonmaslik, faqat YAKUNIY natijani
+# (index.html mavjudligini) tasdiqlash.
 
 $ErrorActionPreference = "Stop"
 
@@ -188,23 +188,47 @@ function Orqaga-Qaytarish($eskiCommit, $webZaxiraYoli) {
             # Xizmatlarni-Toxtatish endigina chaqirilgan bo'lsa-da, Windows
             # ba'zan fayl tutqichlarini (file handle) DARHOL bo'shatmaydi -
             # real sinovda aynan shu sabab Remove-Item "fayl boshqa jarayon
-            # tomonidan ishlatilmoqda" xatosi bilan bir marta muvaffaqiyatsiz
-            # bo'lgan edi. Shu sabab bir necha marta, orada kutib qayta
-            # urinib ko'riladi.
-            $tozalandi = $false
-            for ($i = 0; $i -lt 10 -and -not $tozalandi; $i++) {
+            # tomonidan ishlatilmoqda" xatosi bilan bir necha marta
+            # muvaffaqiyatsiz bo'lgan edi. Shu sabab bir necha marta,
+            # orada kutib qayta urinib ko'riladi.
+            for ($i = 0; $i -lt 10; $i++) {
                 try {
                     if (Test-Path $WebDir) { Remove-Item -Recurse -Force $WebDir -ErrorAction Stop }
-                    $tozalandi = $true
+                    break
                 } catch {
                     Start-Sleep -Seconds 3
                 }
             }
-            if (-not $tozalandi -and (Test-Path $WebDir)) {
-                Log "OGOHLANTIRISH: eski build/web papkasi band bo'lgani uchun tozalanmadi - zaxira NUSXA sifatida yonida qoldiriladi, qo'lda almashtirish kerak bo'lishi mumkin: $webZaxiraYoli"
-            } else {
-                Copy-Item -Recurse $webZaxiraYoli $WebDir
-                Log "Frontend build zaxiradan tiklandi: $webZaxiraYoli"
+
+            if (Test-Path $WebDir) { Remove-Item -Recurse -Force $WebDir -ErrorAction SilentlyContinue }
+            if (-not (Test-Path $WebDir)) {
+                New-Item -ItemType Directory -Path $WebDir -Force | Out-Null
+            }
+            # DIQQAT: manba "$webZaxiraYoli\*" (YULDUZCHA bilan) - shu
+            # bilan ICHIDAGI fayllar to'g'ridan-to'g'ri $WebDir'ga
+            # nusxalanadi. Agar yulduzchasiz ($webZaxiraYoli, papkaning
+            # o'zi) ishlatilsa VA $WebDir yuqoridagi Remove-Item'dan
+            # keyin ham (band bo'lgani uchun) hali mavjud bo'lib qolsa,
+            # PowerShell Copy-Item -Recurse manba papkani $WebDir ICHIGA
+            # YANGI QATLAM sifatida nusxalab qo'yardi (masalan
+            # $WebDir\web_zaxira_xxx\index.html) - $WebDir\index.html
+            # esa hali ham TOPILMAY qolardi.
+            Copy-Item -Path "$webZaxiraYoli\*" -Destination $WebDir -Recurse -Force
+            Log "Frontend build zaxiradan tiklandi: $webZaxiraYoli"
+
+            # YAKUNIY, SO'ZSIZ tekshiruv - qolgan barcha qadamlardan qat'i
+            # nazar. MUHIM (real production'da 2026-08-11, IKKI MARTA
+            # ketma-ket): Remove-Item'ning ORALIQ holatini ("tozalandi"
+            # bayrog'i, keyin "papka bo'shmi" tekshiruvi) kuzatishga
+            # asoslangan mantiq POYGA HOLATI tufayli ikki marta noto'g'ri
+            # xulosaga keldi (papka aslida bo'sh qolgan bo'lsa-da, "asl
+            # tarkib saqlangan" deb topib, tiklashni o'tkazib yubordi) -
+            # sayt butunlay ishlamaydigan holatda qolib ketaverdi. Shu
+            # sabab ORALIQ holatga UMUMAN ishonilmaydi - yuqorida
+            # Copy-Item ALLAQACHON so'zsiz chaqirilgan, bu yerda esa
+            # FAQAT natija (index.html haqiqatan mavjudmi) tasdiqlanadi.
+            if (-not (Test-Path "$WebDir\index.html")) {
+                Log "JIDDIY OGOHLANTIRISH: tiklashdan keyin ham build/web'da index.html topilmadi - qo'lda tekshiring: $webZaxiraYoli"
             }
         }
     } catch {

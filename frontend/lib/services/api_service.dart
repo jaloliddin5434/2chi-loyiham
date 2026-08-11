@@ -13,7 +13,7 @@ class ApiService {
   // ham. Endi ilova ishga tushganda avval mahalliy manzilga (tezroq,
   // internetsiz ham ishlaydigan) urinadi - javob bermasa, Cloudflare
   // domeniga o'tadi (qarang: baseUrlniAniqlash(), main.dart'da chaqiriladi).
-  static const String _lanBaseUrl = "http://10.112.30.77:47001";
+  static const String _lanBaseUrl = "http://10.112.21.54:47001";
   static const String _cloudBaseUrl = "https://api.smart-tarozi.uz";
   static String baseUrl = _cloudBaseUrl;
 

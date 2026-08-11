@@ -62,6 +62,17 @@ echo Backend papkasi: %BACKEND_DIR%
 
 "%NSSM%" install %SERVICE_NAME% "%PYTHON_EXE%" "-m uvicorn main:app --host 0.0.0.0 --port 47001 --forwarded-allow-ips="
 "%NSSM%" set %SERVICE_NAME% AppDirectory "%BACKEND_DIR_NOSLASH%"
+REM DIQQAT (real production'da topilgan haqiqiy xato): NSSM xizmati
+REM standart bo'yicha LocalSystem hisobida ishlaydi - bu, interaktiv
+REM "%USERNAME%" foydalanuvchisi profilidan BUTUNLAY ALOHIDA. Playwright
+REM (Nakladnoy PDF generatsiyasi uchun) brauzerlari esa `playwright
+REM install` orqali FAQAT shu interaktiv foydalanuvchi profiliga
+REM o'rnatilgan (%LOCALAPPDATA%\ms-playwright) - LocalSystem uni
+REM UMUMAN topa olmaydi, natijada Nakladnoy PDF so'rovi doim 500 xato
+REM bilan tugardi. PLAYWRIGHT_BROWSERS_PATH shu joyni to'g'ridan-to'g'ri
+REM ko'rsatib, xizmatni (LocalSystem holicha qolsa ham) mavjud
+REM brauzerlarni topishga majbur qiladi - qayta o'rnatish shart emas.
+"%NSSM%" set %SERVICE_NAME% AppEnvironmentExtra "PLAYWRIGHT_BROWSERS_PATH=%LOCALAPPDATA%\ms-playwright"
 "%NSSM%" set %SERVICE_NAME% DisplayName "Hazorasp Backend (Tarozi Tizimi)"
 "%NSSM%" set %SERVICE_NAME% Description "Hazorasp Tekstil Tarozi Tizimi - FastAPI backend (port 47001)"
 "%NSSM%" set %SERVICE_NAME% Start SERVICE_AUTO_START

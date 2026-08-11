@@ -3395,9 +3395,19 @@ def nakladnoy_saqlash(data: dict, db: Session = Depends(get_db), current_user: d
     except HTTPException:
         raise
     except Exception as e:
-        print(f"XATO: {e}")
         import traceback
-        traceback.print_exc()
+        # DIQQAT (real production'da topilgan haqiqiy xato): konsol/log
+        # fayli har doim ham UTF-8 emas (masalan NSSM xizmat sifatida
+        # ishlaganda, cp1251 kabi kodalash ishlatilishi mumkin) - xato
+        # matni (yoki to'liq traceback) lotin bo'lmagan belgi bo'lsa,
+        # oddiy print() O'ZI UnicodeEncodeError bilan yiqilib, ASL
+        # xatoni butunlay yashirib qo'yar edi - shu sabab nakladnoy
+        # generatsiyasi xatosi hech qachon logda ko'rinmasdi. Endi
+        # print xato matnidan qat'i nazar hech qachon yiqilmaydi
+        # (backslashreplace - hech narsa yo'qolmaydi, faqat escape
+        # qilinadi).
+        xabar = f"XATO: {e}\n{traceback.format_exc()}"
+        print(xabar.encode("ascii", errors="backslashreplace").decode("ascii"))
         raise HTTPException(status_code=500, detail=str(e))
 
 

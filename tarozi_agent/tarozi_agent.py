@@ -8,13 +8,16 @@ qilmaydi, faqat tarmoq orqali gaplashadi.
 """
 import os
 import re
+import socket
 import threading
 import time
 from pathlib import Path
 
 import requests
 import serial
+import urllib3.util.connection as _urllib3_ulanish
 from dotenv import load_dotenv
+from requests.adapters import HTTPAdapter
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
@@ -49,6 +52,36 @@ if not TAROZI_AGENT_KEY:
 _TAROZI_FREYM_QATIY_RE = re.compile(rb"\x09([+\-])([0-9]{7})\x12\r")
 _TAROZI_FREYM_ERKIN_RE = re.compile(rb"([+\-])([0-9]{7})")
 
+# ============ FAQAT IPv4 (Windows IPv6'ni o'chirish YETARLI BO'LMADI) ============
+# Real productionda (2026-08-13, tarozixona kompyuteri) SERVER_URL domen
+# orqali (Cloudflare Tunnel, masalan api.smart-tarozi.uz) ishlaydi, shuning
+# uchun har bir so'rovda DNS orqali IPv4 VA IPv6 manzillar qaytishi mumkin.
+# urllib3 esa DNSdan qaytgan BIRINCHI manzilni sinab ko'radi - agar u IPv6
+# bo'lsa-yu, tarmoq/marshrutlash IPv6'ni to'liq qo'llab-quvvatlamasa, ulanish
+# osilib qolib "Read timed out" bilan tugaydi. Windows tarmoq sozlamalarida
+# IPv6'ni o'chirish BU HOLATNI TUZATMADI (ilova baribir IPv6 manzilini sinab
+# ko'raverdi). Shu sabab bu yerda kodning O'ZIDA, Windows sozlamalaridan
+# MUSTAQIL ravishda kafolatlanadi: urllib3'ning DNS oila tanlovini
+# (`allowed_gai_family`) faqat AF_INET'ga qulflovchi maxsus HTTPAdapter
+# yaratilib, BARCHA so'rovlar (serverga ham, Telegramga ham) shu orqali
+# yuboriladi - hech qachon IPv6 sinalmaydi.
+def _faqat_ipv4_gai_oilasi():
+    return socket.AF_INET
+
+
+class _IPv4HTTPAdapter(HTTPAdapter):
+    """Ushbu adapter mount qilingan `requests.Session` orqali yuborilgan
+    HAR BIR so'rov (HTTP ham, HTTPS ham) faqat IPv4 orqali ulanadi."""
+
+    def __init__(self, *args, **kwargs):
+        _urllib3_ulanish.allowed_gai_family = _faqat_ipv4_gai_oilasi
+        super().__init__(*args, **kwargs)
+
+
+_ipv4_sessiyasi = requests.Session()
+_ipv4_sessiyasi.mount("https://", _IPv4HTTPAdapter())
+_ipv4_sessiyasi.mount("http://", _IPv4HTTPAdapter())
+
 _qulf = threading.Lock()
 _holat = {"ogirlik_kg": 0.0, "ulangan": False}
 
@@ -65,7 +98,7 @@ def _telegram_xabar_yuborish(matn: str) -> bool:
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         return False
     try:
-        javob = requests.post(
+        javob = _ipv4_sessiyasi.post(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
             json={"chat_id": TELEGRAM_CHAT_ID, "text": matn, "parse_mode": "HTML"},
             timeout=5,
@@ -270,7 +303,7 @@ def _serverga_yuboruvchi():
     (COM ulangan-ulanmaganidan qat'iy nazar - uzilgan holatni ham serverga
     darhol xabar qiladi). Tarmoq/server vaqtincha ishlamasa xatoni yutib,
     keyingi urinishda davom etadi - bu oqim hech qachon to'xtamasligi kerak."""
-    sessiya = requests.Session()
+    sessiya = _ipv4_sessiyasi
     while True:
         with _qulf:
             payload = dict(_holat)

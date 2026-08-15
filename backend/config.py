@@ -88,7 +88,21 @@ class _Sozlamalar(BaseSettings):
     # ro'yxati (vergul bilan ajratilgan). Kelajakda domen/reverse-proxy
     # qo'shilganda faqat shu .env qiymatini yangilash kifoya - kodga
     # tegish shart emas.
-    ALLOWED_ORIGINS: str = "http://10.112.30.77:47080,http://localhost:47080"
+    #
+    # DIQQAT: standart qiymat ATAYLAB hech qanday muayyan kompyuter
+    # (server) IP'iga tayanmaydi - faqat doimiy, joylashuvdan mustaqil
+    # manzillar (domen) va localhost. Avval bu yerda bitta muayyan
+    # ish stantsiyasining LAN IP'i qattiq yozilgan edi - production
+    # boshqa kompyuterga ko'chirilganda, agar kimdir .env'da
+    # ALLOWED_ORIGINS'ni yangilashni unutsa, backend eskirgan/notogri
+    # kompyuterning IP'iga ruxsat berib qolar edi (2026-08-15dagi
+    # TARMOQ_BACKUP_IP config-drift voqeasi bilan bir xil naqsh).
+    # Mahalliy tarmoq (LAN, ofis ichi, internetsiz) to'g'ridan-to'g'ri
+    # kirish manzili HAR BIR SERVERDA .env orqali ALOHIDA qo'shilishi
+    # kerak - shunda ham unutilsa, natija "faqat bulut orqali ishlaydi"
+    # bo'ladi (darhol sezilib, tekshiriladi), "notogri kompyuterga
+    # ruxsat" emas.
+    ALLOWED_ORIGINS: str = "https://smart-tarozi.uz,https://app.smart-tarozi.uz,http://localhost:47080"
 
 
 try:

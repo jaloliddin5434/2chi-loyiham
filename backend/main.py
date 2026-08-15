@@ -16,6 +16,7 @@ import html
 import io
 import threading
 import time
+import uuid
 from pathlib import Path
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -42,6 +43,10 @@ app.add_middleware(
     # ilovadan mobil tarmoq orqali kirganda POST /login shu tarzda buzilgan).
     allow_private_network=True,
 )
+
+# Har bir jarayon ishga tushganda YANGI, tasodifiy ID - qarang:
+# _tunnel_bir_tekshiruv() va GET /health, "SERVER_INSTANCE_ID" izohi.
+_SERVER_INSTANCE_ID = str(uuid.uuid4())
 
 
 def _mijoz_ip(request: Request) -> str:
@@ -122,7 +127,16 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    # "instance_id" - qarang: _tunnel_bir_tekshiruv() izohi (2026-08-13
+    # ikkita Cloudflare Tunnel connector to'qnashuvi hodisasi). Bu shu
+    # ANIQ jarayonga xos, jarayon qayta ishga tushganda o'zgaradigan
+    # tasodifiy qiymat - shuning uchun status_code==200'ning o'zi
+    # YETARLI EMAS: agar so'rov (Cloudflare tunnel to'qnashuvi tufayli)
+    # boshqa, begona backend nusxasiga tushib qolsa, javob baribir 200
+    # bo'ladi-yu, lekin instance_id boshqacha (yoki eski kodda umuman
+    # yo'q) chiqadi - shu orqali "чет kimdir javob berdi, bu MEN emasman"
+    # holatini ajratish mumkin.
+    return {"status": "ok", "instance_id": _SERVER_INSTANCE_ID}
 
 @app.post("/login", response_model=Token)
 @limiter.limit("5/minute")
@@ -2010,21 +2024,57 @@ BACKUP_QAYTA_URINISH_DAQIQA = 15
 
 
 def _tarmoqqa_ulan(unc_yol: str, foydalanuvchi: str, parol: str, timeout: int = 30):
-    """`net use`ga parolni oddiy PROCESS ARGUMENTI sifatida EMAS, standart
-    kirish (stdin) orqali uzatadi. AVVAL parol to'g'ridan-to'g'ri
-    process argumentida yuborilardi - bu buyruq ishlab turgan payt
-    davomida BOSHQA HAR QANDAY dasturga (Task Manager "Buyruq qatori"
-    ustuni, `Get-CimInstance Win32_Process`/`wmic process list full`)
-    ko'rinib turardi - real sinovda tasdiqlangan haqiqiy zaiflik. `*`
-    maxsus belgi net.exe'ga parolni interaktiv so'rashni buyuradi - biz
-    shu so'rovga to'g'ridan-to'g'ri `input=` orqali javob beramiz,
-    parol hech qachon argv (jarayon buyruq qatori) ichida ko'rinmaydi."""
-    import subprocess
-    return subprocess.run(
-        ["net", "use", unc_yol, "*", f"/user:{foydalanuvchi}"],
-        input=f"{parol}\n",
-        capture_output=True, text=True, errors="replace", timeout=timeout,
-    )
+    """SMB ulashuvga Win32 WNetAddConnection2W API orqali (ctypes bilan,
+    to'g'ridan-to'g'ri, hech qanday subprocess ishga tushirmasdan)
+    ulanadi. Parol hech qachon biror jarayonning argv'ida yoki
+    konsolida ko'rinmaydi - to'g'ridan-to'g'ri OS funksiyasiga xotirada
+    uzatiladi.
+
+    AVVAL `net use ... *` (parolni interaktiv so'rov + stdin orqali)
+    ishlatilardi - bu argv'da parolni yashirish uchun edi, lekin real
+    production'da tasdiqlandi: bu usul PAROLNI TO'G'RI YETKAZMAYDI
+    (natijada "System error 86: network password is not correct" yoki
+    "1326: unknown user name or bad password" - HAM SYSTEM xizmat
+    kontekstida, HAM oddiy interaktiv seansda, hatto to'g'ri parol
+    bilan ham). Sabab: `net use *` maxsus belgisi parolni
+    yo'naltirilgan (redirected/piped) stdin orqali emas, past
+    darajadagi konsol o'qish orqali kutadi - bu ishonchli ishlamaydi.
+    Natijada 2026-08-12 dan buyon HAR BIR tarmoq backup urinishi
+    robocopy 16-xato bilan (aslida noto'g'ri "parol"dan kelib chiqqan
+    ruxsat xatosi) muvaffaqiyatsiz tugagan. WNetAddConnection2W bunday
+    muammolarning hech biriga ega emas - konsolga umuman bog'liq emas."""
+    import ctypes
+    from ctypes import wintypes
+
+    class NETRESOURCEW(ctypes.Structure):
+        _fields_ = [
+            ("dwScope", wintypes.DWORD),
+            ("dwType", wintypes.DWORD),
+            ("dwDisplayType", wintypes.DWORD),
+            ("dwUsage", wintypes.DWORD),
+            ("lpLocalName", wintypes.LPWSTR),
+            ("lpRemoteName", wintypes.LPWSTR),
+            ("lpComment", wintypes.LPWSTR),
+            ("lpProvider", wintypes.LPWSTR),
+        ]
+
+    RESOURCETYPE_DISK = 0x00000001
+    mpr = ctypes.WinDLL("mpr")
+
+    # Eski (bo'lishi mumkin bo'lgan buzilgan/eskirgan) ulanishni
+    # tozalash - xatoni e'tiborsiz qoldiramiz, chunki ulanish umuman
+    # mavjud bo'lmasligi mumkin.
+    mpr.WNetCancelConnection2W(unc_yol, 0, True)
+
+    nr = NETRESOURCEW()
+    nr.dwType = RESOURCETYPE_DISK
+    nr.lpLocalName = None
+    nr.lpRemoteName = unc_yol
+    nr.lpProvider = None
+
+    kod = mpr.WNetAddConnection2W(ctypes.byref(nr), parol, foydalanuvchi, 0)
+    if kod != 0:
+        raise OSError(f"WNetAddConnection2W xato kod bilan tugadi: {kod}")
 
 
 def tarmoqqa_backup_yubor(backup_dir: str) -> bool:
@@ -2036,13 +2086,11 @@ def tarmoqqa_backup_yubor(backup_dir: str) -> bool:
     import subprocess
     unc_yol = fr"\\{TARMOQ_BACKUP_IP}\{TARMOQ_BACKUP_SHARE}"
     try:
-        # Ulanish - ikkinchi komp bir muddat oldin ulangan bo'lsa ham
-        # xavfsiz (Windows mavjud seansni qayta tasdiqlaydi).
-        # errors="replace": net use/robocopy chiqishi tizim konsoli
-        # kodировkasida (masalan cp1251) har doim ham to'g'ri
-        # dekodlanavermaydi (masalan xato xabari boshqa kodировkada
-        # kelsa) - shu sabab dekodlash xatosi butun urinishni
-        # (returncode allaqachon to'g'ri bo'lsa ham) buzib qo'ymasin.
+        # errors="replace": robocopy chiqishi tizim konsoli kodировkasida
+        # (masalan cp1251) har doim ham to'g'ri dekodlanavermaydi
+        # (masalan xato xabari boshqa kodировkada kelsa) - shu sabab
+        # dekodlash xatosi butun urinishni (returncode allaqachon
+        # to'g'ri bo'lsa ham) buzib qo'ymasin.
         _tarmoqqa_ulan(unc_yol, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL)
         natija = subprocess.run(
             ["robocopy", backup_dir, unc_yol, "*.sql", "/R:2", "/W:5"],
@@ -2786,6 +2834,48 @@ def _mahsulot_id_moslik_tekshiruvi(db: Session = None):
 
 _mahsulot_id_moslik_tekshiruvi()
 
+# ============ OGOHLANTIRISH HOLATINI SAQLASH (restart'ga bardoshli) ============
+# 2026-08-14, real productionda topilgan umumiy teshik: quyidagi TO'RTALA
+# monitor ham ("allaqachon ogohlantirdikmi?" bayrog'i) FAQAT jarayon
+# xotirasida saqlanardi. Backend migratsiyadan (2026-08-11) beri bir
+# necha marta qayta ishga tushgan (jumladan qulash/qayta yuklanish, qo'lda
+# tuzatishlar joylashtirish) - agar bayroq "True" (ya'ni "muammo haqida
+# allaqachon xabar berdik, tuzalishini kutyapmiz") holatida bo'lgan paytda
+# backend qayta ishga tushsa, bayroq xomashyo holatiga (False) qaytardi.
+# Natijada muammo HAQIQATAN tuzalganda ham, kod "hech narsa noto'g'ri
+# bo'lmagandek" xatti-tutardi - "✅ tuzaldi" xabari HECH QACHON kelmasdi.
+# Shu sabab bayroqning o'zi endi `sozlamalar` jadvaliga ham yoziladi -
+# jarayon qayta ishga tushganda ANIQ shu bayroqni (boshqa hech narsani,
+# masalan ketma-ket xato hisoblagichini emas - u nolga tushishi zararsiz,
+# faqat qayta bir necha marta xato kerak bo'ladi) o'qib, davom ettiradi.
+def _ogohlantirish_holatini_yukla(kalit: str) -> bool:
+    db = SessionLocal()
+    try:
+        yozuv = db.query(Sozlama).filter(Sozlama.kalit == kalit).first()
+        return yozuv is not None and yozuv.qiymat == "1"
+    except Exception as e:
+        print(f"Ogohlantirish holatini o'qishda xato ({kalit}): {e}")
+        return False
+    finally:
+        db.close()
+
+
+def _ogohlantirish_holatini_saqla(kalit: str, ogohlantirilgan: bool):
+    db = SessionLocal()
+    try:
+        yozuv = db.query(Sozlama).filter(Sozlama.kalit == kalit).first()
+        qiymat = "1" if ogohlantirilgan else "0"
+        if yozuv is None:
+            db.add(Sozlama(kalit=kalit, qiymat=qiymat))
+        else:
+            yozuv.qiymat = qiymat
+        db.commit()
+    except Exception as e:
+        print(f"Ogohlantirish holatini saqlashda xato ({kalit}): {e}")
+    finally:
+        db.close()
+
+
 # ============ TUNNEL/SERVER O'Z-O'ZINI KUZATISH ============
 # Ilgari hech narsa serverning/tunnel'ning o'zi ishlamay qolganini
 # kuzatmasdi - faqat operator ilovani ochishga urinib, ishlamasligini
@@ -2802,10 +2892,30 @@ _mahsulot_id_moslik_tekshiruvi()
 # QACHON aniqlay olmasdi (real productionda 2026-08-10'da real tunnel
 # uzilishlari paytida bu tekshiruv hech qachon signal bermagani
 # tahlil orqali tasdiqlangan monitoring teshigi edi).
+#
+# IKKINCHI MONITORING TESHIGI (2026-08-13, real productionda topilgan):
+# status_code==200'ning O'ZI ham YETARLI EMAS edi! Agar shu tunnelga
+# BOSHQA (begona/qoldiq) cloudflared connector ham ulangan bo'lsa
+# (masalan eski, decommission qilinmagan server hali ham ishlab
+# tursa - real hodisa, 2026-08-13), Cloudflare so'rovlarni ikkalasi
+# orasida bo'lishtiradi: shu jarayonning O'ZINING tunnel xizmati
+# butunlay TO'XTAGAN bo'lsa ham, so'rov begona connector orqali
+# BOSHQA (hali tirik) backend nusxasiga tushib, baribir 200 qaytarishi
+# mumkin edi - shu sabab aynan shu kunda xizmat to'xtab-yoqilganda na
+# "to'xtadi", na "tuzaldi" xabari kelmadi (tekshiruv hech qachon
+# muvaffaqiyatsizlikni SEZMADI). Shu sabab endi status_code'dan
+# tashqari, javobdagi `instance_id` HAM aynan shu jarayonning o'z
+# _SERVER_INSTANCE_ID'iga teng ekani tekshiriladi - agar boshqa (yoki
+# eski, bu maydonni bilmaydigan) nusxa javob bersa, bu MUVAFFAQIYATSIZ
+# deb hisoblanadi, garchi HTTP holat kodi 200 bo'lsa ham.
 _TUNNEL_TEKSHIRUV_OSIYA = 180
 _TUNNEL_XATO_CHEGARA = 2
+_TUNNEL_OGOHLANTIRISH_KALITI = "tunnel_http_ogohlantirilgan"
 
-_tunnel_holati = {"ketma_ket": 0, "ogohlantirilgan": False}
+_tunnel_holati = {
+    "ketma_ket": 0,
+    "ogohlantirilgan": _ogohlantirish_holatini_yukla(_TUNNEL_OGOHLANTIRISH_KALITI),
+}
 _tunnel_holati_qulf = threading.Lock()
 
 
@@ -2815,7 +2925,10 @@ def _tunnel_bir_tekshiruv():
     chaqirish mumkin."""
     try:
         javob = req.get(TUNNEL_TEKSHIRUV_URL, timeout=10)
-        muvaffaqiyat = javob.status_code == 200
+        muvaffaqiyat = (
+            javob.status_code == 200
+            and javob.json().get("instance_id") == _SERVER_INSTANCE_ID
+        )
     except Exception:
         muvaffaqiyat = False
 
@@ -2826,6 +2939,7 @@ def _tunnel_bir_tekshiruv():
             if (_tunnel_holati["ketma_ket"] >= _TUNNEL_XATO_CHEGARA
                     and not _tunnel_holati["ogohlantirilgan"]):
                 _tunnel_holati["ogohlantirilgan"] = True
+                _ogohlantirish_holatini_saqla(_TUNNEL_OGOHLANTIRISH_KALITI, True)
                 yuboriladigan_matn = (
                     f"🔴 <b>Diqqat!</b> Server o'zining ommaviy manziliga "
                     f"({html.escape(TUNNEL_TEKSHIRUV_URL)}) yeta olmayapti - "
@@ -2834,6 +2948,7 @@ def _tunnel_bir_tekshiruv():
         else:
             if _tunnel_holati["ogohlantirilgan"]:
                 yuboriladigan_matn = "✅ Server ommaviy manzili qayta ishlay boshladi."
+                _ogohlantirish_holatini_saqla(_TUNNEL_OGOHLANTIRISH_KALITI, False)
             _tunnel_holati["ketma_ket"] = 0
             _tunnel_holati["ogohlantirilgan"] = False
 
@@ -2862,8 +2977,11 @@ _TAROZI_ALERT_TEKSHIRUV_OSIYA = 60
 # ishlatiladi, aks holda har bir qisqa (bir necha soniyalik) uzilishda
 # ham xabar kelib, spam bo'lib qolardi.
 _TAROZI_ALERT_CHEGARA_SONIYA = 180
+_TAROZI_ALERT_OGOHLANTIRISH_KALITI = "tarozi_alert_ogohlantirilgan"
 
-_tarozi_alert_holati = {"ogohlantirilgan": False}
+_tarozi_alert_holati = {
+    "ogohlantirilgan": _ogohlantirish_holatini_yukla(_TAROZI_ALERT_OGOHLANTIRISH_KALITI),
+}
 _tarozi_alert_holati_qulf = threading.Lock()
 
 
@@ -2878,6 +2996,7 @@ def _tarozi_alert_bir_tekshiruv():
         if uzilgan:
             if not _tarozi_alert_holati["ogohlantirilgan"]:
                 _tarozi_alert_holati["ogohlantirilgan"] = True
+                _ogohlantirish_holatini_saqla(_TAROZI_ALERT_OGOHLANTIRISH_KALITI, True)
                 # muddat_otdi cheksiz bo'lishi mumkin (server hozirgina
                 # ishga tushgan, agentdan HALI BIRON MARTA ham ma'lumot
                 # kelmagan) - int(inf) OverflowError beradi, shu sabab
@@ -2895,6 +3014,7 @@ def _tarozi_alert_bir_tekshiruv():
         else:
             if _tarozi_alert_holati["ogohlantirilgan"]:
                 yuboriladigan_matn = "✅ Tarozi agentidan ma'lumot qayta kela boshladi."
+                _ogohlantirish_holatini_saqla(_TAROZI_ALERT_OGOHLANTIRISH_KALITI, False)
             _tarozi_alert_holati["ogohlantirilgan"] = False
 
     if yuboriladigan_matn:
@@ -2927,8 +3047,11 @@ tunnel_kuzatuv_thread.start()
 # UCHINCHI, alohida jarayon qo'shishning hojati yo'q.
 _TUNNEL_XIZMAT_TEKSHIRUV_OSIYA = 60
 _CLOUDFLARE_XIZMAT_NOMI = "CloudflaredTunnel"
+_TUNNEL_XIZMAT_OGOHLANTIRISH_KALITI = "tunnel_xizmat_ogohlantirilgan"
 
-_tunnel_xizmat_holati = {"ogohlantirilgan": False}
+_tunnel_xizmat_holati = {
+    "ogohlantirilgan": _ogohlantirish_holatini_yukla(_TUNNEL_XIZMAT_OGOHLANTIRISH_KALITI),
+}
 _tunnel_xizmat_holati_qulf = threading.Lock()
 
 
@@ -2952,6 +3075,7 @@ def _tunnel_xizmat_bir_tekshiruv():
         if not ishlayaptimi:
             if not _tunnel_xizmat_holati["ogohlantirilgan"]:
                 _tunnel_xizmat_holati["ogohlantirilgan"] = True
+                _ogohlantirish_holatini_saqla(_TUNNEL_XIZMAT_OGOHLANTIRISH_KALITI, True)
                 yuboriladigan_matn = (
                     "🔴 <b>Diqqat!</b> CloudflaredTunnel Windows xizmati "
                     "to'xtab qoldi - tashqi (jamoat) kirish (smart-tarozi.uz) "
@@ -2960,6 +3084,7 @@ def _tunnel_xizmat_bir_tekshiruv():
         else:
             if _tunnel_xizmat_holati["ogohlantirilgan"]:
                 yuboriladigan_matn = "✅ CloudflaredTunnel xizmati qayta ishga tushdi."
+                _ogohlantirish_holatini_saqla(_TUNNEL_XIZMAT_OGOHLANTIRISH_KALITI, False)
             _tunnel_xizmat_holati["ogohlantirilgan"] = False
 
     if yuboriladigan_matn:
@@ -3577,14 +3702,29 @@ def bir_kameradan_rasm_ol(cam_ip, fayl_yol):
 # kamera (IP) uchun ALOHIDA ketma-ket xatolar hisoblanadi - faqat
 # KAMERA_XATO_CHEGARA marta ketma-ket muvaffaqiyatsiz bo'lsa bitta
 # ogohlantirish yuboriladi, keyingi xatolarda esa (tuzalmaguncha)
-# qayta yuborilmaydi. Holat xotirada saqlanadi (DB shart emas) -
-# server qayta ishga tushirilsa hisoblagich nolga tushadi, bu
-# zararsiz (faqat qayta 3 marta xato kerak bo'ladi, xolos).
+# qayta yuborilmaydi. "ketma_ket" hisoblagichi xotirada qoladi - server
+# qayta ishga tushirilsa nolga tushadi, bu zararsiz (faqat qayta 3 marta
+# xato kerak bo'ladi, xolos). Lekin "ogohlantirilgan" bayrog'i (2026-08-14
+# tuzatildi - qarang: _ogohlantirish_holatini_saqla) endi DB'ga ham
+# yoziladi - aks holda xuddi tunnel/tarozi monitorlaridagidek, backend
+# "🔴 xabar yubordik, tuzalishini kutyapmiz" holatida qayta ishga tushsa,
+# kamera haqiqatan tuzalganda "✅ tuzaldi" xabari hech qachon kelmasdi.
 KAMERA_XATO_CHEGARA = 3
 
+
+def _kamera_ogohlantirish_kaliti(cam_ip: str) -> str:
+    return f"kamera_ogohlantirilgan_{cam_ip}"
+
+
 _kamera_holati = {
-    KAMERA_1_IP: {"ketma_ket": 0, "ogohlantirilgan": False},
-    KAMERA_2_IP: {"ketma_ket": 0, "ogohlantirilgan": False},
+    KAMERA_1_IP: {
+        "ketma_ket": 0,
+        "ogohlantirilgan": _ogohlantirish_holatini_yukla(_kamera_ogohlantirish_kaliti(KAMERA_1_IP)),
+    },
+    KAMERA_2_IP: {
+        "ketma_ket": 0,
+        "ogohlantirilgan": _ogohlantirish_holatini_yukla(_kamera_ogohlantirish_kaliti(KAMERA_2_IP)),
+    },
 }
 # _kamera_holati sinxron route handler'dan (FastAPI thread pool'da
 # PARALLEL ishlaydi) o'zgartiriladi - shu sabab boshqa global holatlar
@@ -3603,13 +3743,17 @@ def kamera_xatosi_ogohlantirish(cam_nomi: str, cam_ip: str, natija: dict,
     with _kamera_holati_qulf:
         holat = _kamera_holati.get(cam_ip)
         if holat is None:
-            holat = {"ketma_ket": 0, "ogohlantirilgan": False}
+            holat = {
+                "ketma_ket": 0,
+                "ogohlantirilgan": _ogohlantirish_holatini_yukla(_kamera_ogohlantirish_kaliti(cam_ip)),
+            }
             _kamera_holati[cam_ip] = holat
 
         if natija["status"] == "error":
             holat["ketma_ket"] += 1
             if holat["ketma_ket"] >= KAMERA_XATO_CHEGARA and not holat["ogohlantirilgan"]:
                 holat["ogohlantirilgan"] = True
+                _ogohlantirish_holatini_saqla(_kamera_ogohlantirish_kaliti(cam_ip), True)
                 vaqt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 # html.escape(): natija["message"] xom Python exception matni
                 # bo'lishi mumkin (masalan "<HTTPConnection(...) at 0x...>"
@@ -3629,6 +3773,7 @@ def kamera_xatosi_ogohlantirish(cam_nomi: str, cam_ip: str, natija: dict,
         else:
             if holat["ogohlantirilgan"]:
                 yuboriladigan_matn = f"✅ Kamera {cam_nomi} ({cam_ip}) qayta ishlay boshladi."
+                _ogohlantirish_holatini_saqla(_kamera_ogohlantirish_kaliti(cam_ip), False)
             holat["ketma_ket"] = 0
             holat["ogohlantirilgan"] = False
 

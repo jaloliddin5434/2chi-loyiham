@@ -13,6 +13,14 @@ class ApiService {
   // ham. Endi ilova ishga tushganda avval mahalliy manzilga (tezroq,
   // internetsiz ham ishlaydigan) urinadi - javob bermasa, Cloudflare
   // domeniga o'tadi (qarang: baseUrlniAniqlash(), main.dart'da chaqiriladi).
+  //
+  // DIQQAT: bu - qattiq kodlangan, muayyan production serverning LAN
+  // manzili (hozir: HikCentral, 10.112.21.54). Agar production BOSHQA
+  // kompyuterga ko'chirilsa, BU QATOR yangilanishi VA frontend qayta
+  // build+deploy qilinishi SHART - aks holda ilova xatosiz, jimgina
+  // eski/notogri serverga ulanib qoladi (2026-08-15da soatlab davom
+  // etgan chalkashlikning asosiy sababi shu bo'lgan - qarang:
+  // README.md "Production joylashtirish" bo'limi).
   static const String _lanBaseUrl = "http://10.112.21.54:47001";
   static const String _cloudBaseUrl = "https://api.smart-tarozi.uz";
   static String baseUrl = _cloudBaseUrl;

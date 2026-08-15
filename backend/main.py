@@ -9,7 +9,7 @@ from database import engine, get_db, Base, SessionLocal
 from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi, Firma, MahsulotNarxi, Sozlama, QoraRoyxatToken
 from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash, UserHolatYangilash, FirmaCreate, MahsulotNarxiCreate, PinOrnatish, PinTekshirish, TaroziYubor
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role, require_moliyaviy_ruxsat
-from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, TUNNEL_TEKSHIRUV_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL, TAROZI_AGENT_KEY, BACKUP_DIR, RASMLAR_DIR
+from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, TUNNEL_TEKSHIRUV_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL, TAROZI_AGENT_KEY, BACKUP_DIR, RASMLAR_DIR, API_HUJJATLARI_OCHIQ
 from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
 from datetime import datetime, date, timedelta
 import html
@@ -24,7 +24,13 @@ from slowapi.middleware import SlowAPIMiddleware
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Hazorasp Tekstil Tarozi Tizimi", version="1.0.0")
+app = FastAPI(
+    title="Hazorasp Tekstil Tarozi Tizimi",
+    version="1.0.0",
+    docs_url="/docs" if API_HUJJATLARI_OCHIQ else None,
+    redoc_url="/redoc" if API_HUJJATLARI_OCHIQ else None,
+    openapi_url="/openapi.json" if API_HUJJATLARI_OCHIQ else None,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -311,7 +317,7 @@ def mashina_qoshish(mashina: MashinaCreate, db: Session = Depends(get_db), curre
     # qaytariladi - foydalanuvchiga tushunarsiz 500 o'rniga.
     try:
         with db.begin_nested():
-            yangi = Mashina(**mashina.dict())
+            yangi = Mashina(**mashina.model_dump())
             db.add(yangi)
             db.flush()
     except IntegrityError:
@@ -622,7 +628,7 @@ def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db), current
         mashina_raqami=mashina.davlat_raqami,
         shofyor=mashina.shofyor,
         firma=mashina.firma,
-        **hujjat.dict(),
+        **hujjat.model_dump(),
     )
     db.add(yangi)
     db.commit()
@@ -1114,7 +1120,7 @@ OPERATOR_RUXSAT_ETILGAN_MAYDONLAR = {
 @app.put("/hujjatlar/{hujjat_id}")
 def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user.get("role") not in ("admin", "hisobchi"):
-        yuborilgan = set(data.dict(exclude_unset=True).keys())
+        yuborilgan = set(data.model_dump(exclude_unset=True).keys())
         ruxsatsiz = yuborilgan - OPERATOR_RUXSAT_ETILGAN_MAYDONLAR
         if ruxsatsiz:
             raise HTTPException(
@@ -1142,7 +1148,7 @@ def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, background_tasks: Backg
                 detail="Hujjatni bekor qilish uchun sabab ko'rsatilishi shart!"
             )
 
-    payload = data.dict(exclude_unset=True)
+    payload = data.model_dump(exclude_unset=True)
 
     # namlik/ifloslik Hujjatda emas, shu hujjatga tegishli barcha Olchov
     # qatorlarida - shuning uchun AUDIT_MAYDONLAR umumiy tsiklidan tashqarida,
@@ -1331,14 +1337,14 @@ def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_
 
     if mavjud:
         yangi = mavjud
-        maydonlar = olchov.dict()
+        maydonlar = olchov.model_dump()
         for maydon in ("tara", "brutto", "namlik", "ifloslik"):
             qiymat = maydonlar.get(maydon)
             if qiymat is not None:
                 setattr(yangi, maydon, qiymat)
         yangi.qolda_kiritildi = olchov.qolda_kiritildi
     else:
-        yangi = Olchov(**olchov.dict())
+        yangi = Olchov(**olchov.model_dump())
         db.add(yangi)
 
     if yangi.brutto and yangi.tara:

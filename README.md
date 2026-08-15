@@ -104,16 +104,16 @@ start.bat           Backend + frontend'ni bitta buyruq bilan ishga tushirish
 - Python 3.11+
 - PostgreSQL 18
 - Flutter SDK 3.44+ (Dart SDK `^3.5.0`)
-- Windows (production muhit Windows'ga moslashtirilgan — `net use`,
-  NSSM, COM port kabi joylar; Linux/macOS'da backend/testlar ishlaydi,
+- Windows (production muhit Windows'ga moslashtirilgan — Win32 tarmoq
+  API'lari, NSSM, COM port kabi joylar; Linux/macOS'da backend/testlar ishlaydi,
   lekin tarozi agenti va ba'zi backup skriptlari Windows-specific)
 
 ### Backend
 
 1. Bazani yarating va `backend/.env` faylini to'ldiring (namuna
-   sifatida `tarozi_agent/.env.example`ga qarang — backend uchun
-   alohida shablon hozircha yo'q, kerakli barcha o'zgaruvchilar
-   izohlari bilan `backend/config.py`da ko'rsatilgan). Eng kamida:
+   sifatida [`backend/.env.example`](backend/.env.example)ga qarang —
+   har bir o'zgaruvchi izohi bilan `backend/config.py`da ham
+   ko'rsatilgan). Eng kamida:
 
    ```
    DATABASE_URL=postgresql+psycopg2://postgres:PAROL@localhost:5432/hazorasp_tarozi?client_encoding=utf8
@@ -222,8 +222,15 @@ bajarmaydi.
 
 ## Production joylashtirish
 
-Joriy production — Hazorasp Tekstil ofisidagi bitta Windows
-kompyuter:
+Joriy production — **HikCentral** nomli Windows kompyuter
+(host nomi: `WIN-G8VAAPDMF64`, LAN manzili: `10.112.21.54`). Bu —
+loyihaning boshqa (dev/build) kompyuteridan (`AKT`) butunlay alohida,
+jismonan boshqa mashina — ular orasidagi farqni chalkashtirmaslik
+2026-08-15dagi tekshiruv sabab bo'lgan bir nechta soatlik chalkashlikdan
+keyin alohida ta'kidlanmoqda. Agar production boshqa kompyuterga
+ko'chirilsa, shu bo'lim (hostname, IP) VA
+`frontend/lib/services/api_service.dart`dagi `_lanBaseUrl` YANGILANISHI
+SHART (qarang: o'sha faylning izohi).
 
 - **Backend** — `uvicorn`, port `47001`.
 - **Frontend** — `python -m http.server`, port `47080`.
@@ -281,5 +288,7 @@ kompyuter:
   keyingi o'zgaruvchiga ogohlantirish kerak bo'lganda yoziladi.
 - **Xavfsizlik**: har qanday maxfiy ma'lumot (parol, kalit) faqat
   `.env` orqali (hech qachon kodga qattiq yozilmaydi va hech qachon
-  process argumenti sifatida uzatilmaydi — qarang: `_tarmoqqa_ulan()`
-  funksiyasidagi `net use` misoli).
+  process argumenti yoki konsol orqali uzatilmaydi — qarang:
+  `_tarmoqqa_ulan()` funksiyasi, `WNetAddConnection2W` Win32 API'ni
+  ctypes orqali to'g'ridan-to'g'ri chaqiradi, parol hech qanday
+  subprocess argumentida yoki konsolda ko'rinmaydi).

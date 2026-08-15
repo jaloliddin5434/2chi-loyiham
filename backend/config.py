@@ -104,6 +104,13 @@ class _Sozlamalar(BaseSettings):
     # ruxsat" emas.
     ALLOWED_ORIGINS: str = "https://smart-tarozi.uz,https://app.smart-tarozi.uz,http://localhost:47080"
 
+    # Avval /docs, /redoc, /openapi.json production'da HAM hech qanday
+    # to'sqichsiz, autentifikatsiyasiz ochiq edi - butun API sxemasi
+    # (barcha endpoint/parametr nomlari) har kimga ko'rinardi. Standart
+    # qiymat ATAYLAB False - ochiq qoldirish kerak bo'lsa (masalan
+    # mahalliy ishlab chiqishda), .env'da aniq yoqilishi kerak.
+    API_HUJJATLARI_OCHIQ: bool = False
+
 
 try:
     _sozlama = _Sozlamalar()
@@ -147,3 +154,5 @@ ALLOWED_ORIGINS = [
     for manzil in _sozlama.ALLOWED_ORIGINS.split(",")
     if manzil.strip()
 ]
+
+API_HUJJATLARI_OCHIQ = _sozlama.API_HUJJATLARI_OCHIQ

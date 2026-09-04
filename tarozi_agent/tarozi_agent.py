@@ -11,6 +11,7 @@ import re
 import socket
 import threading
 import time
+from collections import deque
 from pathlib import Path
 
 import requests
@@ -23,6 +24,12 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 
 TAROZI_PORT = os.getenv("TAROZI_PORT", "COM7")
 TAROZI_BAUD = int(os.getenv("TAROZI_BAUD", "9600"))
+# Tarozidan kelgan 7 xonali butun sonni kg ga aylantirish uchun bo'luvchi.
+# Indikatorning o'nlik-nuqta / bo'linma sozlamasiga bog'liq:
+#   10   -> raqam 0.1 kg birligida ("0000800" = 80.0 kg)
+#   100  -> raqam 0.01 kg birligida ("0008000" = 80.0 kg)
+#   1000 -> raqam gramm (1 g) birligida ("0080000" = 80.0 kg)
+TAROZI_BOLUVCHI = float(os.getenv("TAROZI_BOLUVCHI", "10"))
 SERVER_URL = os.getenv("SERVER_URL", "http://10.112.30.77:47001").rstrip("/")
 TAROZI_AGENT_KEY = os.getenv("TAROZI_AGENT_KEY", "")
 YUBORISH_INTERVAL_SONIYA = float(os.getenv("YUBORISH_INTERVAL_SONIYA", "0.5"))
@@ -43,14 +50,28 @@ if not TAROZI_AGENT_KEY:
         "faylidagi TAROZI_AGENT_KEY bilan bir xil qiymat bo'lishi shart."
     )
 
-# To'liq freym (uzluksiz rejim): TAB + '+'/'-' belgisi + 7 xonali raqam
-# (0.1 kg birligida, masalan "+0000100" = 10.0 kg) + DC2 + CR. Liniyada
-# elektr shovqin bor - ba'zan TAB/DC2/CR anchor baytlari yo'qolib, faqat
-# belgi+7-raqam qismi omon qoladi. Shu "qisqartirilgan" holatda shovqin
-# tasodifan haqiqiy freymga o'xshab qolishi mumkin, shuning uchun u faqat
-# KETMA-KET IKKI MARTA bir xil qiymat bilan uchraganda qabul qilinadi.
-_TAROZI_FREYM_QATIY_RE = re.compile(rb"\x09([+\-])([0-9]{7})\x12\r")
-_TAROZI_FREYM_ERKIN_RE = re.compile(rb"([+\-])([0-9]{7})")
+# Freym: STX (0x02) + '+'/'-' belgisi + AYNAN 7 xonali raqam. Masalan
+# b"\x02+0000800" (= 80.0 kg, TAROZI_BOLUVCHI=10 bilan).
+#
+# TUGATUVCHI anchor ATAYLAB tekshirilmaydi: real productionda (2026-09)
+# freym oxiri turlicha va buzuq kelayapti - \x12\r, \x03, \x9a\x1a va h.k.
+#
+# Shovqin bir baytni buzsa freym "siljib", noto'g'ri (goh 800, goh 8000)
+# qiymat beradi. Bunga qarshi KONSENSUS filtri qo'llanadi: har bir topilgan
+# freymning xom qiymati oxirgi 3 talik navbatga (deque) yoziladi va faqat
+# oxirgi 3 tadan KAMIDA 2 tasi bir xil bo'lgandagina o'sha qiymat qabul
+# qilinadi. Yolg'iz (bir martalik) siljigan o'qish 2/3 ko'pchilikni hosil
+# qila olmaydi -> e'tiborga olinmaydi, oxirgi barqaror qiymat saqlanadi.
+# Anchorsiz "erkin" o'qish (\x02 siz, faqat belgi+raqam) olib tashlangan -
+# u siljishda barqaror axlat qiymat berardi.
+#
+# Regexdan OLDIN bufferdan faqat "ruxsat etilgan" baytlar (belgi, raqam va
+# \x02) qoldiriladi - buzuq anchorlar (\x03, \x9a, \x1a, \x12, \r ...)
+# tashlab yuboriladi, buffer shishmaydi.
+_RUXSAT_ETILGAN_BAYTLAR = frozenset(b"+-0123456789") | {0x02}
+_TAROZI_FREYM_RE = re.compile(rb"\x02([+\-])([0-9]{7})")
+_KONSENSUS_OYNA = 3        # oxirgi nechta freym solishtiriladi
+_KONSENSUS_KERAK = 2       # ular ichidan nechtasi bir xil bo'lishi shart
 
 # ============ FAQAT IPv4 (Windows IPv6'ni o'chirish YETARLI BO'LMADI) ============
 # Real productionda (2026-08-13, tarozixona kompyuteri) SERVER_URL domen
@@ -228,7 +249,7 @@ def _serial_oquvchisi():
     uzilib qolsa, 3 soniyadan keyin avtomatik qayta urinadi - agent process
     ishlashda davom etadi, faqat holat 'ulangan: false' bo'lib qoladi."""
     buffer = bytearray()
-    oldingi_erkin_nomzod = None
+    oxirgi_xom_qiymatlar = deque(maxlen=_KONSENSUS_OYNA)
     while True:
         # Har OUTER (qayta ulanish) va INNER (o'qish) sikl aylanishida
         # sog'lomlik belgisi yangilanadi - qarang: _watchdog_bir_tekshiruv().
@@ -248,40 +269,38 @@ def _serial_oquvchisi():
             ) as ser:
                 _holatni_yangila(ulangan=True)
                 buffer.clear()
-                oldingi_erkin_nomzod = None
+                oxirgi_xom_qiymatlar.clear()
                 print(f"Tarozi ({TAROZI_PORT}) bilan aloqa o'rnatildi.")
                 while True:
                     _soglomlik_belgisini_yangila()
                     chunk = ser.read(256)
                     if chunk:
-                        buffer += chunk
+                        # Shovqin filtri: faqat belgi/raqam va \x02 qoldiriladi
+                        # - buzuq anchor baytlari tashlab yuboriladi (qarang:
+                        # yuqoridagi izoh).
+                        buffer += bytes(b for b in chunk if b in _RUXSAT_ETILGAN_BAYTLAR)
 
-                        qatiy_moslik = None
-                        for qatiy_moslik in _TAROZI_FREYM_QATIY_RE.finditer(buffer):
-                            pass
+                        # Bufferdagi har bir to'liq freymning xom qiymatini
+                        # konsensus navbatiga qo'shamiz; oxirgi 3 tadan
+                        # kamida 2 tasi bir xil bo'lgan qiymatni qabul
+                        # qilamiz (siljigan bir martalik o'qish 2/3 ni
+                        # hosil qila olmaydi - qarang: yuqoridagi izoh).
+                        oxirgi_freym = None
+                        for freym in _TAROZI_FREYM_RE.finditer(buffer):
+                            oxirgi_freym = freym
+                            ishora = -1 if freym.group(1) == b"-" else 1
+                            oxirgi_xom_qiymatlar.append(ishora * int(freym.group(2)))
+                            if len(oxirgi_xom_qiymatlar) == _KONSENSUS_OYNA:
+                                oyna = list(oxirgi_xom_qiymatlar)
+                                for nomzod in oyna:
+                                    if oyna.count(nomzod) >= _KONSENSUS_KERAK:
+                                        _holatni_yangila(ogirlik_kg=nomzod / TAROZI_BOLUVCHI)
+                                        break
 
-                        if qatiy_moslik:
-                            ishora = -1 if qatiy_moslik.group(1) == b"-" else 1
-                            ogirlik_kg = ishora * int(qatiy_moslik.group(2)) / 10
-                            _holatni_yangila(ogirlik_kg=ogirlik_kg)
-                            del buffer[: qatiy_moslik.end()]
-                            oldingi_erkin_nomzod = None
-                        else:
-                            erkin_moslik = None
-                            for erkin_moslik in _TAROZI_FREYM_ERKIN_RE.finditer(buffer):
-                                pass
-                            if erkin_moslik:
-                                nomzod = (erkin_moslik.group(1), erkin_moslik.group(2))
-                                if nomzod == oldingi_erkin_nomzod:
-                                    ishora = -1 if nomzod[0] == b"-" else 1
-                                    ogirlik_kg = ishora * int(nomzod[1]) / 10
-                                    _holatni_yangila(ogirlik_kg=ogirlik_kg)
-                                oldingi_erkin_nomzod = nomzod
-                                del buffer[: erkin_moslik.end()]
-
-                        if len(buffer) > 4096:
+                        if oxirgi_freym:
+                            del buffer[: oxirgi_freym.end()]
+                        elif len(buffer) > 4096:
                             del buffer[:-64]
-                            oldingi_erkin_nomzod = None
         except serial.SerialException as e:
             _holatni_yangila(ulangan=False)
             print(f"Tarozi ({TAROZI_PORT}) bilan aloqa yo'q: {e}")

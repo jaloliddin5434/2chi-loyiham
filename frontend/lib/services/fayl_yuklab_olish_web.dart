@@ -31,6 +31,19 @@ void faylniYuklabOl(List<int> baytlar, String faylNomi, String mimeTuri) {
 /// qisqartirilgan interfeys), dart:js orqali xom JS metodini
 /// chaqiramiz - bu haqiqiy Window obyektida mavjud, faqat Dart
 /// tomonidan tiplanmagan.
+///
+/// DIQQAT (2026-08-14, real sinovda topilgan haqiqiy xato): avval bu
+/// yerda `iframe.onLoad` hodisasiga tayanilardi - lekin blob: orqali
+/// yuklangan PDF kontenti uchun bu hodisa ISHONCHLI EMAS ekani
+/// aniqlandi (real Playwright sinovida 10 soniya kutilganda ham hech
+/// qachon kelmadi), garchi `iframe.contentDocument.readyState`
+/// haqiqatan "complete" holatga yetgan bo'lsa ham (Chromiumning ichki
+/// PDF ko'ruvchisi buni oddiy HTML hujjatlardagidek "load" hodisasi
+/// bilan xabar qilmaydi). Natijada "Chop etish" tugmasi bosilganda
+/// KO'PINCHA HECH NARSA bo'lmasdi - chop etish oynasi umuman
+/// ochilmasdi. Shu sabab endi `onLoad`ga tayanish o'rniga,
+/// `readyState`ning o'zi DAVRIY TEKSHIRILADI (polling) - bu sinovda
+/// ishonchli ravishda "complete" ko'rsatgan yagona signal.
 void pdfniChopEtish(List<int> baytlar) {
   final blob = html.Blob([baytlar], 'application/pdf');
   final url = html.Url.createObjectUrlFromBlob(blob);
@@ -49,17 +62,48 @@ void pdfniChopEtish(List<int> baytlar) {
     html.Url.revokeObjectUrl(url);
   }
 
-  iframe.onLoad.listen((_) {
+  var chopEtildi = false;
+  void chopEtishgaUrinish() {
+    if (chopEtildi) return;
     final contentWindow = iframe.contentWindow;
-    if (contentWindow != null) {
-      try {
-        js.JsObject.fromBrowserObject(contentWindow).callMethod('print');
-      } catch (_) {}
-    }
+    if (contentWindow == null) return;
+    chopEtildi = true;
+    try {
+      js.JsObject.fromBrowserObject(contentWindow).callMethod('print');
+    } catch (_) {}
     // Ba'zi brauzerlarda chop etish oynasi yopilgandan keyin ishonchli
     // signal (masalan afterprint) kelmasligi mumkin - shu sabab
     // zaxira sifatida vaqt chegarasi bilan tozalanadi.
     Timer(const Duration(minutes: 1), tozalash);
+  }
+
+  // `iframe.contentDocument` ham xuddi `contentWindow.print()` kabi
+  // dart:html'ning IFrameElement turida ochiq emas - shu sabab bu ham
+  // dart:js orqali xom JS obyekt sifatida o'qiladi.
+  String? readyStateOqi() {
+    try {
+      final xom = js.JsObject.fromBrowserObject(iframe)['contentDocument'];
+      return xom == null ? null : xom['readyState'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Timer? poll;
+  poll = Timer.periodic(const Duration(milliseconds: 150), (t) {
+    if (readyStateOqi() == 'complete') {
+      t.cancel();
+      chopEtishgaUrinish();
+    }
   });
+  // Zaxira: agar biror sababdan readyState HECH QACHON "complete"ga
+  // yetmasa (masalan juda katta PDF yoki sekin qurilma), baribir
+  // urinib ko'ramiz - "hech narsa bo'lmasligi"dan ko'ra, kechroq chop
+  // etish afzalroq.
+  Timer(const Duration(seconds: 4), () {
+    poll?.cancel();
+    chopEtishgaUrinish();
+  });
+
   html.document.body?.append(iframe);
 }

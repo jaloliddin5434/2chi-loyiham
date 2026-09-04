@@ -9,6 +9,7 @@ def _holatni_tozala():
     import main
     with main._tunnel_xizmat_holati_qulf:
         main._tunnel_xizmat_holati["ogohlantirilgan"] = False
+    main._ogohlantirish_holatini_saqla(main._TUNNEL_XIZMAT_OGOHLANTIRISH_KALITI, False)
 
 
 def _sc_natija(running: bool):
@@ -73,6 +74,21 @@ def test_tuzalgandan_keyin_tuzaldi_xabari_yuboriladi():
         assert "qayta ishga tushdi" in mock_tg.call_args[0][0]
 
     assert main._tunnel_xizmat_holati["ogohlantirilgan"] is False
+
+
+def test_ogohlantirilgan_bayrogi_restartdan_keyin_ham_saqlanadi():
+    """2026-08-14 real hodisa: bayroq FAQAT xotirada bo'lgani uchun
+    backend qayta ishga tushganda yo'qolib, tuzalganda "✅ tuzaldi"
+    xabari hech qachon kelmasdi. "Keyingi safar modul yuklanganda nima
+    o'qiladi"ni _ogohlantirish_holatini_yukla() orqali tekshiramiz."""
+    import main
+    _holatni_tozala()
+    with patch("subprocess.run", return_value=_sc_natija(False)), \
+         patch("main.telegram_xabar_yuborish"):
+        main._tunnel_xizmat_bir_tekshiruv()
+
+    assert main._tunnel_xizmat_holati["ogohlantirilgan"] is True
+    assert main._ogohlantirish_holatini_yukla(main._TUNNEL_XIZMAT_OGOHLANTIRISH_KALITI) is True
 
 
 def test_sc_buyrugi_xato_bersa_ham_dastur_qotib_qolmaydi():

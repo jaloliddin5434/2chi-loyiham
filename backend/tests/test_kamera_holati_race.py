@@ -47,3 +47,26 @@ def test_parallel_xatolar_hisoblagichi_togri_sanaydi():
     # mumkin edi.
     assert len(yuborilgan_xabarlar) == 1, (
         f"Ogohlantirish {len(yuborilgan_xabarlar)} marta yuborildi (kutilgan: 1)!")
+
+
+def test_ogohlantirilgan_bayrogi_restartdan_keyin_ham_saqlanadi():
+    """2026-08-14 real hodisa: bayroq FAQAT xotirada bo'lgani uchun
+    backend qayta ishga tushganda yo'qolib, kamera haqiqatan tuzalganda
+    "✅ tuzaldi" xabari hech qachon kelmasdi. "Keyingi safar modul
+    yuklanganda nima o'qiladi"ni _ogohlantirish_holatini_yukla() orqali
+    tekshiramiz."""
+    import main
+    test_ip = "10.99.99.98"
+    kalit = main._kamera_ogohlantirish_kaliti(test_ip)
+    main._ogohlantirish_holatini_saqla(kalit, False)
+    with main._kamera_holati_qulf:
+        main._kamera_holati[test_ip] = {"ketma_ket": 0, "ogohlantirilgan": False}
+
+    with patch("main.telegram_xabar_yuborish"):
+        for _ in range(3):
+            main.kamera_xatosi_ogohlantirish(
+                "Test Kamera", test_ip, {"status": "error", "message": "test xato"},
+                "01A123BB", "Chigit", "tara")
+
+    assert main._kamera_holati[test_ip]["ogohlantirilgan"] is True
+    assert main._ogohlantirish_holatini_yukla(kalit) is True

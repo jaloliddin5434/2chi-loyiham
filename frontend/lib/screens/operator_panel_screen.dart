@@ -3774,6 +3774,35 @@ try {
                           color: Color(0xFF8A6010))),
                 ]),
               ),
+              // Internet uzilib, ilova mahalliy tarmoq (LAN) orqali ishlayotgan
+              // bo'lsa - kichik ogohlantirish chip'i. Internet tiklanganda
+              // (har 30s tekshiruv) o'zi yo'qoladi.
+              ValueListenableBuilder<bool>(
+                valueListenable: ApiService.lanRejimi,
+                builder: (context, lanRejimida, _) {
+                  if (!lanRejimida) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFFFF3E0),
+                          border: Border.all(color: const Color(0xFFE0A860)),
+                          borderRadius: BorderRadius.circular(8)),
+                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.wifi_off, size: 12, color: Color(0xFF8A6010)),
+                        SizedBox(width: 4),
+                        Text("LAN rejimi",
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF8A6010))),
+                      ]),
+                    ),
+                  );
+                },
+              ),
               if (bazagaSaqlandi) ...[
                 const SizedBox(width: 8),
                 Container(

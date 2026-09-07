@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -6,24 +7,98 @@ import 'offline_queue_service.dart';
 import 'navbat_service.dart';
 
 class ApiService {
-  // Ofis kompyuterlari (operator/admin/tarozixona) ilovaning o'zini
-  // mahalliy tarmoq orqali (http://<server>:47080) ochadi - lekin API
-  // so'rovlari avval doim Cloudflare Tunnel orqali (internetga bog'liq
-  // holda) yuborilardi, garchi backend jismonan bir xil LAN'da tursa
-  // ham. Endi ilova ishga tushganda avval mahalliy manzilga (tezroq,
-  // internetsiz ham ishlaydigan) urinadi - javob bermasa, Cloudflare
-  // domeniga o'tadi (qarang: baseUrlniAniqlash(), main.dart'da chaqiriladi).
+  // API so'rovlari standart holatda Cloudflare domeni (internet) orqali
+  // yuboriladi. Agar internet/Cloudflare Tunnel javob bermasa (3 soniyalik
+  // health probasi muvaffaqiyatsiz), ilova AVTOMATIK mahalliy tarmoq (LAN)
+  // manziliga o'tadi - backend jismonan bir xil LAN'da turgani uchun ish
+  // internetsiz ham davom etadi. Har 30 soniyada internet qayta tekshiriladi:
+  // tiklansa avtomatik internet rejimiga qaytiladi. Ikkala manzil ham javob
+  // bermasa joriy rejim saqlanadi va mavjud offline navbat mexanizmi o'z
+  // ishini qiladi (bu failover unga TA'SIR QILMAYDI).
   //
-  // DIQQAT: bu - qattiq kodlangan, muayyan production serverning LAN
-  // manzili (hozir: HikCentral, 10.112.21.54). Agar production BOSHQA
-  // kompyuterga ko'chirilsa, BU QATOR yangilanishi VA frontend qayta
-  // build+deploy qilinishi SHART - aks holda ilova xatosiz, jimgina
-  // eski/notogri serverga ulanib qoladi (2026-08-15da soatlab davom
-  // etgan chalkashlikning asosiy sababi shu bo'lgan - qarang:
-  // README.md "Production joylashtirish" bo'limi).
+  // DIQQAT: _lanBaseUrl - qattiq kodlangan, muayyan production serverning LAN
+  // manzili (hozir: 10.112.21.54). Agar production BOSHQA kompyuterga
+  // ko'chirilsa, BU QATOR yangilanishi VA frontend qayta build+deploy
+  // qilinishi SHART - aks holda LAN rejimida ilova xatosiz, jimgina
+  // eski/notogri serverga ulanib qoladi (2026-08-15da soatlab davom etgan
+  // chalkashlikning asosiy sababi shu bo'lgan - qarang: README.md).
   static const String _lanBaseUrl = "http://10.112.21.54:47001";
   static const String _cloudBaseUrl = "https://api.smart-tarozi.uz";
-  static String baseUrl = _cloudBaseUrl;
+
+  static bool _lanRejimida = false;
+
+  /// LAN rejimidamizmi - UI ko'rsatkichi (operator panelidagi "LAN rejimi"
+  /// chip'i) shu ValueNotifier'ni tinglaydi, rejim o'zgarganda avtomatik
+  /// yangilanadi.
+  static final ValueNotifier<bool> lanRejimi = ValueNotifier<bool>(false);
+
+  /// Barcha so'rovlar (shu fayldagi metodlar VA to'g'ridan-to'g'ri
+  /// `${ApiService.baseUrl}` ishlatuvchi boshqa fayllar, offline navbat
+  /// executor'lari) shu getter'dan o'qiydi - rejim o'zgarganda keyingi
+  /// so'rov avtomatik to'g'ri manzilga ketadi.
+  static String get baseUrl => _lanRejimida ? _lanBaseUrl : _cloudBaseUrl;
+
+  static const Duration _ulanishProbaTimeout = Duration(seconds: 3);
+  static Timer? _ulanishTimer;
+  static DateTime _oxirgiUlanishTekshiruvi =
+      DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Sinov uchun health-probani almashtirish (masalan "internet o'lik,
+  /// LAN tirik"). `null` bo'lsa haqiqiy HTTP so'rovi yuboriladi.
+  @visibleForTesting
+  static Future<bool> Function(String manzil)? sogMiSinovOverride;
+
+  /// `<manzil>/health` 200 qaytaradimi (3 soniya ichida)?
+  static Future<bool> _sogMi(String manzil) async {
+    final override = sogMiSinovOverride;
+    if (override != null) return override(manzil);
+    try {
+      final javob = await http
+          .get(Uri.parse('$manzil/health'))
+          .timeout(_ulanishProbaTimeout);
+      return javob.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static void _rejimniOrnat({required bool lan}) {
+    if (_lanRejimida == lan) return;
+    _lanRejimida = lan;
+    lanRejimi.value = lan;
+    debugPrint(lan
+        ? "ApiService: internet javob bermadi - LAN rejimiga o'tildi ($_lanBaseUrl)"
+        : "ApiService: internet tiklandi - internet rejimiga qaytildi");
+  }
+
+  /// Faol rejimni aniqlaydi: internet (Cloudflare) ishlаsa - o'sha; aks
+  /// holda LAN ishlаsa - LAN. Ikkalasi ham javob bermasa joriy rejim
+  /// SAQLANADI (offline navbat mexanizmi o'z ishini qiladi).
+  static Future<void> ulanishniTekshir() async {
+    _oxirgiUlanishTekshiruvi = DateTime.now();
+    if (await _sogMi(_cloudBaseUrl)) {
+      _rejimniOrnat(lan: false);
+      return;
+    }
+    if (await _sogMi(_lanBaseUrl)) {
+      _rejimniOrnat(lan: true);
+    }
+    // aks holda: ikkalasi ham o'lik - rejim o'zgarmaydi, so'rovlar avvalgidek
+    // xato beradi va offline navbatga tushadi (mavjud xatti-harakat).
+  }
+
+  /// Har qanday so'rovning catch blokidan (tarmoq xatosi) fire-and-forget
+  /// chaqiriladi - 30 soniyalik davriy tekshiruvni kutmasdan DARHOL (lekin
+  /// ko'pi bilan 5 soniyada bir marta) rejimni qayta baholaydi. Shu bilan
+  /// internet uzilganda birinchi muvaffaqiyatsiz so'rovdan keyingi bir necha
+  /// soniyada LAN rejimiga o'tiladi.
+  static void tarmoqXatosi() {
+    if (DateTime.now().difference(_oxirgiUlanishTekshiruvi) <
+        const Duration(seconds: 5)) {
+      return;
+    }
+    ulanishniTekshir();
+  }
 
   // Standart HTTP so'rov timeout'i - avval BIRON so'rovda ham (LAN
   // tekshiruvi va login'dan tashqari) timeout yo'q edi: server osilib
@@ -40,25 +115,26 @@ class ApiService {
   static const Duration _uzunHttpTimeout = Duration(seconds: 60);
 
   /// Ilova ishga tushganda BIR MARTA chaqiriladi (runApp()dan oldin).
-  /// Mahalliy backendga qisqa muddatli (timeout bilan) urinish - agar
-  /// javob bermasa (LAN'da emasmiz, yoki server o'chiq), Cloudflare
-  /// domeniga qaytiladi. `baseUrl` shundan keyin butun ilova davomida
-  /// shu qiymatda qoladi (Navbat kabi doimiy so'rovlar ham shu yerdan
-  /// o'qiydi) - sessiya davomida qayta tekshirilmaydi.
+  /// Boshlang'ich rejimni aniqlaydi (internet ishlаsa - internet, aks holda
+  /// LAN) va 30 soniyalik davriy ulanish tekshiruvini yoqadi - shu bilan
+  /// internet uzilib-tiklanganda ilova avtomatik mos rejimga o'tadi.
   static Future<void> baseUrlniAniqlash() async {
-    try {
-      final javob = await http
-          .get(Uri.parse('$_lanBaseUrl/health'))
-          .timeout(const Duration(seconds: 2));
-      if (javob.statusCode == 200) {
-        baseUrl = _lanBaseUrl;
-        return;
-      }
-    } catch (_) {
-      // Mahalliy manzilga ulanib bo'lmadi (LAN'da emasmiz yoki server
-      // o'chiq) - Cloudflare domeniga o'tamiz.
-    }
-    baseUrl = _cloudBaseUrl;
+    await ulanishniTekshir();
+    _ulanishTimer?.cancel();
+    _ulanishTimer = Timer.periodic(
+        const Duration(seconds: 30), (_) => ulanishniTekshir());
+  }
+
+  /// Sinovlar orasida holatni tozalash uchun (davriy timer'ni to'xtatadi,
+  /// rejimni internetga qaytaradi).
+  @visibleForTesting
+  static void ulanishHolatiniTozala() {
+    _ulanishTimer?.cancel();
+    _ulanishTimer = null;
+    _lanRejimida = false;
+    lanRejimi.value = false;
+    _oxirgiUlanishTekshiruvi = DateTime.fromMillisecondsSinceEpoch(0);
+    sogMiSinovOverride = null;
   }
 
   static String? _token;
@@ -176,6 +252,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return [
       {"id": 1, "nom": "Chigit", "konditsiya_bor": true},
@@ -202,6 +279,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return [];
   }
@@ -229,6 +307,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return null;
   }
@@ -293,6 +372,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return null;
   }
@@ -315,6 +395,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return [];
   }
@@ -347,6 +428,7 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 10));
     } catch (e) {
+      tarmoqXatosi();
       throw Exception('Serverga ulanib bo\'lmadi - internet aloqasini tekshiring.');
     }
     if (response.statusCode == 200) {
@@ -395,6 +477,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
 
     final mahalliyKalit = OfflineQueueService.yangiMahalliyKalit();
@@ -464,6 +547,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     }
 
@@ -501,6 +585,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     }
     // Server bilan aloqa bo'lmadi (yoki hujjat hali sinxronlanmagan) -
@@ -549,6 +634,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     }
     // Server bilan aloqa bo'lmadi (yoki hujjat hali sinxronlanmagan) -
@@ -574,6 +660,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     }
     // Server bilan aloqa bo'lmadi (yoki hujjat/mashina hali
@@ -590,6 +677,9 @@ class ApiService {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
     } catch (e) {
+      // Navbat operator ekranida eng tez-tez (har ~5s) so'raladigan
+      // endpoint - internet uzilsa buni birinchi bo'lib shu sezadi.
+      tarmoqXatosi();
       throw Exception('Navbat yuklanmadi');
     }
     throw Exception('Navbat yuklanmadi');
@@ -660,6 +750,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     // Server bilan aloqa bo'lmadi - keyinroq avtomatik qayta yuborish
     // uchun offline navbatga qo'yamiz. hujjatId bu yerda ALLAQACHON
@@ -707,6 +798,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return null;
   }
@@ -727,6 +819,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return [];
   }
@@ -746,6 +839,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return [];
   }
@@ -785,6 +879,7 @@ class ApiService {
       return "So'rov yuborilmadi (status ${response.statusCode})";
     } catch (e) {
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
       return "Serverga ulanib bo'lmadi - internet aloqasini tekshiring.";
     }
   }
@@ -803,6 +898,7 @@ class ApiService {
       }
     } catch (e) {
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return [];
   }
@@ -820,6 +916,7 @@ class ApiService {
       }
     } catch (e) {
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return [];
   }
@@ -843,6 +940,7 @@ class ApiService {
       return "Amal bajarilmadi (status ${response.statusCode})";
     } catch (e) {
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
       return "Serverga ulanib bo'lmadi.";
     }
   }
@@ -976,6 +1074,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     // Server bilan aloqa bo'lmadi (yoki xato qaytardi) - keyinroq
     // avtomatik qayta yuborish uchun offline navbatga qo'yamiz.
@@ -995,6 +1094,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return {};
   }
@@ -1027,6 +1127,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
   }
 
@@ -1060,6 +1161,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return [];
   }
@@ -1077,6 +1179,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return [];
   }
@@ -1123,6 +1226,7 @@ class ApiService {
       // (masalan JSON formatida kutilmagan o'zgarish), buni
       // konsolda ko'rish imkoni umuman yo'q edi.
       debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
     }
     return null;
   }

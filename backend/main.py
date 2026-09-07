@@ -3370,7 +3370,7 @@ def _nakladnoy_nusxa_html(m: dict, sana: str, nusxa_nomi: str, qr_base64: str,
   {qr_html}
   <div class="nusxa-badge">{nusxa_nomi}</div>
   <div class="sarlavha">ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № {m['raqam']}</div>
-  <div class="subtitle">Ишлаб чиқаришдан қабул қилинган маҳсулотларни ташиш учун &nbsp;·&nbsp; {sana} &nbsp;·&nbsp; {m['mashina_turi']} {m['mashina_raqami']}</div>
+  <div class="subtitle">Ишлаб чиқаришдан қабул қилинган маҳсулотларни ташиш учун &nbsp;·&nbsp; {m['sana']} &nbsp;·&nbsp; {m['mashina_turi']} {m['mashina_raqami']}</div>
 
   <div class="karta">
     <div class="maydon"><span class="label">Юк жўнатувчи</span><span class="qiymat">"Ҳазорасп текстил" МЧЖга қарашли пахта тозалаш заводи</span></div>

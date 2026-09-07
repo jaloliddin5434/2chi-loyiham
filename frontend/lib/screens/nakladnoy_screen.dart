@@ -105,8 +105,10 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
       return;
     }
     setState(() => _yuklanmoqda = true);
-    final now = DateTime.now();
-    final sana = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    // Sana - hujjat yaratilgan vaqt (chop etish vaqti EMAS): shu ekranga
+    // uzatilgan widget.sana. Qayta chop etilganda ham nakladnoy sanasi
+    // o'zgarmasligi uchun.
+    final sana = widget.sana;
     try {
       // Backend endi hujjat_id orqali bazadan (Hujjat+Navbat+Olchov) hamma
       // narsani o'zi to'liq o'qiydi VA javob sifatida tayyor PDF baytlarini

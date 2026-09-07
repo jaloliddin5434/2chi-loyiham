@@ -287,4 +287,57 @@ void main() {
     expect(qolganlar.any((o) => o.turi == 'tez_amal'), true,
         reason: "'tez_amal' sinxronlash bilan poyga (race)da yoqolib qoldi - navbat: ${qolganlar.map((o) => o.turi).toList()}");
   });
+
+  // ---- olchandi_vaqt in'yeksiyasi (offline o'lchov vaqti) ----
+
+  test("sinxronlash hujjat_yaratish payloadiga navbatga qo'yilgan vaqtni "
+      "(olchandi_vaqt) qo'shadi", () async {
+    Map<String, dynamic>? yetibKelgan;
+    OfflineQueueService.turiniRoyxatgaOl('hujjat_yaratish', (malumot) async {
+      yetibKelgan = malumot;
+      return {'id': 7};
+    });
+
+    final t = DateTime(2026, 9, 1, 10, 0).microsecondsSinceEpoch;
+    await OfflineQueueService.qoshish(
+        'hujjat_yaratish', {'mahsulot_id': 1, 'mijoz_kaliti': 'OFFLINE-x'},
+        vaqt: t, yaratadiganKalit: 'OFFLINE-x');
+    await OfflineQueueService.sinxronlash();
+
+    expect(yetibKelgan!['olchandi_vaqt'],
+        DateTime.fromMicrosecondsSinceEpoch(t).toIso8601String());
+    // asl maydonlar buzilmagan
+    expect(yetibKelgan!['mahsulot_id'], 1);
+  });
+
+  test("sinxronlash olchov_saqlash payloadiga ham olchandi_vaqt qo'shadi",
+      () async {
+    Map<String, dynamic>? yetibKelgan;
+    OfflineQueueService.turiniRoyxatgaOl('olchov_saqlash', (malumot) async {
+      yetibKelgan = malumot;
+      return {'status': 'ok'};
+    });
+
+    final t = DateTime(2026, 8, 15, 8, 30).microsecondsSinceEpoch;
+    await OfflineQueueService.qoshish(
+        'olchov_saqlash', {'hujjat_id': 5, 'arava_raqam': 1, 'tara': 1000},
+        vaqt: t);
+    await OfflineQueueService.sinxronlash();
+
+    expect(yetibKelgan!['olchandi_vaqt'],
+        DateTime.fromMicrosecondsSinceEpoch(t).toIso8601String());
+  });
+
+  test("sinxronlash boshqa amal turlariga olchandi_vaqt QO'SHMAYDI", () async {
+    Map<String, dynamic>? yetibKelgan;
+    OfflineQueueService.turiniRoyxatgaOl('navbat_qosh', (malumot) async {
+      yetibKelgan = malumot;
+      return {'status': 'ok'};
+    });
+
+    await OfflineQueueService.qoshish('navbat_qosh', {'hujjatId': 5}, vaqt: 999);
+    await OfflineQueueService.sinxronlash();
+
+    expect(yetibKelgan!.containsKey('olchandi_vaqt'), false);
+  });
 }

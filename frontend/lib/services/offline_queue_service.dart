@@ -336,6 +336,17 @@ class OfflineQueueService {
           continue;
         }
 
+        // Offline o'lchov vaqti: amal navbatga qo'yilgan payt (op.vaqt) =
+        // taxminan HAQIQIY o'lchov vaqti. Backend uni Hujjat/Olchov
+        // created_at uchun ishlatadi (sinxronlash vaqti EMAS) - shunda
+        // kech sync bo'lgan hujjat ham Excel/statistikada o'lchangan kuni
+        // bo'yicha ko'rinadi. Faqat "olchandi_vaqt" ni tushunadigan
+        // amallarga qo'shiladi.
+        if (op.turi == 'hujjat_yaratish' || op.turi == 'olchov_saqlash') {
+          ochirilganMalumot['olchandi_vaqt'] =
+              DateTime.fromMicrosecondsSinceEpoch(op.vaqt).toIso8601String();
+        }
+
         final bajaruvchi = _bajaruvchilar[op.turi];
         if (bajaruvchi == null) {
           _opNiYangila(op.opId,

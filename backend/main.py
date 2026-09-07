@@ -601,6 +601,32 @@ def moliyaviy_hisobot(davr: str, db: Session = Depends(get_db), current_user: di
 
 MAHSULOT_RAQAM_PREFIKS = {1: "CHG", 2: "CHN", 3: "CHP", 4: "PTZ"}
 
+# Offline o'lchangan hujjat necha kun kech sinxronlansa ham haqiqiy
+# o'lchov vaqti qabul qilinadi. Bundan eskisi (yoki kelajakdagi vaqt) -
+# mijoz soati xato yoki buzish urinishi deb hisoblanadi.
+_OLCHOV_VAQTI_MAKS_ORQAGA_KUN = 30
+
+
+def _xavfsiz_olchov_vaqti(olchandi_vaqt):
+    """Mijoz yuborgan HAQIQIY o'lchov vaqtini tekshiradi va Hujjat/Olchov
+    created_at uchun ishonchli qiymat qaytaradi. Offline hujjat bir necha
+    kundan keyin sinxronlansa ham, u o'lchangan kuni bo'yicha Excel/
+    statistikaga tushishi uchun. Ishonchsiz qiymatlar datetime.now() ga
+    almashtiriladi: None (eski mijoz), kelajakdagi vaqt, yoki 30 kundan
+    (_OLCHOV_VAQTI_MAKS_ORQAGA_KUN) eski vaqt."""
+    hozir = datetime.now()
+    if olchandi_vaqt is None:
+        return hozir
+    # Mijoz ISO 8601 ni Z/offset bilan yuborsa (timezone-aware) - mahalliy
+    # naive vaqtga keltiramiz (DB ustuni va boshqa created_at ham naive).
+    if olchandi_vaqt.tzinfo is not None:
+        olchandi_vaqt = olchandi_vaqt.astimezone().replace(tzinfo=None)
+    if olchandi_vaqt > hozir:
+        return hozir
+    if (hozir - olchandi_vaqt).days > _OLCHOV_VAQTI_MAKS_ORQAGA_KUN:
+        return hozir
+    return olchandi_vaqt
+
 def keyingi_hujjat_raqami(db: Session, yil: int, mahsulot_id: int) -> str:
     hisoblagich = db.query(HujjatRaqamHisoblagich).filter(
         HujjatRaqamHisoblagich.yil == yil,
@@ -659,14 +685,21 @@ def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db), current
         raise HTTPException(
             status_code=404, detail=f"Mashina topilmadi (id={hujjat.mashina_id})")
 
-    yil = datetime.now().year
+    # Haqiqiy o'lchov vaqti (offline hujjat kech sinxronlansa ham) - hujjat
+    # raqamining YILI va created_at shundan olinadi, datetime.now()
+    # (= sinxronlash vaqti) EMAS. Aks holda 31-Dekabrda o'lchangan hujjat
+    # 2-Yanvarda sync bo'lsa - keyingi yil raqamini olib, keyingi yil
+    # Excel/statistikasiga tushib qolardi.
+    olchov_vaqti = _xavfsiz_olchov_vaqti(hujjat.olchandi_vaqt)
+    yil = olchov_vaqti.year
     yangi_raqam = keyingi_hujjat_raqami(db, yil, hujjat.mahsulot_id)
     yangi = Hujjat(
         raqam=yangi_raqam,
         mashina_raqami=mashina.davlat_raqami,
         shofyor=mashina.shofyor,
         firma=mashina.firma,
-        **hujjat.model_dump(),
+        created_at=olchov_vaqti,
+        **hujjat.model_dump(exclude={"olchandi_vaqt"}),
     )
     db.add(yangi)
     db.commit()
@@ -1595,6 +1628,9 @@ def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_
     ).order_by(Olchov.id.desc()).first()
 
     if mavjud:
+        # Mavjud qatorning created_at'i O'ZGARMAYDI - u BIRINCHI o'lchov
+        # (odatda tara) vaqtini bildiradi, ikkinchi o'lchov (brutto) uni
+        # surib yubormasligi kerak.
         yangi = mavjud
         maydonlar = olchov.model_dump()
         for maydon in ("tara", "brutto", "namlik", "ifloslik"):
@@ -1603,7 +1639,12 @@ def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_
                 setattr(yangi, maydon, qiymat)
         yangi.qolda_kiritildi = olchov.qolda_kiritildi
     else:
-        yangi = Olchov(**olchov.model_dump())
+        # created_at = HAQIQIY o'lchov vaqti (offline sync bo'lsa ham) -
+        # qarang: _xavfsiz_olchov_vaqti() va HujjatCreate.olchandi_vaqt.
+        yangi = Olchov(
+            created_at=_xavfsiz_olchov_vaqti(olchov.olchandi_vaqt),
+            **olchov.model_dump(exclude={"olchandi_vaqt"}),
+        )
         db.add(yangi)
 
     if yangi.brutto and yangi.tara:

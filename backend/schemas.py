@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
 from models import HujjatHolati
@@ -125,6 +126,12 @@ class HujjatCreate(BaseModel):
     dostaverka: Optional[str] = None
     dostaverka_vaqt: Optional[str] = None
     mijoz_kaliti: Optional[str] = None
+    # HAQIQIY o'lchov vaqti (mijoz yuboradi). Offline o'lchangan hujjat
+    # bir necha kundan keyin sinxronlansa ham, Excel/statistika uni sync
+    # vaqti EMAS, o'lchangan kuni bo'yicha ko'rsatishi uchun. Yuborilmasa
+    # (eski mijoz) backend `datetime.now()` ishlatadi - qarang:
+    # _xavfsiz_olchov_vaqti() (main.py).
+    olchandi_vaqt: Optional[datetime] = None
 
 class HujjatUpdate(BaseModel):
     aravalar_soni: Optional[int] = None
@@ -177,6 +184,8 @@ class OlchovCreate(BaseModel):
     namlik: Optional[float] = None
     ifloslik: Optional[float] = None
     qolda_kiritildi: bool = False
+    # HAQIQIY o'lchov vaqti - qarang: HujjatCreate.olchandi_vaqt.
+    olchandi_vaqt: Optional[datetime] = None
 
     @field_validator('namlik')
     @classmethod

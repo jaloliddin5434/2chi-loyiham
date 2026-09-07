@@ -535,6 +535,11 @@ class ApiService {
             'mahsulot_id': mahsulotId,
             'aravalar_soni': aravalarSoni,
             'mijoz_kaliti': mijozKaliti,
+            // Haqiqiy o'lchov vaqti - onlayn: hozir; offline
+            // sinxronlashda navbatga qo'yilgan payt yuboriladi (qarang:
+            // OfflineQueueService.sinxronlash). Backend buni created_at
+            // uchun ishlatadi (server vaqti EMAS).
+            'olchandi_vaqt': DateTime.now().toIso8601String(),
           }),
         ).timeout(_httpTimeout);
         _check401(response);
@@ -615,6 +620,11 @@ class ApiService {
       'brutto': brutto,
       'namlik': namlik,
       'ifloslik': ifloslik,
+      // Haqiqiy o'lchov vaqti - onlayn: hozir. Offline navbatga tushsa,
+      // sinxronlashda navbatga qo'yilgan payt bilan almashtiriladi
+      // (qarang: OfflineQueueService.sinxronlash). Backend created_at
+      // uchun ishlatadi.
+      'olchandi_vaqt': DateTime.now().toIso8601String(),
     };
     final ochirilgan = _yerliIdlarniOchir(asl, ['hujjat_id']);
     if (!ochirilgan.kutilmoqda) {

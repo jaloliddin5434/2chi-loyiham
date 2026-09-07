@@ -1056,22 +1056,31 @@ Widget _mashinaGrafik() {
 
     final List<double> chigitData = grafikData.map((e) => (e['chigit'] as num).toDouble()).toList();
     final List<double> chiganoqData = grafikData.map((e) => (e['chiganoq'] as num).toDouble()).toList();
+    // Hafta kunlari - haftalik grafikdagi kun_raqami (1=Dush ... 7=Yak) uchun.
+    const haftaKunlari = ['', 'Dush', 'Sesh', 'Chor', 'Pay', 'Jum', 'Shan', 'Yak'];
     final List<String> labellar = grafikData.map((e) {
-      if (tanlanganTab == 3) {
+      if (tanlanganTab == 0) {
+        // Kunlik - X o'qi SOATLAR (00-23), har soat uchun alohida ustun.
+        return (e['soat'] as num).toInt().toString().padLeft(2, '0');
+      } else if (tanlanganTab == 1) {
+        // Haftalik - X o'qi hafta KUNLARI (Dushanba-Yakshanba).
+        final r = (e['kun_raqami'] as num).toInt();
+        return (r >= 1 && r <= 7) ? haftaKunlari[r] : r.toString();
+      } else if (tanlanganTab == 3) {
         // Mavsum - har oy uchun bitta ustun, "oy" maydoni ishlatiladi.
         final oy = e['oy'].toString();
         return oy.length >= 7 ? oy.substring(5, 7) : oy;
-      } else if (tanlanganTab == 1) {
-        // Haftalik - "hafta_boshi" maydoni, ~8 hafta oralig'ida faqat
-        // kun raqami takrorlanib qolmasligi uchun "OO-KK" ko'rinishida.
-        final hafta = e['hafta_boshi'].toString();
-        return hafta.length >= 10 ? hafta.substring(5, 10) : hafta;
       } else {
-        // Kunlik/oylik - ikkalasi ham "kun" maydonidan foydalanadi.
+        // Oylik - "kun" maydonidan foydalanadi.
         final kun = e['kun'].toString();
         return kun.length >= 10 ? kun.substring(8, 10) : kun;
       }
     }).toList();
+
+    // Kunlik grafikda 24 ustun - yorliqlar sig'ishi uchun ustun ingichka
+    // va har 3-soatdagina yorliq ko'rsatiladi.
+    final bool kunlikSoat = tanlanganTab == 0;
+    final double barKengligi = kunlikSoat ? 5 : 12;
 
     final maxY = [...chigitData, ...chiganoqData].fold(0.0, (a, b) => a > b ? a : b) + 5;
 
@@ -1099,6 +1108,7 @@ Widget _mashinaGrafik() {
                   getTitlesWidget: (v, m) {
                     final i = v.toInt();
                     if (i < 0 || i >= labellar.length) return const Text('');
+                    if (kunlikSoat && i % 3 != 0) return const Text('');
                     return Text(labellar[i],
                         style: const TextStyle(fontSize: 9, color: Colors.grey));
                   })),
@@ -1129,12 +1139,12 @@ Widget _mashinaGrafik() {
                   BarChartRodData(
                       toY: e.value,
                       color: brandGreen,
-                      width: 12,
+                      width: barKengligi,
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
                   BarChartRodData(
                       toY: chiganoqData[e.key],
                       color: blueColor,
-                      width: 12,
+                      width: barKengligi,
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
                 ])).toList(),
           )),

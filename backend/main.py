@@ -1110,12 +1110,16 @@ def _qiymat_matn(qiymat):
 
 
 # Operator ekrani tortish jarayonida (tara'dan keyin, brutto'gacha va
-# yakunlanganda) shu maydonlarni saqlaydi. Og'irlik qiymatlari (tara,
-# brutto, netto, konditsion) ATAYLAB yo'q - ular Olchov jadvalida bo'lib,
-# faqat POST /olchovlar orqali (tarozidan) yoziladi; PUT /hujjatlar orqali
-# umuman o'zgartirib bo'lmaydi. Boshqa barcha maydon (mashina_raqami,
-# holat, terim_turi, va h.k.) faqat admin/hisobchi tomonidan, "Tuzat"
-# oynasi orqali, sabab ko'rsatib o'zgartirilishi kerak.
+# yakunlanganda) shu maydonlarni saqlaydi. Bu ro'yxatga hujjat ma'lumot
+# maydonlari - firma, shofyor, tiket_raqam, tuda_raqam, klass, sinf,
+# namlik, ifloslik, seleksiya_navi - ham KIRADI: operator ularni tara'dan
+# keyin ochilgan HUJJAT kartasida to'ldiradi (har o'zgarish TahrirTarixi'ga
+# yoziladi, sabab bilan). Og'irlik qiymatlari (tara, brutto, netto,
+# konditsion) ATAYLAB yo'q - ular Olchov jadvalida bo'lib, faqat POST
+# /olchovlar orqali (tarozidan) yoziladi; PUT /hujjatlar orqali umuman
+# o'zgartirib bo'lmaydi. Qolgan maydonlar (mashina_raqami, holat,
+# terim_turi, va h.k.) faqat admin/hisobchi tomonidan, "Tuzat" oynasi
+# orqali, sabab ko'rsatib o'zgartirilishi kerak.
 OPERATOR_RUXSAT_ETILGAN_MAYDONLAR = {
     "qabul_qildi", "yuk_olindi", "dostaverka", "dostaverka_vaqt", "sabab",
     "firma", "shofyor", "tiket_raqam", "tuda_raqam",
@@ -1500,7 +1504,8 @@ def tuzatish_sorovi_rad_etish(sorov_id: int, db: Session = Depends(get_db), curr
     _tuzatish_sorovini_hal_qil(sorov, "rad_etildi", current_user)
     db.commit()
     db.refresh(sorov)
-    return _tuzatish_sorovi_dict(sorov)
+    hujjat = db.query(Hujjat).filter(Hujjat.id == sorov.hujjat_id).first()
+    return _tuzatish_sorovi_dict(sorov, hujjat.raqam if hujjat else None)
 
 # ============ OLCHOVLAR ============
 

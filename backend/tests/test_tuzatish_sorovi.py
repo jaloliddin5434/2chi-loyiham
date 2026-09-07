@@ -169,6 +169,9 @@ def test_rad_hujjatni_ozgartirmaydi(client, admin_headers, operator_headers, huj
     assert javob.status_code == 200
     assert javob.json()["holat"] == "rad_etildi"
     assert javob.json()["admin_login"] == "test_admin"
+    # rad javobida ham hujjat_raqam bo'lishi kerak (tasdiq bilan bir xil) -
+    # frontend ikkala javobni ham bir xil ishlaydi.
+    assert javob.json()["hujjat_raqam"] == hujjat["raqam"]
 
     h = client.get(f"/hujjatlar/{hujjat['id']}", headers=admin_headers).json()
     assert h["firma"] != "Rad Etilgan Firma"

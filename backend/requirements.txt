@@ -1,4 +1,11 @@
 fastapi==0.138.1
+# starlette ATAYLAB aniq pinlanadi (fastapi uni faqat ">=0.46.0" deb
+# talab qiladi, yuqori chegara yo'q). main.py CORSMiddleware'da
+# `allow_private_network=True` ishlatiladi - bu parametr Starlette'ga
+# 0.41.0 da qo'shilgan; eski starlette bilan backend HAR SO'ROVDA 500
+# beradi (real dreyf: bitta mashinada 0.38.6 o'rnatilib qolgan edi).
+# 1.1.0 - fastapi 0.138.1 chiqqan payt (2026-06) amalda bo'lgan versiya.
+starlette==1.1.0
 uvicorn==0.49.0
 sqlalchemy==2.0.51
 psycopg2-binary==2.9.12

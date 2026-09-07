@@ -256,6 +256,10 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   // Mavjud firma nomlari (autocomplete uchun) - backenddan yuklanadi,
   // bo'sh bo'lsa ham operator erkin matn kiritishda davom eta oladi.
   List<String> firmaRoyxati = [];
+  // Autocomplete'ga `textEditingController` berilsa, `focusNode` ham
+  // MAJBURIY (RawAutocomplete: ikkalasi yoki hech biri) - aks holda
+  // Flutter assert bilan qulaydi.
+  final firmaFocusNode = FocusNode();
   final tudaRaqamCtrl = TextEditingController();
   final tiketRaqamCtrl = TextEditingController();
   final seleksiyaNaviCtrl =
@@ -837,6 +841,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     yukOlindiCtrl.dispose();
     dostaverkaCtrl.dispose();
     dostaverkaVaqtCtrl.dispose();
+    firmaFocusNode.dispose();
     super.dispose();
   }
 
@@ -1082,6 +1087,31 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       // ko'rsatilib qolmasligi uchun - Brutto bosilib, YANGI surat
       // kelguncha KAMERALAR bo'shab turadi.
       _kameraKorsatishHujjatId = null;
+      // DIQQAT: har bir kontroller AVVAL tozalanadi (bo'sh string), KEYIN
+      // navbat qiymatiga o'rnatiladi. Avval `if (mashina.X != null)` sharti
+      // ishlatilardi - navbatda qiymat null bo'lsa, OLDINGI tanlangan
+      // mashinaning qiymati kontrollerda qolib ketardi va brutto yakunida
+      // PUT /hujjatlar orqali NOTO'G'RI hujjatga yozilib qolardi.
+      raqamiCtrl.text = '';
+      turiCtrl.text = '';
+      shofyorCtrl.text = '';
+      firmaCtrl.text = '';
+      tudaRaqamCtrl.text = '';
+      tiketRaqamCtrl.text = '';
+      seleksiyaNaviCtrl.text = '';
+      klassCtrl.text = '';
+      sinfCtrl.text = '';
+      terimTuriCtrl.text = '';
+      namlikCtrl.text = '';
+      ifloslikCtrl.text = '';
+      qabulQildiCtrl.text = '';
+      yukOlindiCtrl.text = '';
+      // dostaverka/dostaverka_vaqt navbat qatorida saqlanmaydi (faqat brutto
+      // yakunida Hujjat'ga yoziladi) - shu sabab bu yerda faqat tozalanadi,
+      // qayta tiklab bo'lmaydi.
+      dostaverkaCtrl.text = '';
+      dostaverkaVaqtCtrl.text = '';
+
       raqamiCtrl.text = mashina.raqam;
       turiCtrl.text = mashina.turi;
       shofyorCtrl.text = mashina.shofyor;
@@ -2240,6 +2270,7 @@ try {
   Widget firmaAutocompleteField() {
     return Autocomplete<String>(
       textEditingController: firmaCtrl,
+      focusNode: firmaFocusNode,
       optionsBuilder: (TextEditingValue qiymat) {
         if (qiymat.text.isEmpty) return firmaRoyxati;
         final soralgan = qiymat.text.toLowerCase();

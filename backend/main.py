@@ -472,6 +472,48 @@ def moliyaviy_pin_tekshir(request: Request, data: PinTekshirish, db: Session = D
     return {"moliyaviy_token": token, "muddat_daqiqa": MOLIYAVIY_TOKEN_MUDDATI_DAQIQA}
 
 
+def _mavsum_boshi_oy_kun(db):
+    """Mavsum (paxta yig'im-terim mavsumi) boshlanish oy/kunini
+    `sozlamalar` jadvalidan o'qiydi: "mavsum_boshi_oy" (1-12),
+    "mavsum_boshi_kun" (1-31). Yozuv yo'q yoki yaroqsiz bo'lsa - standart
+    (8, 1), ya'ni 1-Avgust."""
+    oy, kun = 8, 1
+    try:
+        for kalit, standart in (("mavsum_boshi_oy", 8), ("mavsum_boshi_kun", 1)):
+            yozuv = db.query(Sozlama).filter(Sozlama.kalit == kalit).first()
+            xom = (yozuv.qiymat or "").strip() if yozuv else ""
+            son = int(xom) if xom.lstrip("-").isdigit() else standart
+            if kalit == "mavsum_boshi_oy":
+                oy = son if 1 <= son <= 12 else 8
+            else:
+                kun = son if 1 <= son <= 31 else 1
+    except Exception:
+        return 8, 1
+    return oy, kun
+
+
+def _mavsum_boshi_sanasi(bugun, db=None):
+    """`bugun` (date) tegishli mavsumning boshlanish sanasi. Mavsum oy/kuni
+    sozlanadigan (standart 1-Avgust) - `bugun` shu sanadan OLDIN bo'lsa,
+    o'tgan yilning shu sanasi qaytariladi. Avval bu qoida 7 ta joyda
+    `if bugun.month >= 8` deb QATTIQ yozilgan edi."""
+    ozimiz_ochdik = db is None
+    if ozimiz_ochdik:
+        db = SessionLocal()
+    try:
+        oy, kun = _mavsum_boshi_oy_kun(db)
+    finally:
+        if ozimiz_ochdik:
+            db.close()
+    try:
+        joriy = date(bugun.year, oy, kun)
+        oldingi = date(bugun.year - 1, oy, kun)
+    except ValueError:  # masalan 30-Fevral yoki kabisa bo'lmagan yil 29-Fevral
+        joriy = date(bugun.year, 8, 1)
+        oldingi = date(bugun.year - 1, 8, 1)
+    return joriy if bugun >= joriy else oldingi
+
+
 def _moliyaviy_davr_boshi(davr: str):
     from datetime import date, timedelta
     bugun = date.today()
@@ -482,11 +524,7 @@ def _moliyaviy_davr_boshi(davr: str):
     if davr == "oylik":
         return bugun.replace(day=1)
     if davr == "mavsum":
-        # Mavsum: 1 Avgust dan 31 Iyul gacha - /statistika/mavsum bilan
-        # BIR XIL qoida (Excel jurnaldagi kalendar-yil qoidasidan farqli).
-        if bugun.month >= 8:
-            return date(bugun.year, 8, 1)
-        return date(bugun.year - 1, 8, 1)
+        return _mavsum_boshi_sanasi(bugun)
     raise HTTPException(status_code=400, detail="Davr faqat kunlik/haftalik/oylik/mavsum bo'lishi mumkin!")
 
 
@@ -1937,11 +1975,7 @@ def oylik_statistika(db: Session = Depends(get_db), current_user: dict = Depends
 def mavsum_statistika(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date
     bugun = date.today()
-    # Mavsum: 1 Avgust dan 31 Iyul gacha
-    if bugun.month >= 8:
-        mavsum_boshi = date(bugun.year, 8, 1)
-    else:
-        mavsum_boshi = date(bugun.year - 1, 8, 1)
+    mavsum_boshi = _mavsum_boshi_sanasi(bugun, db)
 
     mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= mavsum_boshi).count()
     tugallangan_soni = db.query(Hujjat).filter(
@@ -2005,7 +2039,7 @@ def _davr_boshlanishi(davr: str):
     if davr == "haftalik":
         return bugun - timedelta(days=7)
     if davr == "mavsum":
-        return date(bugun.year, 8, 1) if bugun.month >= 8 else date(bugun.year - 1, 8, 1)
+        return _mavsum_boshi_sanasi(bugun)
     return bugun.replace(day=1)  # oylik (standart)
 
 
@@ -2147,60 +2181,54 @@ import threading
 
 TELEGRAM_SOZLAMA_KALIT = "oxirgi_telegram_hisobot_sanasi"
 
-def avtomatik_telegram_hisobot():
-    import time
-    from datetime import date, timedelta
-    from models import Sozlama
-    while True:
-        now = datetime.now()
-        if (now.hour, now.minute) >= (8, 30):
-            db = SessionLocal()
-            try:
-                bugun = date.today()
-                kecha = bugun - timedelta(days=1)
-                sozlama = db.query(Sozlama).filter(
-                    Sozlama.kalit == TELEGRAM_SOZLAMA_KALIT).first()
-                bugun_yuborilgan = sozlama is not None and sozlama.qiymat == str(bugun)
-                if not bugun_yuborilgan:
-                    mashinalar_soni = db.query(Hujjat).filter(
-                        Hujjat.created_at >= kecha, Hujjat.created_at < bugun).count()
 
-                    if kecha.month >= 8:
-                        mavsum_boshi = datetime(kecha.year, 8, 1)
-                    else:
-                        mavsum_boshi = datetime(kecha.year - 1, 8, 1)
+def _hisobot_yuborish_vaqtimi(now):
+    """Kunlik hisobot FAQAT 08:30-08:34 oralig'ida yuboriladi (30 soniyalik
+    siklda ~10 urinish). Avval `>= (8, 30)` edi - butun kun (08:30 dan yarim
+    tundagacha) True bo'lib turardi: tarmoq/DB muammosida sozlama guard
+    saqlanmasa, bir kunda o'nlab TAKRORIY hisobot yuborilardi."""
+    return (8, 30) <= (now.hour, now.minute) < (8, 35)
 
-                    bosh3 = (0, 0.0, 0.0)
 
-                    bugun_natijalar = db.query(
-                        Hujjat.mahsulot_id,
-                        func.count(func.distinct(Hujjat.id)).label('soni'),
-                        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-                        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
-                    ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
-                        Hujjat.created_at >= kecha, Hujjat.created_at < bugun
-                    ).group_by(Hujjat.mahsulot_id).all()
-                    yb = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in bugun_natijalar}
-                    chigit_son, chigit_netto, chigit_kond = yb.get(1, bosh3)
-                    chiganoq_son, chiganoq_netto, _ = yb.get(2, bosh3)
-                    pochog_son, pochog_netto, _ = yb.get(3, bosh3)
-                    patoz_son, patoz_netto, _ = yb.get(4, bosh3)
+def _kunlik_hisobot_matni(db, kecha, bugun):
+    """Kunlik Telegram hisoboti matni - kechagi kun + mavsum jami.
+    FAQAT holat='tugallandi' VA netto > 0 bo'lgan Olchov qatorlari
+    hisoblanadi (test/simulyator/bekor qatorlari statistikani buzmasin) -
+    GET /telegram/kunlik endpointi bilan bir xil filtr. `mashinalar_soni`
+    esa (endpoint kabi) BARCHA hujjatlarni sanaydi."""
+    mavsum_boshi = _mavsum_boshi_sanasi(kecha, db)
+    mashinalar_soni = db.query(Hujjat).filter(
+        Hujjat.created_at >= kecha, Hujjat.created_at < bugun).count()
+    bosh3 = (0, 0.0, 0.0)
 
-                    mavsum_natijalar = db.query(
-                        Hujjat.mahsulot_id,
-                        func.count(func.distinct(Hujjat.id)).label('soni'),
-                        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-                        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
-                    ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
-                        Hujjat.created_at >= mavsum_boshi, Hujjat.created_at < bugun
-                    ).group_by(Hujjat.mahsulot_id).all()
-                    ym = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in mavsum_natijalar}
-                    mchigit_son, mchigit_netto, mchigit_kond = ym.get(1, bosh3)
-                    mchiganoq_son, mchiganoq_netto, _ = ym.get(2, bosh3)
-                    mpochog_son, mpochog_netto, _ = ym.get(3, bosh3)
-                    mpatoz_son, mpatoz_netto, _ = ym.get(4, bosh3)
+    def _jamla(boshi, oxiri):
+        qatorlar = db.query(
+            Hujjat.mahsulot_id,
+            func.count(func.distinct(Hujjat.id)).label('soni'),
+            func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
+            func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
+        ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
+            Hujjat.created_at >= boshi, Hujjat.created_at < oxiri,
+            Hujjat.holat == HujjatHolati.TUGALLANDI,
+            Olchov.netto > 0,
+        ).group_by(Hujjat.mahsulot_id).all()
+        return {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2),
+                                round(r.jami_konditsion/1000, 2))
+                for r in qatorlar}
 
-                    matn = f"""📊 <b>KUNLIK HISOBOT</b>
+    yb = _jamla(kecha, bugun)
+    chigit_son, chigit_netto, chigit_kond = yb.get(1, bosh3)
+    chiganoq_son, chiganoq_netto, _ = yb.get(2, bosh3)
+    pochog_son, pochog_netto, _ = yb.get(3, bosh3)
+    patoz_son, patoz_netto, _ = yb.get(4, bosh3)
+
+    ym = _jamla(mavsum_boshi, bugun)
+    mchigit_son, mchigit_netto, mchigit_kond = ym.get(1, bosh3)
+    mchiganoq_son, mchiganoq_netto, _ = ym.get(2, bosh3)
+    mpochog_son, mpochog_netto, _ = ym.get(3, bosh3)
+    mpatoz_son, mpatoz_netto, _ = ym.get(4, bosh3)
+
+    return f"""📊 <b>KUNLIK HISOBOT</b>
 📅 Sana: {kecha}
 
 🚛 Jami: <b>{mashinalar_soni} ta</b>
@@ -2218,18 +2246,56 @@ def avtomatik_telegram_hisobot():
 🔴 Patoz: {mpatoz_son} ta | {mpatoz_netto} t
 
 🏭 Hazorasp Tekstil tarozi tizimi"""
-                    muvaffaqiyatli = telegram_hisobot_yuborish(matn)
-                    if muvaffaqiyatli:
-                        if sozlama:
-                            sozlama.qiymat = str(bugun)
-                            sozlama.updated_at = datetime.now()
-                        else:
-                            db.add(Sozlama(kalit=TELEGRAM_SOZLAMA_KALIT, qiymat=str(bugun)))
-                        db.commit()
-                        print(f"Avtomatik hisobot yuborildi (kechagi kun: {kecha})")
-                    else:
-                        print("Hisobot yuborilmadi, keyingi urinishda qayta sinaladi")
+
+
+def _avtomatik_hisobot_bir_urinish(db):
+    """Bitta urinish sikli - alohida funksiya (qarang: _tunnel_bir_tekshiruv
+    naqshi) shunda sinovlarda `while True`/`time.sleep`siz chaqirish mumkin.
+    Bugungi hisobot allaqachon yuborilgan bo'lsa hech narsa qilmaydi.
+    Muvaffaqiyatli yuborsa True qaytaradi."""
+    from datetime import date, timedelta
+    bugun = date.today()
+    kecha = bugun - timedelta(days=1)
+    sozlama = db.query(Sozlama).filter(
+        Sozlama.kalit == TELEGRAM_SOZLAMA_KALIT).first()
+    if sozlama is not None and sozlama.qiymat == str(bugun):
+        return False
+
+    matn = _kunlik_hisobot_matni(db, kecha, bugun)
+    if not telegram_hisobot_yuborish(matn):
+        print("Hisobot yuborilmadi, keyingi urinishda qayta sinaladi")
+        return False
+
+    if sozlama:
+        sozlama.qiymat = str(bugun)
+        sozlama.updated_at = datetime.now()
+    else:
+        db.add(Sozlama(kalit=TELEGRAM_SOZLAMA_KALIT, qiymat=str(bugun)))
+    try:
+        db.commit()
+    except Exception:
+        # Xabar YETKAZILGAN, lekin guard saqlanmadi - transaksiyani
+        # tozalab, xatoni yuqoriga uzatamiz (aks holda buzuq sessiya
+        # bilan davom etilardi).
+        db.rollback()
+        raise
+    print(f"Avtomatik hisobot yuborildi (kechagi kun: {kecha})")
+    return True
+
+
+def avtomatik_telegram_hisobot():
+    import time
+    while True:
+        now = datetime.now()
+        if _hisobot_yuborish_vaqtimi(now):
+            db = SessionLocal()
+            try:
+                _avtomatik_hisobot_bir_urinish(db)
             except Exception as e:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
                 print(f"Hisobot xato: {e}")
                 tizim_xatosini_saqla("telegram_hisobot", str(e))
             finally:
@@ -2999,11 +3065,16 @@ def telegram_hisobot_yuborish(matn: str) -> bool:
         if not TELEGRAM_HISOBOT_TOKEN or not TELEGRAM_HISOBOT_CHAT_ID:
             return False
         url = f"https://api.telegram.org/bot{TELEGRAM_HISOBOT_TOKEN}/sendMessage"
+        # timeout=15 (avval 5): kunlik hisobot fon oqimidan yuboriladi,
+        # hech qanday operator so'rovini bloklamaydi. 5 soniya Telegram
+        # sekinlashganda tez-tez yetmasdi - javob kechiksa `Timeout` otiladi,
+        # xabar ALLAQACHON yetkazilgan bo'lsa ham False qaytardi, natijada
+        # 30 soniyadan keyin qayta yuborilardi (takroriy hisobot).
         javob = req.post(url, json={
             "chat_id": TELEGRAM_HISOBOT_CHAT_ID,
             "text": matn,
             "parse_mode": "HTML"
-        }, timeout=5)
+        }, timeout=15)
         javob.raise_for_status()
         return True
     except Exception as e:
@@ -3344,10 +3415,7 @@ def telegram_kunlik(db: Session = Depends(get_db), current_user: dict = Depends(
     bugun = date.today()
     mashinalar_soni = db.query(Hujjat).filter(Hujjat.created_at >= bugun).count()
 
-    if bugun.month >= 8:
-        mavsum_boshi = datetime(bugun.year, 8, 1)
-    else:
-        mavsum_boshi = datetime(bugun.year - 1, 8, 1)
+    mavsum_boshi = _mavsum_boshi_sanasi(bugun, db)
 
     bosh3 = (0, 0.0, 0.0)
 
@@ -4210,10 +4278,7 @@ def grafik_oylik(db: Session = Depends(get_db), current_user: dict = Depends(get
 def grafik_mavsum(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     from datetime import date
     bugun = date.today()
-    if bugun.month >= 8:
-        mavsum_boshi = date(bugun.year, 8, 1)
-    else:
-        mavsum_boshi = date(bugun.year - 1, 8, 1)
+    mavsum_boshi = _mavsum_boshi_sanasi(bugun, db)
     oxirgi_oy = date(bugun.year + (bugun.month // 12), (bugun.month % 12) + 1, 1)
 
     qatorlar = db.query(
@@ -4375,11 +4440,13 @@ def grafik_detal_mavsum(mahsulot: str, db: Session = Depends(get_db), current_us
     mahsulot_id = _mahsulot_id_topish(db, mahsulot)
 
     bugun = date.today()
-    if bugun.month >= 8:
-        mavsum_boshi = date(bugun.year, 8, 1)
-    else:
-        mavsum_boshi = date(bugun.year - 1, 8, 1)
-    mavsum_oxiri = date(mavsum_boshi.year + 1, 8, 1)
+    mavsum_boshi = _mavsum_boshi_sanasi(bugun, db)
+    # Keyingi mavsum boshi = shu sana + 1 yil (29-Fevral kabi mavjud
+    # bo'lmaydigan sanaga tushib qolsa 1-Martga suriladi).
+    try:
+        mavsum_oxiri = mavsum_boshi.replace(year=mavsum_boshi.year + 1)
+    except ValueError:
+        mavsum_oxiri = date(mavsum_boshi.year + 1, 3, 1)
 
     oy_ustuni = func.date_trunc('month', Hujjat.created_at)
     qatorlar = db.query(

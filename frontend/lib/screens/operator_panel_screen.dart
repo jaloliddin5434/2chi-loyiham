@@ -197,6 +197,13 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
   bool tugallanganlarKorinsin = false;
   int _tanlanganBolim = 0;
 
+  // Shu operator "kutilmoqda" holatidagi tuzatish so'rovi yuborgan
+  // hujjatlarning id'lari - navbat va tugallanganlar ro'yxatida ular
+  // yashil rang bilan ajralib turadi. Har 5 soniyada _backendDanYukla
+  // ichida backend'dan yangilanadi (boshqa qurilmadan yuborilgan so'rov
+  // ham ko'rinishi uchun).
+  final Set<int> _tuzatishSoroviYuborilgan = {};
+
   int bugunMashinalar = 0;
   double bugunTonnaj = 0;
   int? mashinaId;
@@ -516,6 +523,28 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
           ];
         }
       }
+
+      // "Kutilmoqda" holatidagi tuzatish so'rovlarini yangilash (yashil
+      // ajratish uchun). Alohida try - bu qo'shimcha so'rov muvaffaqiyatsiz
+      // bo'lsa ham asosiy navbat sinxronizatsiyasi "offline"ga o'tmasin.
+      try {
+        final sorovlar =
+            await ApiService.tuzatishSorovlarOperator(widget.username);
+        final kutilayotgan = sorovlar
+            .where((s) => s['holat'] == 'kutilmoqda')
+            .map<int>((s) => (s['hujjat_id'] ?? 0) as int)
+            .toSet();
+        final farqli = kutilayotgan.length !=
+                _tuzatishSoroviYuborilgan.length ||
+            !_tuzatishSoroviYuborilgan.containsAll(kutilayotgan);
+        if (farqli && mounted) {
+          setState(() {
+            _tuzatishSoroviYuborilgan
+              ..clear()
+              ..addAll(kutilayotgan);
+          });
+        }
+      } catch (_) {}
 } catch (e) {
       if (mounted) setState(() => serverUlangan = false);
       try {
@@ -1088,145 +1117,368 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     _xabar("🚛 ${mashina.raqam} — BRUTTO o'lchang!");
   }
 
-  void mashinaKor(NavbatMashina mashina) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
-        title: Row(children: [
-          const Icon(Icons.local_shipping,
-              color: brandGreen, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-              child: Text(mashina.raqam,
-                  style: const TextStyle(
-                      color: Color(0xFF0D1B2A),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700))),
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: mashina.tugallandi
-                  ? brandGreenBg
-                  : goldBg,
-              borderRadius: BorderRadius.circular(8),
+  // Dialogda ko'rsatiladigan / tuzatish so'rovi yuborish mumkin bo'lgan
+  // hujjat maydonlari: (backend kaliti, ko'rinadigan nom, raqammi).
+  // DIQQAT: terim_turi ATAYLAB yo'q - backend u uchun so'rov qabul qilmaydi.
+  static const List<List<dynamic>> _tuzatishMaydonlari = [
+    ['firma', 'Firma', false],
+    ['tiket_raqam', 'Tiket №', false],
+    ['tuda_raqam', 'Tuda №', false],
+    ['klass', 'Klass', false],
+    ['sinf', 'Sinf', false],
+    ['namlik', 'Namlik %', true],
+    ['ifloslik', 'Ifloslik %', true],
+    ['seleksiya_navi', 'Seleksiya navi', false],
+    ['qabul_qildi', 'Qabul qildi', false],
+    ['yuk_olindi', 'Yuk olindi', false],
+    ['dostaverka', 'Dostaverka №', false],
+    ['dostaverka_vaqt', 'Dostaverka muddati', false],
+  ];
+
+  Widget _tuzatishTahrirField(
+      String label, TextEditingController ctrl, bool raqam) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(children: [
+        SizedBox(
+            width: 130,
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 12, color: Colors.grey))),
+        Expanded(
+          child: TextField(
+            controller: ctrl,
+            keyboardType: raqam
+                ? const TextInputType.numberWithOptions(decimal: true)
+                : TextInputType.text,
+            style: const TextStyle(fontSize: 12),
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 6),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
-            child: Text(
-                mashina.tugallandi
-                    ? "✅ Tugallandi"
-                    : "⏳ Navbatda",
-                style: TextStyle(
-                    fontSize: 11,
-                    color: mashina.tugallandi
-                        ? brandGreen
-                        : goldColor)),
-          ),
-        ]),
-        content: SizedBox(
-          width: 500,
-          child: SingleChildScrollView(
-            child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-              _korSection("🚛 MASHINA", [
-                _korRow(
-                    "Davlat raqami", mashina.raqam),
-                _korRow("Turi", mashina.turi),
-                _korRow("Shofyor", mashina.shofyor),
-                _korRow("Firma", mashina.firma),
-                _korRow("Kelgan vaqt", mashina.vaqt),
-                if (mashina.tugallanganVaqt != null)
-                  _korRow(
-                      "Tugallangan",
-                      "${mashina.tugallanganVaqt!.hour.toString().padLeft(2, '0')}:${mashina.tugallanganVaqt!.minute.toString().padLeft(2, '0')}"),
-                if (mashina.bekorSababi != null)
-                  _korRow("Bekor sababi",
-                      mashina.bekorSababi!),
-              ]),
-              const SizedBox(height: 10),
-              _korSection("📋 HUJJAT", [
-                _korRow("Tiket №",
-                    mashina.tiketRaqam ?? '—'),
-                _korRow("Tuda №",
-                    mashina.tudaRaqam ?? '—'),
-                _korRow(
-                    "Klass", mashina.klass ?? '—'),
-                _korRow("Sinf", mashina.sinf ?? '—'),
-                _korRow("Terim turi",
-                    mashina.terimTuri ?? '—'),
-                _korRow("Seleksiya navi",
-                    mashina.seleksiyaNavi ?? '—'),
-                if (konditsionBor) ...[
-                  _korRow(
-                      "Namlik %",
-                      mashina.namlik
-                              ?.toStringAsFixed(1) ??
-                          '—'),
-                  _korRow(
-                      "Ifloslik %",
-                      mashina.ifloslik
-                              ?.toStringAsFixed(1) ??
-                          '—'),
-                ],
-              ]),
-              const SizedBox(height: 10),
-              _korSection("⚖️ O'LCHOVLAR", [
-                for (int i = 1; i <= 3; i++)
-                  if (mashina.aravalar[i]?.tara !=
-                      null)
-                    _olchovRow(
-                        i, mashina.aravalar[i]!),
-                if (!mashina.aravalar.values
-                    .any((a) => a.tara != null))
-                  _korRow("Ma'lumot",
-                      "Hali o'lchanmagan"),
-              ]),
-            ]),
           ),
         ),
-        actions: [
-          if (!mashina.tugallandi) ...[
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(ctx);
-                mashinaBekorQil(mashina);
-              },
-              icon: const Icon(Icons.cancel, size: 14),
-              label: const Text("Bekor qilish",
-                  style: TextStyle(fontSize: 12)),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(8))),
+      ]),
+    );
+  }
+
+  void mashinaKor(NavbatMashina mashina) async {
+    final offline =
+        OfflineQueueService.yerliIdmi(mashina.hujjatId);
+    // dostaverka/dostaverka_vaqt NavbatMashina modelida yo'q - to'liq
+    // ma'lumotni backend'dan olamiz (offline hujjat uchun imkonsiz).
+    Map<String, dynamic>? toliq;
+    if (!offline) {
+      toliq = await ApiService.getHujjat(mashina.hujjatId);
+    }
+    if (!mounted) return;
+
+    String aslQiymat(String kalit) {
+      final v = toliq?[kalit];
+      if (v != null && v.toString().trim().isNotEmpty) {
+        return v.toString().trim();
+      }
+      // Backend bermasa - NavbatMashina'dagi mos maydon (agar bor bo'lsa).
+      switch (kalit) {
+        case 'firma':
+          return mashina.firma.trim();
+        case 'tiket_raqam':
+          return mashina.tiketRaqam?.trim() ?? '';
+        case 'tuda_raqam':
+          return mashina.tudaRaqam?.trim() ?? '';
+        case 'klass':
+          return mashina.klass?.trim() ?? '';
+        case 'sinf':
+          return mashina.sinf?.trim() ?? '';
+        case 'namlik':
+          return mashina.namlik?.toString() ?? '';
+        case 'ifloslik':
+          return mashina.ifloslik?.toString() ?? '';
+        case 'seleksiya_navi':
+          return mashina.seleksiyaNavi?.trim() ?? '';
+        case 'qabul_qildi':
+          return mashina.qabulQildi?.trim() ?? '';
+        case 'yuk_olindi':
+          return mashina.yukOlindi?.trim() ?? '';
+        default:
+          return '';
+      }
+    }
+
+    final ctrls = <String, TextEditingController>{
+      for (final m in _tuzatishMaydonlari)
+        m[0] as String:
+            TextEditingController(text: aslQiymat(m[0] as String)),
+    };
+    final asl = {
+      for (final e in ctrls.entries) e.key: e.value.text.trim()
+    };
+    final sababCtrl = TextEditingController();
+    bool tahrirRejim = false;
+    bool yuborilmoqda = false;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16)),
+          title: Row(children: [
+            const Icon(Icons.local_shipping,
+                color: brandGreen, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+                child: Text(mashina.raqam,
+                    style: const TextStyle(
+                        color: Color(0xFF0D1B2A),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700))),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: mashina.tugallandi
+                    ? brandGreenBg
+                    : goldBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                  mashina.tugallandi
+                      ? "✅ Tugallandi"
+                      : "⏳ Navbatda",
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: mashina.tugallandi
+                          ? brandGreen
+                          : goldColor)),
             ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(ctx);
-                navbatdanTanlash(mashina);
-              },
-              icon: const Icon(Icons.arrow_upward,
-                  size: 14),
-              label: const Text("Brutto o'lchash",
-                  style: TextStyle(fontSize: 12)),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: brandGreen,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(8))),
+          ]),
+          content: SizedBox(
+            width: 500,
+            child: SingleChildScrollView(
+              child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                _korSection("🚛 MASHINA", [
+                  _korRow(
+                      "Davlat raqami", mashina.raqam),
+                  _korRow("Turi", mashina.turi),
+                  _korRow("Shofyor", mashina.shofyor),
+                  _korRow("Kelgan vaqt", mashina.vaqt),
+                  if (mashina.tugallanganVaqt != null)
+                    _korRow(
+                        "Tugallangan",
+                        "${mashina.tugallanganVaqt!.hour.toString().padLeft(2, '0')}:${mashina.tugallanganVaqt!.minute.toString().padLeft(2, '0')}"),
+                  if (mashina.bekorSababi != null)
+                    _korRow("Bekor sababi",
+                        mashina.bekorSababi!),
+                ]),
+                const SizedBox(height: 10),
+                _korSection(
+                    tahrirRejim
+                        ? "📋 HUJJAT — TUZATISH"
+                        : "📋 HUJJAT MA'LUMOTLARI",
+                    [
+                      for (final m in _tuzatishMaydonlari)
+                        tahrirRejim
+                            ? _tuzatishTahrirField(
+                                m[1] as String,
+                                ctrls[m[0]]!,
+                                m[2] as bool)
+                            : _korRow(
+                                m[1] as String,
+                                ctrls[m[0]]!.text.isEmpty
+                                    ? '—'
+                                    : ctrls[m[0]]!.text),
+                    ]),
+                const SizedBox(height: 10),
+                _korSection("⚖️ O'LCHOVLAR", [
+                  for (int i = 1; i <= 3; i++)
+                    if (mashina.aravalar[i]?.tara != null)
+                      _olchovRow(
+                          i, mashina.aravalar[i]!),
+                  if (!mashina.aravalar.values
+                      .any((a) => a.tara != null))
+                    _korRow("Ma'lumot",
+                        "Hali o'lchanmagan"),
+                ]),
+                if (tahrirRejim) ...[
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: sababCtrl,
+                    maxLines: 2,
+                    style: const TextStyle(fontSize: 12),
+                    decoration: InputDecoration(
+                      labelText:
+                          "O'zgartirish sababi (majburiy) *",
+                      labelStyle: const TextStyle(
+                          fontSize: 11, color: Colors.red),
+                      isDense: true,
+                      border: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                      "So'rov adminga yuboriladi. Admin tasdiqlagach "
+                      "ma'lumot yangilanadi.",
+                      style: TextStyle(
+                          fontSize: 10, color: Colors.grey)),
+                ],
+              ]),
             ),
+          ),
+          actions: [
+            if (!tahrirRejim) ...[
+              if (!mashina.tugallandi) ...[
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    mashinaBekorQil(mashina);
+                  },
+                  icon: const Icon(Icons.cancel, size: 14),
+                  label: const Text("Bekor qilish",
+                      style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(8))),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    navbatdanTanlash(mashina);
+                  },
+                  icon: const Icon(Icons.arrow_upward,
+                      size: 14),
+                  label: const Text("Brutto o'lchash",
+                      style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: brandGreen,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(8))),
+                ),
+              ],
+              if (!offline)
+                ElevatedButton.icon(
+                  onPressed: () =>
+                      setDlg(() => tahrirRejim = true),
+                  icon: const Icon(Icons.edit_note,
+                      size: 16),
+                  label: const Text(
+                      "Tuzatish so'rovi yuborish",
+                      style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: brandGreen,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(8))),
+                ),
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("Yopish")),
+            ] else ...[
+              TextButton(
+                  onPressed: yuborilmoqda
+                      ? null
+                      : () =>
+                          setDlg(() => tahrirRejim = false),
+                  child: const Text("Orqaga")),
+              ElevatedButton.icon(
+                onPressed: yuborilmoqda
+                    ? null
+                    : () async {
+                        final sabab =
+                            sababCtrl.text.trim();
+                        final ozgargan = ctrls.entries
+                            .where((e) =>
+                                e.value.text.trim() !=
+                                (asl[e.key] ?? ''))
+                            .toList();
+                        if (ozgargan.isEmpty) {
+                          _xabar(
+                              "Hech qanday maydon o'zgartirilmadi");
+                          return;
+                        }
+                        if (sabab.isEmpty) {
+                          _xabar(
+                              "O'zgartirish sababi kiritilishi shart!");
+                          return;
+                        }
+                        setDlg(() => yuborilmoqda = true);
+                        final xatolar = <String>[];
+                        for (final e in ozgargan) {
+                          final eski = asl[e.key] ?? '';
+                          final yangi =
+                              e.value.text.trim();
+                          final xato = await ApiService
+                              .tuzatishSoroviYuborish(
+                            hujjatId: mashina.hujjatId,
+                            maydonNomi: e.key,
+                            eskiQiymat:
+                                eski.isEmpty ? null : eski,
+                            yangiQiymat:
+                                yangi.isEmpty ? null : yangi,
+                            sabab: sabab,
+                          );
+                          if (xato != null) {
+                            final nom = _tuzatishMaydonlari
+                                .firstWhere(
+                                    (m) => m[0] == e.key)[1];
+                            xatolar.add("$nom: $xato");
+                          }
+                        }
+                        if (!mounted) return;
+                        if (xatolar.isEmpty) {
+                          setState(() =>
+                              _tuzatishSoroviYuborilgan
+                                  .add(mashina.hujjatId));
+                          Navigator.pop(ctx);
+                          _xabar(
+                              "✅ Tuzatish so'rovi yuborildi (${ozgargan.length} ta maydon)");
+                        } else {
+                          setDlg(() =>
+                              yuborilmoqda = false);
+                          _xabar(
+                              "Ba'zi so'rovlar yuborilmadi: ${xatolar.join('; ')}");
+                        }
+                      },
+                icon: yuborilmoqda
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white))
+                    : const Icon(Icons.send, size: 15),
+                label: const Text("Yuborish",
+                    style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: brandGreen,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(8))),
+              ),
+            ],
           ],
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text("Yopish")),
-        ],
+        ),
       ),
     );
+    for (final c in ctrls.values) {
+      c.dispose();
+    }
+    sababCtrl.dispose();
   }
 
   Widget _korSection(
@@ -2273,6 +2525,8 @@ try {
   Widget navbatItem(NavbatMashina mashina) {
     final tanlangan =
         tanlanganNavbat?.hujjatId == mashina.hujjatId;
+    final sorovYuborilgan = _tuzatishSoroviYuborilgan
+        .contains(mashina.hujjatId);
     return GestureDetector(
       onTap: () => mashinaKor(mashina),
       child: Container(
@@ -2282,12 +2536,16 @@ try {
         decoration: BoxDecoration(
           color: tanlangan
               ? blueBg.withValues(alpha: 0.9)
-              : Colors.white.withValues(alpha: 0.7),
+              : (sorovYuborilgan
+                  ? brandGreenBg
+                  : Colors.white.withValues(alpha: 0.7)),
           border: Border.all(
               color: tanlangan
                   ? blueColor
-                  : brandGreenBorder,
-              width: tanlangan ? 2 : 1),
+                  : (sorovYuborilgan
+                      ? brandGreen
+                      : brandGreenBorder),
+              width: (tanlangan || sorovYuborilgan) ? 2 : 1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(children: [
@@ -2331,6 +2589,14 @@ try {
                         fontWeight: FontWeight.w700,
                         color: Color(0xFFC07A10))),
               ],
+              if (sorovYuborilgan) ...[
+                const SizedBox(width: 5),
+                const Text("📨 tuzatish so'rovi",
+                    style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: brandGreen)),
+              ],
             ]),
             Text(
                 "${mashina.vaqt} · ${mashina.mahsulotNomi}",
@@ -2359,6 +2625,8 @@ try {
   }
 
   Widget tugallanganItem(NavbatMashina mashina) {
+    final sorovYuborilgan = _tuzatishSoroviYuborilgan
+        .contains(mashina.hujjatId);
     return GestureDetector(
       onTap: () => mashinaKor(mashina),
       child: Container(
@@ -2366,8 +2634,14 @@ try {
         padding: const EdgeInsets.symmetric(
             horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.7),
-          border: Border.all(color: brandGreenBorder),
+          color: sorovYuborilgan
+              ? brandGreenBg
+              : Colors.white.withValues(alpha: 0.7),
+          border: Border.all(
+              color: sorovYuborilgan
+                  ? brandGreen
+                  : brandGreenBorder,
+              width: sorovYuborilgan ? 2 : 1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(children: [
@@ -2403,6 +2677,14 @@ try {
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFFC07A10))),
+              ],
+              if (sorovYuborilgan) ...[
+                const SizedBox(width: 5),
+                const Text("📨 tuzatish so'rovi",
+                    style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: brandGreen)),
               ],
             ]),
             Row(children: [

@@ -39,6 +39,11 @@ class NakladnoyScreen extends StatefulWidget {
   final double? konditsion3;
   final String sana;
 
+  /// Sinov uchun - offline chop etishda haqiqiy brauzer chop oynasi (DOM)
+  /// o'rniga shu funksiya chaqiriladi (o'rnatilgan bo'lsa).
+  @visibleForTesting
+  static void Function(String html)? chopEtishOverride;
+
   const NakladnoyScreen({
     super.key,
     required this.mashinaRaqami,
@@ -80,11 +85,34 @@ class NakladnoyScreen extends StatefulWidget {
 class _NakladnoyScreenState extends State<NakladnoyScreen> {
   bool _yuklanmoqda = false;
 
+  void _xabar(String matn, {Color rang = Colors.orange}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(matn), backgroundColor: rang),
+    );
+  }
+
+  /// Internet yo'q bo'lganda "Chop etish" bosilganda - ekrandagi
+  /// ma'lumotlardan to'g'ridan-to'g'ri HTML yasab, brauzer print oynasida
+  /// ochadi (server so'rovi va PDF baytlarisiz).
+  void _offlineChopEt() {
+    (NakladnoyScreen.chopEtishOverride ?? htmlniChopEtish)(
+        nakladnoyChopHtml(widget));
+  }
+
   /// "Yuklab olish" va "Chop etish" ikkalasi ham bir xil oqim (hujjat_id
   /// orqali backenddan PDF baytlarini olish, offline navbat/xato ishlash)
   /// dan foydalanadi - faqat PDF muvaffaqiyatli olingandan keyingi YAKUNIY
   /// amal ([amal] callback) farq qiladi.
-  Future<void> _pdfOlish(void Function(Uint8List baytlar, String raqamQismi) amal) async {
+  ///
+  /// [offlineChopEt] berilса (faqat "Chop etish"): internet yo'q bo'lganda
+  /// server javobini kutmasdan mahalliy HTML chop etiladi. Server navbati
+  /// (arxiv uchun) baribir saqlanadi - internet kelgach PDF yasalib
+  /// arxivlanadi (hozirgi sync xatti-harakati o'zgarmaydi).
+  Future<void> _pdfOlish(
+    void Function(Uint8List baytlar, String raqamQismi) amal, {
+    void Function()? offlineChopEt,
+  }) async {
     // Ikkinchi-qatlam himoya: odatda operator_panel_screen.dart'dagi
     // hujjatOch() bu ekranga hujjatId hali mahalliy (manfiy, serverga
     // sinxronlanmagan) bo'lganda umuman o'tkazmaydi - lekin kelajakda
@@ -93,14 +121,17 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
     // tekshiriladi.
     if (widget.hujjatId != null &&
         OfflineQueueService.yerliIdmi(widget.hujjatId!)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                "⏳ Hujjat hali serverga sinxronlanmagan — aloqa tiklanguncha kuting."),
-            backgroundColor: Colors.orange,
-          ),
-        );
+      if (offlineChopEt != null) {
+        // Hujjat hali serverga sinxronlanmagan (manfiy ID) - server navbatiga
+        // qo'yishning ma'nosi yo'q (server uni topolmaydi, 400 qaytaradi).
+        // Operator sinxronlashdan keyin qayta chop etsa, o'shanda serverda
+        // ham arxivlanadi.
+        offlineChopEt();
+        _xabar(
+            "🖨 Offline chop etildi — hujjat sinxronlangach qayta chop etsangiz serverda ham arxivlanadi.");
+      } else {
+        _xabar(
+            "⏳ Hujjat hali serverga sinxronlanmagan — aloqa tiklanguncha kuting.");
       }
       return;
     }
@@ -155,10 +186,10 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
         return;
       }
 
-      // Bu yergacha yetib kelsa: haqiqiy tarmoq xatosi, 401 (token
-      // tugagan) yoki 500 (PDF generatsiya - vaqtinchalik bo'lishi
-      // mumkin) - offline navbatga qo'yiladi, fon-sinxronizatsiya
-      // keyinroq avtomatik qayta uradi.
+      // Bu yergacha yetib kelsa: haqiqiy tarmoq xatosi (javob == null), 401
+      // (token tugagan) yoki 500 (PDF generatsiya - vaqtinchalik bo'lishi
+      // mumkin) - offline navbatga qo'yiladi, fon-sinxronizatsiya keyinroq
+      // avtomatik qayta uradi (server PDF'ni yasab arxivlaydi - o'zgarmadi).
       await OfflineService.nakladnoyQosh({
         'mashina_raqami': widget.mashinaRaqami,
         'mahsulot_nomi': widget.mahsulotNomi,
@@ -170,13 +201,17 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
         'firma': widget.firma,
         'mashina_turi': widget.mashinaTuri,
       });
-      if (mounted) {
-        final xabar = (javob != null && javob.statusCode == 500)
+      // Internet yo'q (javob == null) + "Chop etish" bosilgan bo'lsa -
+      // operator bosma nusxasiz qolmasin: ekrandagi ma'lumotdan mahalliy
+      // HTML chop etiladi. Server navbati yuqorida ALLAQACHON saqlandi.
+      if (javob == null && offlineChopEt != null) {
+        offlineChopEt();
+        _xabar(
+            "🖨 Offline chop etildi — internet kelganda serverda ham arxivlanadi.");
+      } else {
+        _xabar((javob != null && javob.statusCode == 500)
             ? "⚠️ Nakladnoy yaratishda serverda xatolik — birozdan so'ng avtomatik qayta urinilyapti."
-            : "⏳ Internet aloqasi yo'q — hujjat navbatga qo'yildi, aloqa tiklangach avtomatik yaratiladi.";
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(xabar), backgroundColor: Colors.orange),
-        );
+            : "⏳ Internet aloqasi yo'q — hujjat navbatga qo'yildi, aloqa tiklangach avtomatik yaratiladi.");
       }
     } finally {
       if (mounted) setState(() => _yuklanmoqda = false);
@@ -187,9 +222,12 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
         faylniYuklabOl(baytlar, 'Nakladnoy_$raqamQismi.pdf', 'application/pdf');
       });
 
-  Future<void> _pdfChopEt() => _pdfOlish((baytlar, raqamQismi) {
-        pdfniChopEtish(baytlar);
-      });
+  Future<void> _pdfChopEt() => _pdfOlish(
+        (baytlar, raqamQismi) {
+          pdfniChopEtish(baytlar);
+        },
+        offlineChopEt: _offlineChopEt,
+      );
 
   int tanlanganNusxa = 0;
 
@@ -634,4 +672,119 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
       ],
     );
   }
+}
+
+String _htmlEsc(String s) => s
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+
+String _kg(double? v) => v == null ? '—' : v.round().toString();
+
+/// Nakladnoy'ning 3 nusxasini (Zavod / Shofyor / Ohrana) o'z ichiga olgan,
+/// chop etishga tayyor to'liq HTML hujjat - EKRANDAGI (widget) ma'lumotlardan
+/// to'g'ridan-to'g'ri, server so'rovisiz quriladi. Internet yo'q bo'lganda
+/// "Chop etish" shu HTML'ni brauzer print oynasida ochadi. Tartib/ko'rinish
+/// backenddagi _nakladnoy_nusxa_html() bilan mos (Kirill, brend yashili).
+String nakladnoyChopHtml(NakladnoyScreen w) {
+  double? netto(double? t, double? b) => (t != null && b != null) ? b - t : null;
+
+  final aravalar = <List<double?>>[
+    [w.tara1, w.brutto1, w.konditsion1],
+    [w.tara2, w.brutto2, w.konditsion2],
+    [w.tara3, w.brutto3, w.konditsion3],
+  ].take(w.aravalarSoni.clamp(0, 3)).toList();
+
+  double jami(int i) =>
+      aravalar.map((a) => a[i]).whereType<double>().fold(0.0, (x, y) => x + y);
+  final jamiTara = jami(0);
+  final jamiBrutto = jami(1);
+  final jamiNetto = jamiBrutto - jamiTara;
+  final jamiKond = jami(2);
+
+  final aravaQatorlari = List.generate(aravalar.length, (i) {
+    final a = aravalar[i];
+    return '<tr><td>${_htmlEsc(w.mahsulotNomi)} (${i + 1}-арава)</td>'
+        '<td>${_kg(a[0])}</td><td>${_kg(a[1])}</td>'
+        '<td>${_kg(netto(a[0], a[1]))}</td><td>${_kg(a[2])}</td></tr>';
+  }).join();
+
+  // JAMI'dan keyin 2 ta bo'sh qator (keyingi zavod qo'lda to'ldiradi) -
+  // ekrandagi va serverdagi Nakladnoy bilan bir xil.
+  const boshQatorlar =
+      '<tr><td class="b"></td><td class="b"></td><td class="b"></td><td class="b"></td><td class="b"></td></tr>'
+      '<tr><td class="b"></td><td class="b"></td><td class="b"></td><td class="b"></td><td class="b"></td></tr>';
+
+  final raqam = w.hujjatRaqam.isNotEmpty ? _htmlEsc(w.hujjatRaqam) : '—';
+  final namlik = w.namlik == null ? '—' : w.namlik!.toStringAsFixed(1);
+  final ifloslik = w.ifloslik == null ? '—' : w.ifloslik!.toStringAsFixed(1);
+  String yoki(String s) => s.trim().isEmpty ? '—' : _htmlEsc(s);
+
+  String nusxa(String nom, bool uzilish) => '''
+<div class="sahifa"${uzilish ? ' style="page-break-before:always"' : ''}>
+  <div class="badge">$nom</div>
+  <div class="sarlavha">ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № $raqam</div>
+  <div class="sub">Ишлаб чиқаришдан қабул қилинган маҳсулотларни ташиш учун &nbsp;·&nbsp; ${yoki(w.sana)} &nbsp;·&nbsp; ${yoki(w.mashinaTuri)} ${yoki(w.mashinaRaqami)}</div>
+  <div class="karta">
+    <div><b>Юк жўнатувчи:</b> "Ҳазорасп текстил" МЧЖга қарашли пахта тозалаш заводи</div>
+    <div><b>Юк олувчи:</b> ${yoki(w.firma)}</div>
+  </div>
+  <div class="karta grid">
+    <div><span>Тикет №</span>${yoki(w.tiketRaqam)}</div>
+    <div><span>Туда №</span>${yoki(w.tudaRaqam)}</div>
+    <div><span>Класс</span>${yoki(w.klass)}</div>
+    <div><span>Селексия нави</span>${yoki(w.seleksiyaNavi)}</div>
+    <div><span>Терим тури</span>${yoki(w.terimTuri)}</div>
+    <div><span>Намлик %</span>$namlik</div>
+    <div><span>Ифлослик %</span>$ifloslik</div>
+    <div><span>Шофёр</span>${yoki(w.shofyor)}</div>
+  </div>
+  <table>
+    <tr><th>Юкнинг номи</th><th>Тара, кг</th><th>Брутто, кг</th><th>Нетто, кг</th><th>Кондицион вазн, кг</th></tr>
+    $aravaQatorlari
+    <tr class="jami"><td>Жами:</td><td>${jamiTara.round()}</td><td>${jamiBrutto.round()}</td><td>${jamiNetto.round()}</td><td>${jamiKond > 0 ? jamiKond.round() : '—'}</td></tr>
+    $boshQatorlar
+  </table>
+  <div class="dost"><b>Доставерна № ${yoki(w.dostaverka)}</b><span>Муддат: ${yoki(w.dostaverkaVaqt)}</span></div>
+  <div class="karta">
+    <div><b>Қабул қилди:</b> ${yoki(w.qabulQildi)} ___________</div>
+    <div><b>Юк олинди:</b> ${yoki(w.yukOlindi)} ___________</div>
+  </div>
+  <div class="imzo">
+    <div>Раҳбар<br>__________<br><span>ИМЗО</span></div>
+    <div>Шофёр<br>__________<br><span>ИМЗО</span></div>
+    <div>Юк олиб кетувчи<br>__________<br><span>ИМЗО</span></div>
+    <div>Тарозибон<br>__________<br><span>ИМЗО</span></div>
+    <div class="muhr">М.Ў.</div>
+  </div>
+</div>''';
+
+  return '''<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Nakladnoy $raqam</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #0D1B2A; margin: 0; padding: 16px; }
+  .sahifa { max-width: 720px; margin: 0 auto; }
+  .badge { background: #0D1B2A; color: #fff; text-align: center; padding: 5px; border-radius: 4px; font-weight: 600; letter-spacing: 1px; margin-bottom: 10px; }
+  .sarlavha { text-align: center; font-weight: 600; font-size: 14px; }
+  .sub { text-align: center; font-size: 11px; color: #3A6A28; margin-bottom: 10px; }
+  .karta { border: 1px solid #D0E0C8; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+  .karta.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 10px; }
+  .karta.grid span { display: block; color: #607080; font-size: 10px; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; }
+  th, td { border: 1px solid #C8D8C0; padding: 5px 6px; text-align: center; }
+  th { background: #1A4A08; color: #fff; }
+  td.b { height: 26px; }
+  .jami { font-weight: bold; background: #F0F4F0; }
+  .dost { display: flex; justify-content: space-between; border: 1px solid #D0E0C8; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+  .imzo { display: flex; gap: 12px; margin-top: 16px; text-align: center; }
+  .imzo > div { flex: 1; font-size: 10px; }
+  .imzo span { color: #90A090; }
+  .imzo .muhr { flex: 0 0 60px; height: 60px; border: 1px solid #9AC080; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #9AC080; }
+  @media print { body { padding: 0; } }
+</style></head><body>
+${nusxa('ЗАВОД НУСХАСИ', false)}
+${nusxa('ШОФЁР НУСХАСИ', true)}
+${nusxa('ОХРАНА НУСХАСИ', true)}
+</body></html>''';
 }

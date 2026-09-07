@@ -107,3 +107,46 @@ void pdfniChopEtish(List<int> baytlar) {
 
   html.document.body?.append(iframe);
 }
+
+/// Xom HTML matnini ko'rinmas <iframe> ichida ochib, brauzerning STANDART
+/// chop etish oynasini ochadi. Internet yo'q bo'lganda Nakladnoy'ni
+/// mahalliy (server so'rovi va PDF baytlarisiz) chop etish uchun -
+/// pdfniChopEtish() bilan bir xil iframe naqshi, faqat blob turi
+/// 'text/html'. Oddiy HTML uchun `onLoad` hodisasi ishonchli (blob PDF
+/// muammosi - qarang: pdfniChopEtish izohi - bu yerga tegishli emas),
+/// lekin zaxira sifatida vaqt chegarasi ham qo'yiladi.
+void htmlniChopEtish(String htmlMatn) {
+  final blob = html.Blob([htmlMatn], 'text/html');
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  final iframe = html.IFrameElement()
+    ..style.position = 'fixed'
+    ..style.width = '0'
+    ..style.height = '0'
+    ..style.border = 'none'
+    ..src = url;
+
+  var tozalandi = false;
+  void tozalash() {
+    if (tozalandi) return;
+    tozalandi = true;
+    iframe.remove();
+    html.Url.revokeObjectUrl(url);
+  }
+
+  var chopEtildi = false;
+  void chopEtishgaUrinish() {
+    if (chopEtildi) return;
+    final contentWindow = iframe.contentWindow;
+    if (contentWindow == null) return;
+    chopEtildi = true;
+    try {
+      js.JsObject.fromBrowserObject(contentWindow).callMethod('print');
+    } catch (_) {}
+    Timer(const Duration(minutes: 1), tozalash);
+  }
+
+  iframe.onLoad.listen((_) => chopEtishgaUrinish());
+  Timer(const Duration(seconds: 3), chopEtishgaUrinish);
+
+  html.document.body?.append(iframe);
+}

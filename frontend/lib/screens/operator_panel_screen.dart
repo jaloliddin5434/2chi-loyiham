@@ -1397,6 +1397,16 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         return;
       }
 
+      // Brutto'dan oldin hujjat ma'lumotlari (kamida firma va tiket)
+      // to'ldirilgan bo'lishi kerak - ular tara'dan keyin ochilgan
+      // HUJJAT/DOSTAVERNA kartalarida kiritiladi.
+      if (firmaCtrl.text.trim().isEmpty ||
+          tiketRaqamCtrl.text.trim().isEmpty) {
+        _xabar(
+            "❌ Brutto'dan oldin firma va tiket raqamini kiriting!");
+        return;
+      }
+
       final tasdiqlandi = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -1501,11 +1511,20 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
         }
 
         await ApiService.hujjatYangilash(tug.hujjatId, {
+          'firma': firmaCtrl.text,
+          'shofyor': shofyorCtrl.text,
+          'tiket_raqam': tiketRaqamCtrl.text,
+          'tuda_raqam': tudaRaqamCtrl.text,
+          'klass': _klassQiymati,
+          'sinf': _sinfQiymati,
+          'namlik': _namlikQiymati,
+          'ifloslik': _ifloslikQiymati,
+          'seleksiya_navi': _seleksiyaNaviQiymati,
           'qabul_qildi': qabulQildiCtrl.text,
           'yuk_olindi': yukOlindiCtrl.text,
           'dostaverka': dostaverkaCtrl.text,
           'dostaverka_vaqt': dostaverkaVaqtCtrl.text,
-          'sabab': 'Tortish yakunlanganda operator tomonidan kiritildi',
+          'sabab': 'Operator tomonidan yangilandi',
         });
 
         // Nakladnoy PDF saqlash - dostaverka/qabul_qildi/yuk_olindi endi
@@ -1859,6 +1878,66 @@ try {
               letterSpacing: 1,
               fontWeight: FontWeight.w600)),
     ]);
+  }
+
+  // Hozirgi ish bosqichi (1-5): 1-Mashina, 2-Tara, 3-Ma'lumot, 4-Brutto,
+  // 5-Nakladnoy. TAROZI kartasidagi indikator shu qiymatga qarab bo'yaladi.
+  int get _joriyBosqich {
+    final barchaBruttoOlingan = aravalarSoni > 0 &&
+        List.generate(aravalarSoni, (i) => i + 1)
+            .every((n) => aravalar[n]?.brutto != null);
+    if (bazagaSaqlandi && !faqatBrutto && barchaBruttoOlingan) {
+      return 5; // Brutto yakunlandi - Nakladnoy bosqichi
+    }
+    if (faqatBrutto) return 4; // Navbatdan tanlangan - Brutto o'lchash
+    if (bazagaSaqlandi) return 3; // Tara olindi - ma'lumot kiritilmoqda
+    if (raqamiCtrl.text.trim().isNotEmpty) return 2; // Mashina kiritildi
+    return 1; // Mashina ma'lumoti kiritilmoqda
+  }
+
+  Widget _bosqichIndikatori() {
+    const nomlar = ['Mashina', 'Tara', "Ma'lumot", 'Brutto', 'Nakladnoy'];
+    final joriy = _joriyBosqich;
+    Widget chip(int n) {
+      final oz = n == joriy;
+      final otgan = n < joriy;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: oz
+              ? brandGreen
+              : otgan
+                  ? brandGreenBg
+                  : Colors.white.withValues(alpha: 0.5),
+          border: Border.all(
+              color: n <= joriy ? brandGreen : brandGreenBorder),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text("$n-${nomlar[n - 1]}",
+            style: TextStyle(
+                fontSize: 9,
+                fontWeight: oz ? FontWeight.w700 : FontWeight.w500,
+                color: oz
+                    ? Colors.white
+                    : otgan
+                        ? brandGreen
+                        : muted)),
+      );
+    }
+
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 2,
+      runSpacing: 4,
+      children: [
+        for (int n = 1; n <= 5; n++) ...[
+          if (n > 1)
+            const Text("→",
+                style: TextStyle(fontSize: 10, color: muted)),
+          chip(n),
+        ],
+      ],
+    );
   }
 
   Widget infoField(
@@ -2516,6 +2595,8 @@ try {
                         ]),
                       ]),
                       const SizedBox(height: 8),
+                      _bosqichIndikatori(),
+                      const SizedBox(height: 8),
                       Row(
                           crossAxisAlignment:
                               CrossAxisAlignment.end,
@@ -2792,11 +2873,15 @@ try {
                       infoField("Shofyor ismi",
                           shofyorCtrl,
                           enabled: !bazagaSaqlandi),
-                      const SizedBox(height: 6),
-                      firmaAutocompleteField(),
+                      // Firma tara olgandan KEYIN kiritiladi (yangi tartib).
+                      if (bazagaSaqlandi) ...[
+                        const SizedBox(height: 6),
+                        firmaAutocompleteField(),
+                      ],
                     ]));
 
-    final Widget? hujjatKartasi = !konditsionBor ? null : _karta(
+    final Widget? hujjatKartasi =
+        (!konditsionBor || !bazagaSaqlandi) ? null : _karta(
           child: Column(
               crossAxisAlignment:
                   CrossAxisAlignment
@@ -2959,7 +3044,8 @@ try {
                       ]),
                     ]));
 
-    final Widget? dostavernaKartasi = !dostavernaBor ? null : _karta(
+    final Widget? dostavernaKartasi =
+        (!dostavernaBor || !bazagaSaqlandi) ? null : _karta(
           child: Column(
               crossAxisAlignment:
                   CrossAxisAlignment

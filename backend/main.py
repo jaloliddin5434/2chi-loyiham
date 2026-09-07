@@ -1109,12 +1109,17 @@ def _qiymat_matn(qiymat):
     return qiymat.value if hasattr(qiymat, "value") else str(qiymat)
 
 
-# Operator ekrani (tortish yakunlanganda) shu maydonlarni saqlaydi -
-# boshqa barcha maydon (mashina_raqami, namlik, holat, va h.k.) faqat
-# admin/hisobchi tomonidan, "Tuzat" oynasi orqali, sabab ko'rsatib
-# o'zgartirilishi kerak.
+# Operator ekrani tortish jarayonida (tara'dan keyin, brutto'gacha va
+# yakunlanganda) shu maydonlarni saqlaydi. Og'irlik qiymatlari (tara,
+# brutto, netto, konditsion) ATAYLAB yo'q - ular Olchov jadvalida bo'lib,
+# faqat POST /olchovlar orqali (tarozidan) yoziladi; PUT /hujjatlar orqali
+# umuman o'zgartirib bo'lmaydi. Boshqa barcha maydon (mashina_raqami,
+# holat, terim_turi, va h.k.) faqat admin/hisobchi tomonidan, "Tuzat"
+# oynasi orqali, sabab ko'rsatib o'zgartirilishi kerak.
 OPERATOR_RUXSAT_ETILGAN_MAYDONLAR = {
     "qabul_qildi", "yuk_olindi", "dostaverka", "dostaverka_vaqt", "sabab",
+    "firma", "shofyor", "tiket_raqam", "tuda_raqam",
+    "klass", "sinf", "namlik", "ifloslik", "seleksiya_navi",
 }
 
 @app.put("/hujjatlar/{hujjat_id}")

@@ -22,8 +22,9 @@ def hujjat(client, admin_headers, mahsulot_chigit, mashina):
 
 
 def test_operator_ruxsatsiz_maydonga_tegsa_403(client, operator_headers, hujjat):
+    # terim_turi operator ruxsat etilgan ro'yxatda YO'Q (faqat admin/hisobchi).
     javob = client.put(f"/hujjatlar/{hujjat['id']}", json={
-        "shofyor": "Boshqa Shofyor",  # operator ruxsat etilgan ro'yxatda yo'q
+        "terim_turi": "Boshqa terim",
     }, headers=operator_headers)
     assert javob.status_code == 403
 
@@ -36,6 +37,58 @@ def test_operator_ruxsat_etilgan_maydonni_ozgartira_oladi(client, operator_heade
     }, headers=operator_headers)
     assert javob.status_code == 200
     assert javob.json()["qabul_qildi"] == "Test Qabul Qiluvchi"
+
+
+def test_operator_yangi_ruxsat_etilgan_maydonlarni_ozgartiradi(client, operator_headers, hujjat):
+    # firma/shofyor/tiket_raqam/tuda_raqam/klass/sinf/seleksiya_navi endi
+    # operator uchun ochiq (tara'dan keyingi ma'lumot kiritish oqimi uchun).
+    javob = client.put(f"/hujjatlar/{hujjat['id']}", json={
+        "firma": "Yangi Firma MChJ",
+        "shofyor": "Karimov A",
+        "tiket_raqam": "1234567",
+        "tuda_raqam": "88",
+        "klass": "2",
+        "sinf": "A",
+        "seleksiya_navi": "Buxoro-102",
+        "sabab": "Tara'dan keyin operator kiritdi",
+    }, headers=operator_headers)
+    assert javob.status_code == 200
+    natija = javob.json()
+    assert natija["firma"] == "Yangi Firma MChJ"
+    assert natija["shofyor"] == "Karimov A"
+    assert natija["klass"] == "2"
+    assert natija["seleksiya_navi"] == "Buxoro-102"
+
+
+def test_operator_namlik_ifloslikni_ozgartiradi(client, operator_headers, hujjat):
+    # namlik/ifloslik Hujjatda emas, Olchov qatorlarida - avval o'lchov
+    # bo'lishi shart.
+    client.post("/olchovlar", json={
+        "hujjat_id": hujjat["id"], "arava_raqam": 1, "tara": 1000, "brutto": 3000,
+    }, headers=operator_headers)
+    javob = client.put(f"/hujjatlar/{hujjat['id']}", json={
+        "namlik": 8.5, "ifloslik": 2.0, "sabab": "Tahlil natijasi",
+    }, headers=operator_headers)
+    assert javob.status_code == 200
+    olchovlar = client.get(f"/olchovlar/{hujjat['id']}", headers=operator_headers).json()
+    assert olchovlar[0]["namlik"] == pytest.approx(8.5)
+    assert olchovlar[0]["konditsion"] is not None
+
+
+def test_operator_ogirlik_maydonlarini_ozgartira_olmaydi(client, operator_headers, hujjat):
+    # tara/brutto/netto/konditsion HujjatUpdate sxemasida umuman yo'q -
+    # operator ularni PUT /hujjatlar orqali yubora olmaydi (Pydantic jimgina
+    # e'tiborsiz qoldiradi), Olchov qiymatlariga ta'sir qilmaydi.
+    client.post("/olchovlar", json={
+        "hujjat_id": hujjat["id"], "arava_raqam": 1, "tara": 1000, "brutto": 3000,
+    }, headers=operator_headers)
+    javob = client.put(f"/hujjatlar/{hujjat['id']}", json={
+        "tara": 5, "brutto": 5, "netto": 5, "konditsion": 5,
+    }, headers=operator_headers)
+    assert javob.status_code == 200  # sxemada yo'q maydonlar -> hech narsa o'zgarmaydi
+    olchovlar = client.get(f"/olchovlar/{hujjat['id']}", headers=operator_headers).json()
+    assert olchovlar[0]["tara"] == 1000
+    assert olchovlar[0]["brutto"] == 3000
 
 
 def test_bekor_qilishda_sabab_majburiy(client, admin_headers, hujjat):

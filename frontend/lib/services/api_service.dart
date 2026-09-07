@@ -750,6 +750,103 @@ class ApiService {
     return [];
   }
 
+  // ============ TUZATISH SO'ROVLARI ============
+
+  /// Operator hujjat maydonida xato ko'rsa - uni O'ZI o'zgartira olmaydi,
+  /// backend'ga "tuzatish so'rovi" yuboradi (admin tasdiqlaydi/rad etadi).
+  /// Har bir so'rov AYNAN BITTA maydon uchun. Muvaffaqiyatli bo'lsa `null`,
+  /// aks holda ko'rsatiladigan xato matnini qaytaradi.
+  static Future<String?> tuzatishSoroviYuborish({
+    required int hujjatId,
+    required String maydonNomi,
+    String? eskiQiymat,
+    String? yangiQiymat,
+    required String sabab,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/tuzatish_sorovi'),
+        headers: _headers(),
+        body: jsonEncode({
+          'hujjat_id': hujjatId,
+          'maydon_nomi': maydonNomi,
+          'eski_qiymat': eskiQiymat,
+          'yangi_qiymat': yangiQiymat,
+          'sabab': sabab,
+        }),
+      ).timeout(_httpTimeout);
+      _check401(response);
+      if (response.statusCode == 200) return null;
+      try {
+        final govda = jsonDecode(utf8.decode(response.bodyBytes));
+        final detail = govda['detail'];
+        if (detail is String) return detail;
+      } catch (_) {}
+      return "So'rov yuborilmadi (status ${response.statusCode})";
+    } catch (e) {
+      debugPrint('ApiService xato: $e');
+      return "Serverga ulanib bo'lmadi - internet aloqasini tekshiring.";
+    }
+  }
+
+  /// Shu operator yuborgan tuzatish so'rovlari (holati bilan). Xato yoki
+  /// aloqa bo'lmasa - bo'sh ro'yxat.
+  static Future<List<dynamic>> tuzatishSorovlarOperator(String login) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/tuzatish_sorovlar/operator/$login'),
+        headers: _headers(),
+      ).timeout(_httpTimeout);
+      _check401(response);
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+    } catch (e) {
+      debugPrint('ApiService xato: $e');
+    }
+    return [];
+  }
+
+  /// Admin: barcha tuzatish so'rovlari. `holat` - ixtiyoriy filtr
+  /// (kutilmoqda / tasdiqlandi / rad_etildi).
+  static Future<List<dynamic>> tuzatishSorovlarBarchasi({String? holat}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/tuzatish_sorovlar').replace(
+          queryParameters: holat != null ? {'holat': holat} : null);
+      final response = await http.get(uri, headers: _headers()).timeout(_httpTimeout);
+      _check401(response);
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+    } catch (e) {
+      debugPrint('ApiService xato: $e');
+    }
+    return [];
+  }
+
+  /// Admin: so'rovni tasdiqlaydi (hujjat yangilanadi) yoki rad etadi.
+  /// Muvaffaqiyatli bo'lsa `null`, aks holda xato matni.
+  static Future<String?> tuzatishSoroviHalQil(int sorovId, bool tasdiq) async {
+    final amal = tasdiq ? 'tasdiq' : 'rad';
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/tuzatish_sorovi/$sorovId/$amal'),
+        headers: _headers(),
+      ).timeout(_httpTimeout);
+      _check401(response);
+      if (response.statusCode == 200) return null;
+      try {
+        final govda = jsonDecode(utf8.decode(response.bodyBytes));
+        final detail = govda['detail'];
+        if (detail is String) return detail;
+      } catch (_) {}
+      return "Amal bajarilmadi (status ${response.statusCode})";
+    } catch (e) {
+      debugPrint('ApiService xato: $e');
+      return "Serverga ulanib bo'lmadi.";
+    }
+  }
+
   static Future<List<dynamic>> _grafikDetalOl(String davr, String mahsulot) async {
     final uri = Uri.parse('$baseUrl/statistika/grafik-detal/$davr')
         .replace(queryParameters: {'mahsulot': mahsulot});

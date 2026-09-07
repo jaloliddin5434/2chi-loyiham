@@ -226,3 +226,25 @@ class QoraRoyxatToken(Base):
     # kunlik tozalanadi, jadval abadiy o'sib ketmasin uchun).
     amal_qilish_muddati = Column(DateTime, nullable=False, index=True)
     created_at = Column(DateTime, default=func.now())
+
+class TuzatishSorovi(Base):
+    # Operator "Navbat" yoki "Tugallanganlar" ro'yxatidagi mashina
+    # ma'lumotida xato ko'rsa, uni O'ZI to'g'ridan-to'g'ri o'zgartira
+    # olmaydi - shu jadvalga "tuzatish so'rovi" qoldiradi (holat=
+    # "kutilmoqda"). Admin so'rovni ko'rib chiqadi: TASDIQLASA hujjat
+    # (yoki namlik/ifloslik uchun uning barcha o'lchov qatorlari)
+    # haqiqatan yangilanadi, RAD ETSA hujjat o'zgarmaydi. Har bir so'rov
+    # AYNAN BITTA maydon uchun.
+    __tablename__ = "tuzatish_sorovlari"
+    id = Column(Integer, primary_key=True, index=True)
+    hujjat_id = Column(Integer, ForeignKey("hujjatlar.id", ondelete="CASCADE"), index=True)
+    operator_login = Column(String, index=True)
+    maydon_nomi = Column(String)
+    eski_qiymat = Column(Text, nullable=True)
+    yangi_qiymat = Column(Text, nullable=True)
+    sabab = Column(Text)
+    # kutilmoqda | tasdiqlandi | rad_etildi
+    holat = Column(String, default="kutilmoqda", index=True)
+    yaratilgan_vaqt = Column(DateTime, default=func.now())
+    hal_qilingan_vaqt = Column(DateTime, nullable=True)
+    admin_login = Column(String, nullable=True)

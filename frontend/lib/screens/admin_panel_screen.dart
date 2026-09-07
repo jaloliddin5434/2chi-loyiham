@@ -65,6 +65,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   List<dynamic> hujjatlar = [];
   int _joriySahifa = 1;
   int jamiHujjatlar = 0;
+  // Kutilmoqda holatidagi tuzatish so'rovlari: hujjat_id -> shu hujjatga
+  // tegishli so'rovlar ro'yxati. Ro'yxatda va "Tuzat" oynasida ishlatiladi.
+  Map<int, List<dynamic>> _tuzatishSorovlari = {};
   bool koproqYuklanmoqda = false;
   List<dynamic> tahrirTarixiRoyxati = [];
   bool tahrirTarixiYuklanmoqda = false;
@@ -137,11 +140,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     dashboardTonnajniYukla();
     _tizimXatolariniYukla();
     _backupRoyxatiniYukla();
+    _tuzatishSorovlariniYukla();
     yangilanishTimer = Timer.periodic(
         const Duration(seconds: 3), (_) {
       if (mounted) {
         hujjatlarniYukla();
         _navbatYangilash();
+        _tuzatishSorovlariniYukla();
         setState(() {});
       }
     });
@@ -152,6 +157,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
   void _yangilandi() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _tuzatishSorovlariniYukla() async {
+    final sorovlar =
+        await ApiService.tuzatishSorovlarBarchasi(holat: 'kutilmoqda');
+    if (!mounted) return;
+    final xarita = <int, List<dynamic>>{};
+    for (final s in sorovlar) {
+      final id = (s['hujjat_id'] ?? 0) as int;
+      xarita.putIfAbsent(id, () => []).add(s);
+    }
+    setState(() => _tuzatishSorovlari = xarita);
   }
 
   void _soatniYanila() {
@@ -1526,10 +1543,16 @@ Widget _mashinaGrafik() {
                                             fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600)),
                                       )).toList(),
                             ),
-                            ...ro.map((h) => TableRow(
+                            ...ro.map((h) {
+                              final sorovlar =
+                                  _tuzatishSorovlari[h['id']] ?? const [];
+                              return TableRow(
                                   decoration: BoxDecoration(
-                                      color: h['holat'] == 'bekor'
-                                          ? const Color(0xFFFFF0F0) : Colors.white),
+                                      color: sorovlar.isNotEmpty
+                                          ? greenBg
+                                          : h['holat'] == 'bekor'
+                                              ? const Color(0xFFFFF0F0)
+                                              : Colors.white),
                                   children: [
                                     _td(h['raqam'] ?? '—', bold: true),
                                     _td(h['created_at'] != null
@@ -1595,7 +1618,8 @@ Widget _mashinaGrafik() {
                                       ]),
                                     ),
                                   ],
-                                )),
+                                );
+                            }),
                           ],
                         ),
               const SizedBox(height: 14),
@@ -1666,6 +1690,7 @@ Widget _mashinaGrafik() {
         TextEditingController(text: hujjat['ifloslik']?.toString() ?? '');
     final sababCtrl = TextEditingController();
     String yangiHolat = hujjat['holat'] ?? 'jarayon';
+    bool sorovAmalda = false; // tuzatish so'rovi tasdiq/rad jarayonida
 
     Widget field(String label, TextEditingController ctrl,
         {TextInputType? type}) {
@@ -1737,6 +1762,150 @@ Widget _mashinaGrafik() {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                if ((_tuzatishSorovlari[hujjat['id']] ?? const [])
+                    .isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: greenBg,
+                      border: Border.all(color: brandGreen),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      const Row(children: [
+                        Icon(Icons.mark_email_unread,
+                            size: 13, color: brandGreen),
+                        SizedBox(width: 4),
+                        Text("OPERATOR TUZATISH SO'ROVLARI",
+                            style: TextStyle(
+                                fontSize: 9,
+                                color: brandGreen,
+                                letterSpacing: 1,
+                                fontWeight: FontWeight.w700)),
+                      ]),
+                      const SizedBox(height: 8),
+                      for (final s in (_tuzatishSorovlari[hujjat['id']]
+                          ?? const []))
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(
+                                color: const Color(0xFFBFE3D4)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                            Row(children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                    color: brandGreen,
+                                    borderRadius:
+                                        BorderRadius.circular(6)),
+                                child: Text(s['maydon_nomi'] ?? '',
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700)),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                    "${s['eski_qiymat'] ?? '—'}  →  ${s['yangi_qiymat'] ?? '—'}",
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: brandGreen)),
+                              ),
+                            ]),
+                            const SizedBox(height: 4),
+                            Text(
+                                "Operator: ${s['operator_login'] ?? '—'}  ·  Sabab: ${s['sabab'] ?? '—'}",
+                                style: const TextStyle(
+                                    fontSize: 10, color: Colors.grey)),
+                            const SizedBox(height: 6),
+                            Row(children: [
+                              ElevatedButton.icon(
+                                onPressed: sorovAmalda
+                                    ? null
+                                    : () async {
+                                        setDlgState(
+                                            () => sorovAmalda = true);
+                                        final xato = await ApiService
+                                            .tuzatishSoroviHalQil(
+                                                s['id'] as int, true);
+                                        await _tuzatishSorovlariniYukla();
+                                        await hujjatlarniYukla();
+                                        if (!mounted) return;
+                                        setDlgState(
+                                            () => sorovAmalda = false);
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(SnackBar(
+                                          content: Text(xato == null
+                                              ? "✅ Tasdiqlandi - hujjat yangilandi"
+                                              : "❌ $xato"),
+                                          backgroundColor: xato == null
+                                              ? Colors.green
+                                              : Colors.red,
+                                        ));
+                                      },
+                                icon: const Icon(Icons.check, size: 13),
+                                label: const Text("Tasdiqlash",
+                                    style: TextStyle(fontSize: 11)),
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: brandGreen,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4)),
+                              ),
+                              const SizedBox(width: 6),
+                              OutlinedButton.icon(
+                                onPressed: sorovAmalda
+                                    ? null
+                                    : () async {
+                                        setDlgState(
+                                            () => sorovAmalda = true);
+                                        final xato = await ApiService
+                                            .tuzatishSoroviHalQil(
+                                                s['id'] as int, false);
+                                        await _tuzatishSorovlariniYukla();
+                                        if (!mounted) return;
+                                        setDlgState(
+                                            () => sorovAmalda = false);
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(SnackBar(
+                                          content: Text(xato == null
+                                              ? "So'rov rad etildi"
+                                              : "❌ $xato"),
+                                          backgroundColor: xato == null
+                                              ? Colors.orange
+                                              : Colors.red,
+                                        ));
+                                      },
+                                icon: const Icon(Icons.close,
+                                    size: 13, color: redColor),
+                                label: const Text("Rad etish",
+                                    style: TextStyle(
+                                        fontSize: 11, color: redColor)),
+                                style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(
+                                        color: Color(0xFFF0B0A0)),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4)),
+                              ),
+                            ]),
+                          ]),
+                        ),
+                    ]),
+                  ),
                 Container(
                   padding: const EdgeInsets.all(10),
                   margin: const EdgeInsets.only(bottom: 12),

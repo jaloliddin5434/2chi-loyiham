@@ -222,7 +222,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
         elevation: 1,
         iconTheme: const IconThemeData(color: Color(0xFF3A8A1A)),
         title: Text(
-          "Tovar Transport Nakladnoy — ${widget.tiketRaqam}",
+          "Tovar Transport Nakladnoy — ${widget.hujjatRaqam.isEmpty ? '—' : widget.hujjatRaqam}",
           style: const TextStyle(color: Color(0xFF0D1B2A), fontSize: 14),
         ),
         actions: [
@@ -235,14 +235,14 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: active ? const Color(0xFF1976D2) : const Color(0xFFE3F2FD),
-                    border: Border.all(color: const Color(0xFF90CAF9)),
+                    color: active ? const Color(0xFF0F6E56) : const Color(0xFFEAF6F0),
+                    border: Border.all(color: const Color(0xFFD8EDD0)),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(e.value,
                       style: TextStyle(
                           fontSize: 11,
-                          color: active ? Colors.white : const Color(0xFF1976D2))),
+                          color: active ? Colors.white : const Color(0xFF0F6E56))),
                 ),
               ),
             );
@@ -254,9 +254,9 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF1976D2)))
-                : const Icon(Icons.download, size: 18, color: Color(0xFF1976D2)),
-            label: const Text("Yuklab olish", style: TextStyle(color: Color(0xFF1976D2))),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F6E56)))
+                : const Icon(Icons.download, size: 18, color: Color(0xFF0F6E56)),
+            label: const Text("Yuklab olish", style: TextStyle(color: Color(0xFF0F6E56))),
           ),
           const SizedBox(width: 4),
           TextButton.icon(
@@ -265,9 +265,9 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF1976D2)))
-                : const Icon(Icons.print, size: 18, color: Color(0xFF1976D2)),
-            label: const Text("Chop etish", style: TextStyle(color: Color(0xFF1976D2))),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F6E56)))
+                : const Icon(Icons.print, size: 18, color: Color(0xFF0F6E56)),
+            label: const Text("Chop etish", style: TextStyle(color: Color(0xFF0F6E56))),
           ),
           const SizedBox(width: 8),
         ],
@@ -321,7 +321,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
-                            "ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № ${widget.hujjatRaqam.isNotEmpty ? widget.hujjatRaqam : widget.tiketRaqam}",
+                            "ТОВАР ТРАНСПОРТ НАКЛАДНОЙ № ${widget.hujjatRaqam.isNotEmpty ? widget.hujjatRaqam : '—'}",
                             style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -357,32 +357,42 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                _infoRow("Юк жунатувчи:",
+                _infoRow("Юк жўнатувчи:",
                     "\"Ҳазорасп текстил\" МЧЖга қарашли пахта тозалаш заводи"),
                 _infoRow("Юк олувчи:", widget.firma),
+                // Har mahsulot o'z qatorida, o'z tartib raqami bilan -
+                // hujjatRaqam mahsulot bo'yicha alohida hisoblanadi
+                // (masalan CHG-2026/007).
+                _infoRow(
+                    "Маҳсулот:",
+                    widget.hujjatRaqam.isEmpty
+                        ? widget.mahsulotNomi
+                        : "${widget.mahsulotNomi} — № ${widget.hujjatRaqam}"),
                 const SizedBox(height: 10),
                 const Divider(color: Color(0xFF0D1B2A), thickness: 1),
                 const SizedBox(height: 8),
 
                 // TIKET MA'LUMOTLARI
+                // Tartib: Тикет, Туда, Класс, Селексия нави, Терим тури,
+                // Намлик, Ифлослик, Шофёр (PDF bilan bir xil).
                 Row(children: [
                   Expanded(child: _labelVal("Тикет №:", widget.tiketRaqam)),
-                  Expanded(child: _labelVal("Сана:", widget.sana)),
-                  Expanded(child: _labelVal("Терим тури:", widget.terimTuri)),
-                  Expanded(child: _labelVal("Селекция нави:", widget.seleksiyaNavi)),
+                  Expanded(child: _labelVal("Туда №:", widget.tudaRaqam)),
+                  Expanded(child: _labelVal("Класс:", widget.klass)),
+                  Expanded(child: _labelVal("Селексия нави:", widget.seleksiyaNavi)),
                 ]),
                 const SizedBox(height: 6),
                 Row(children: [
-                  Expanded(child: _labelVal("Туда №:", widget.tudaRaqam)),
-                  Expanded(child: _labelVal("Клас:", widget.klass)),
+                  Expanded(child: _labelVal("Терим тури:", widget.terimTuri)),
                   Expanded(child: _labelVal("Намлик %:", fmtP(widget.namlik))),
                   Expanded(child: _labelVal("Ифлослик %:", fmtP(widget.ifloslik))),
+                  Expanded(child: _labelVal("Шофёр:", widget.shofyor)),
                 ]),
                 const SizedBox(height: 12),
 
                 // ASOSIY JADVAL
                 Table(
-                  border: TableBorder.all(color: const Color(0xFF90CAF9)),
+                  border: TableBorder.all(color: const Color(0xFFD8EDD0)),
                   columnWidths: const {
                     0: FlexColumnWidth(2),
                     1: FlexColumnWidth(1.5),
@@ -405,7 +415,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                     // 1-ARAVA
                     if (widget.aravalarSoni >= 1)
                       TableRow(children: [
-                        _td("${widget.yukNomi}\n(1-арава)"),
+                        _td("${widget.mahsulotNomi}\n(1-арава)"),
                         _td(fmt(widget.tara1)),
                         _td(fmt(widget.brutto1)),
                         _td(fmt(netto(widget.tara1, widget.brutto1))),
@@ -414,15 +424,24 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                     // 2-ARAVA
                     if (widget.aravalarSoni >= 2)
                       TableRow(children: [
-                        _td("${widget.yukNomi}\n(2-арава)"),
+                        _td("${widget.mahsulotNomi}\n(2-арава)"),
                         _td(fmt(widget.tara2)),
                         _td(fmt(widget.brutto2)),
                         _td(fmt(netto(widget.tara2, widget.brutto2))),
                         _td(fmt(widget.konditsion2)),
                       ]),
+                    // 3-ARAVA
+                    if (widget.aravalarSoni >= 3)
+                      TableRow(children: [
+                        _td("${widget.mahsulotNomi}\n(3-арава)"),
+                        _td(fmt(widget.tara3)),
+                        _td(fmt(widget.brutto3)),
+                        _td(fmt(netto(widget.tara3, widget.brutto3))),
+                        _td(fmt(widget.konditsion3)),
+                      ]),
                     // JAMI
                     TableRow(
-                      decoration: const BoxDecoration(color: Color(0xFFE3F2FD)),
+                      decoration: const BoxDecoration(color: Color(0xFFEAF6F0)),
                       children: [
                         _td("Жами:", bold: true),
                         _td(jamiTara.toStringAsFixed(0), bold: true),
@@ -433,6 +452,10 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                             : "—", bold: true),
                       ],
                     ),
+                    // Keyingi zavod o'z o'lchov natijalarini QO'LDA yozishi
+                    // uchun - jadval bilan bir xil 5 ustun, ichi bo'sh.
+                    _boshQator(),
+                    _boshQator(),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -441,8 +464,8 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE3F2FD),
-                    border: Border.all(color: const Color(0xFF90CAF9)),
+                    color: const Color(0xFFEAF6F0),
+                    border: Border.all(color: const Color(0xFFD8EDD0)),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -461,7 +484,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // SHOFYOR MA'LUMOTLARI
+                // QABUL QILDI / YUK OLINDI (Shofyor endi yuqoridagi grid'da)
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -470,9 +493,12 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(children: [
-                    Expanded(child: _labelVal("Шофёр:", widget.shofyor)),
-                    Expanded(child: _labelVal("Қабул қилди:", widget.qabulQildi)),
-                    Expanded(child: _labelVal("Юк олинди:", widget.yukOlindi)),
+                    Expanded(
+                        child: _labelVal("Қабул қилди:",
+                            "${widget.qabulQildi.isEmpty ? '—' : widget.qabulQildi}  ___________")),
+                    Expanded(
+                        child: _labelVal("Юк олинди:",
+                            "${widget.yukOlindi.isEmpty ? '—' : widget.yukOlindi}  ___________")),
                   ]),
                 ),
                 const SizedBox(height: 20),
@@ -485,7 +511,7 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                   const SizedBox(width: 16),
                   Expanded(child: _imzo("Юк олиб кетувчи")),
                   const SizedBox(width: 16),
-                  Expanded(child: _imzo("Тарзибон")),
+                  Expanded(child: _imzo("Тарозибон")),
                   const SizedBox(width: 16),
                   // MUHR
                   Container(
@@ -493,13 +519,15 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                     height: 70,
                     decoration: BoxDecoration(
                       border: Border.all(
-                          color: const Color(0xFF90CAF9), width: 1.5),
+                          color: const Color(0xFFD8EDD0), width: 1.5),
                       shape: BoxShape.circle,
                     ),
                     child: const Center(
-                      child: Text("М.У.",
+                      // Matn ramka rangida (#D8EDD0) ko'rinmay qolardi -
+                      // PDF'dagi kabi to'qroq yashil (#9AC080) ishlatiladi.
+                      child: Text("М.Ў.",
                           style: TextStyle(
-                              fontSize: 11, color: Color(0xFF90CAF9))),
+                              fontSize: 11, color: Color(0xFF9AC080))),
                     ),
                   ),
                 ]),
@@ -579,6 +607,16 @@ class _NakladnoyScreenState extends State<NakladnoyScreen> {
                 fontSize: 11,
                 fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
                 color: const Color(0xFF1A3A08))),
+      );
+
+  /// Jadval bilan bir xil 5 ustunli, ichi butunlay bo'sh qator - keyingi
+  /// zavod o'z o'lchov natijalarini qo'lda yozib qo'yishi uchun. Har bir
+  /// katak yozishga yetarli balandlikda (bo'sh joy) bo'ladi.
+  TableRow _boshQator() => TableRow(
+        children: List.generate(
+          5,
+          (_) => const SizedBox(height: 26),
+        ),
       );
 
   Widget _imzo(String label) {

@@ -3346,6 +3346,13 @@ def _nakladnoy_nusxa_html(m: dict, sana: str, nusxa_nomi: str, qr_base64: str,
 
     aravalar_qatorlari = "".join(arava_qatori(n) for n in (1, 2, 3))
 
+    # JAMI qatoridan keyin 2 ta BO'SH qator - keyingi zavod o'z o'lchov
+    # natijalarini QO'LDA yozib qo'yishi uchun. Jadval bilan bir xil 5
+    # ustun, `td` CSS orqali ramkali, har biri ~26px balandlik.
+    bosh_qatorlar = (
+        '<tr>' + '<td style="height:26px;padding:0"></td>' * 5 + '</tr>'
+    ) * 2
+
     jami_tara = sum((m["aravalar"].get(n) or {}).get("tara") or 0 for n in (1, 2, 3))
     jami_brutto = sum((m["aravalar"].get(n) or {}).get("brutto") or 0 for n in (1, 2, 3))
     jami_netto = jami_brutto - jami_tara
@@ -3399,6 +3406,7 @@ def _nakladnoy_nusxa_html(m: dict, sana: str, nusxa_nomi: str, qr_base64: str,
       <td>{round(jami_netto)}</td>
       <td>{round(jami_konditsion)}</td>
     </tr>
+    {bosh_qatorlar}
   </table>
 
   <div class="dostaverka-box">

@@ -37,6 +37,20 @@ class NavbatService {
     tugallanganlar.value = [mashina, ...tugallanganlar.value];
   }
 
+  // Navbatdagi mavjud yozuvni backenddan kelgan yangi ma'lumot bilan
+  // almashtirish (admin panelda firma, klass, sinf, namlik, ifloslik,
+  // dostaverka va h.k. o'zgartirilganda). hujjatId bo'yicha topiladi;
+  // topilmasa hech narsa qilinmaydi.
+  static void navbatYangila(NavbatMashina yangi) {
+    final royxat = navbat.value;
+    final idx = royxat.indexWhere(
+        (m) => m.hujjatId == yangi.hujjatId);
+    if (idx < 0) return;
+    final nusxa = [...royxat];
+    nusxa[idx] = yangi;
+    navbat.value = nusxa;
+  }
+
   // Navbatdan o'chirish (bekor qilish)
   static void navbatdanOchir(int hujjatId) {
     navbat.value = navbat.value

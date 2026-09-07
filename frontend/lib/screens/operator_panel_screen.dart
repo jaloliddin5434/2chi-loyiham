@@ -397,6 +397,31 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     );
   }
 
+  /// Navbatdagi mashinaning admin panelda o'zgartirilishi mumkin bo'lgan
+  /// ma'lumotlari (firma, klass, sinf, terim turi, namlik, ifloslik,
+  /// dostaverka/tuda raqami va h.k.) farq qilyaptimi? Har 5 soniyada
+  /// keladigan navbat javobida bularni tekshirib, faqat haqiqatan
+  /// o'zgargan bo'lsa yozuvni almashtiramiz - aks holda har safar
+  /// keraksiz setState / ro'yxat qayta qurilishi bo'lardi.
+  bool _navbatMalumotFarqli(NavbatMashina a, NavbatMashina b) {
+    return a.firma != b.firma ||
+        a.turi != b.turi ||
+        a.shofyor != b.shofyor ||
+        a.mahsulotId != b.mahsulotId ||
+        a.mahsulotNomi != b.mahsulotNomi ||
+        a.hujjatRaqam != b.hujjatRaqam ||
+        a.tudaRaqam != b.tudaRaqam ||
+        a.tiketRaqam != b.tiketRaqam ||
+        a.seleksiyaNavi != b.seleksiyaNavi ||
+        a.klass != b.klass ||
+        a.sinf != b.sinf ||
+        a.terimTuri != b.terimTuri ||
+        a.namlik != b.namlik ||
+        a.ifloslik != b.ifloslik ||
+        a.qabulQildi != b.qabulQildi ||
+        a.yukOlindi != b.yukOlindi;
+  }
+
   Future<void> _backendDanYukla() async {
     try {
       
@@ -445,6 +470,29 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
             !mavjudTugIds.contains(id)) {
           NavbatService.navbatQosh(_mapDanMashina(
               Map<String, dynamic>.from(m)));
+        } else if (mavjudNavbatIds.contains(id)) {
+          // Mashina allaqachon navbatda. Admin panelda uning ma'lumotlari
+          // (firma, klass, sinf, namlik, ifloslik, dostaverka, seleksiya
+          // navi va h.k.) o'zgartirilgan bo'lishi mumkin - backenddan
+          // kelgan yangi nusxa bilan solishtiramiz va farq bo'lsa
+          // almashtiramiz. Og'irlik (tara/brutto) mahalliy `aravalar`
+          // xaritasidan ko'rsatilgani uchun bu almashtirish davom
+          // etayotgan tortishga xalaqit bermaydi.
+          final yangi = _mapDanMashina(Map<String, dynamic>.from(m));
+          final eski = NavbatService.navbat.value
+              .firstWhere((x) => x.hujjatId == id,
+                  orElse: () => yangi);
+          if (!identical(eski, yangi) &&
+              _navbatMalumotFarqli(eski, yangi)) {
+            NavbatService.navbatYangila(yangi);
+            if (tanlanganNavbat?.hujjatId == id) {
+              if (mounted) {
+                setState(() => tanlanganNavbat = yangi);
+              } else {
+                tanlanganNavbat = yangi;
+              }
+            }
+          }
         }
       }
 

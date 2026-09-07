@@ -77,6 +77,64 @@ def test_royxat_olchov_togri_qaytaradi_va_sorovlar_soni_hujjatga_qaram_emas(
     )
 
 
+def _navbat_qosh(client, admin_headers, hid, mashina, mahsulot_id):
+    client.post("/navbat/qosh", json={
+        "hujjatId": hid, "mashinaId": mashina.id, "raqam": mashina.davlat_raqami,
+        "mahsulotId": mahsulot_id, "mahsulotNomi": "Chigit",
+    }, headers=admin_headers)
+
+
+def test_50_hujjat_bilan_sorovlar_soni_kichik_va_deyarli_ozgarmas(
+        client, admin_headers, mahsulot_chigit, mashina):
+    """Kattaroq, aniqroq tekshiruv: 10 ta va 50 ta hujjat bilan so'rovlar
+    soni deyarli bir xil bo'lishi kerak. N+1 bo'lganda 10 ta -> ~11,
+    50 ta -> ~51 so'rov bo'lardi; batch (.in_) bilan ikkalasi ham
+    o'zgarmas, kichik son (odatda 3-4)."""
+    for i in range(10):
+        hid = _hujjat_va_olchov_yarat(client, admin_headers, mahsulot_chigit.id, mashina.id, i)
+        _navbat_qosh(client, admin_headers, hid, mashina, mahsulot_chigit.id)
+
+    _, hujjatlar_10 = _sorovlar_sonini_sanab(
+        lambda: client.get("/hujjatlar?sahifa_hajmi=100", headers=admin_headers))
+    _, navbat_10 = _sorovlar_sonini_sanab(
+        lambda: client.get("/navbat", headers=admin_headers))
+    _, eksport_10 = _sorovlar_sonini_sanab(
+        lambda: client.get(f"/hujjatlar/eksport?mahsulot_id={mahsulot_chigit.id}",
+                            headers=admin_headers))
+
+    for i in range(10, 50):
+        hid = _hujjat_va_olchov_yarat(client, admin_headers, mahsulot_chigit.id, mashina.id, i)
+        _navbat_qosh(client, admin_headers, hid, mashina, mahsulot_chigit.id)
+
+    javob, hujjatlar_50 = _sorovlar_sonini_sanab(
+        lambda: client.get("/hujjatlar?sahifa_hajmi=100", headers=admin_headers))
+    navbat_javob, navbat_50 = _sorovlar_sonini_sanab(
+        lambda: client.get("/navbat", headers=admin_headers))
+    _, eksport_50 = _sorovlar_sonini_sanab(
+        lambda: client.get(f"/hujjatlar/eksport?mahsulot_id={mahsulot_chigit.id}",
+                            headers=admin_headers))
+
+    # Mutlaq chegara: 50 ta hujjat uchun ham har endpoint 10 tadan kam
+    # so'rov yuborishi kerak (N+1 bo'lsa 50+ bo'lardi).
+    assert hujjatlar_50 < 10, f"GET /hujjatlar: 50 hujjat uchun {hujjatlar_50} so'rov (N+1?)"
+    assert navbat_50 < 10, f"GET /navbat: 50 qator uchun {navbat_50} so'rov (N+1?)"
+    assert eksport_50 < 10, f"GET /hujjatlar/eksport: 50 hujjat uchun {eksport_50} so'rov (N+1?)"
+
+    # Proporsional o'sish YO'Q: hujjatlar soni 5 barobar oshdi (10->50),
+    # so'rovlar soni esa ~o'zgarmas (kichik doimiy farqqa yo'l qo'yiladi).
+    assert hujjatlar_50 <= hujjatlar_10 + 1
+    assert navbat_50 <= navbat_10 + 1
+    assert eksport_50 <= eksport_10 + 1
+
+    # Ma'lumot yo'qolmadi: 50 tasi ham qaytdi, netto to'g'ri.
+    natijalar = javob.json()["natijalar"]
+    assert len(natijalar) == 50
+    assert javob.json()["jami"] == 50
+    for h in natijalar:
+        assert h["netto"] == 2000  # brutto(3000+i) - tara(1000+i) = 2000 (i bekor bo'ladi)
+    assert len(navbat_javob.json()) == 50
+
+
 def test_eksport_olchov_togri_qaytaradi(client, admin_headers, mahsulot_chigit, mashina):
     _hujjat_va_olchov_yarat(client, admin_headers, mahsulot_chigit.id, mashina.id, 0)
 

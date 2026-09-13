@@ -8,7 +8,11 @@ o'zgartira olmaydi - so'rov qoldiradi, admin tasdiqlaydi yoki rad etadi.
 - POST /tuzatish_sorovi/{id}/tasdiq         (admin tasdiqlaydi -> hujjat + navbat yangilanadi)
 - POST /tuzatish_sorovi/{id}/rad            (admin rad etadi -> hujjat o'zgarmaydi)
 """
+from datetime import datetime, timedelta
+
 import pytest
+
+from models import TuzatishSorovi
 
 
 @pytest.fixture()
@@ -199,3 +203,93 @@ def test_operator_tasdiqlay_olmaydi(client, operator_headers, hujjat):
 def test_yoq_sorovni_tasdiq_404(client, admin_headers):
     javob = client.post("/tuzatish_sorovi/999999/tasdiq", headers=admin_headers)
     assert javob.status_code == 404
+
+
+# ---------- GET /tuzatish_sorovlar/operator/{login}: filtr + limit ----------
+# Operator ekrani bu endpointni har 3 soniyada so'raydi (poll) - avval
+# LIMITSIZ edi, shu sabab mavsum davomida to'plangan yuzlab hal qilingan
+# eski so'rov ham har safar qaytardi. Endi: faqat "kutilmoqda" (cheksiz
+# eski bo'lsa ham) + oxirgi 24 soatda hal qilingan (operator natijani
+# ko'rishi uchun) qaytadi, jami natija 50 ta bilan cheklanadi.
+
+def _sorov_qosh(db_session, hujjat_id, operator_login, holat, maydon_nomi="sinf",
+                 yaratilgan_vaqt=None, hal_qilingan_vaqt=None):
+    s = TuzatishSorovi(
+        hujjat_id=hujjat_id, operator_login=operator_login, maydon_nomi=maydon_nomi,
+        eski_qiymat="A", yangi_qiymat="B", sabab="test", holat=holat,
+        yaratilgan_vaqt=yaratilgan_vaqt or datetime.now(),
+        hal_qilingan_vaqt=hal_qilingan_vaqt,
+    )
+    db_session.add(s)
+    db_session.commit()
+    return s
+
+
+def test_kutilmoqda_sorov_qancha_eski_bolsada_korinadi(
+        client, operator_headers, db_session, hujjat):
+    juda_eski = datetime.now() - timedelta(days=200)
+    _sorov_qosh(db_session, hujjat["id"], "test_operator", "kutilmoqda",
+                yaratilgan_vaqt=juda_eski)
+
+    javob = client.get("/tuzatish_sorovlar/operator/test_operator", headers=operator_headers)
+    assert javob.status_code == 200
+    assert len(javob.json()) == 1
+    assert javob.json()[0]["holat"] == "kutilmoqda"
+
+
+def test_songi_24_soatda_hal_qilingan_sorov_koradi(
+        client, operator_headers, db_session, hujjat):
+    _sorov_qosh(db_session, hujjat["id"], "test_operator", "tasdiqlandi",
+                yaratilgan_vaqt=datetime.now() - timedelta(hours=2),
+                hal_qilingan_vaqt=datetime.now() - timedelta(hours=1))
+
+    javob = client.get("/tuzatish_sorovlar/operator/test_operator", headers=operator_headers)
+    assert javob.status_code == 200
+    assert len(javob.json()) == 1
+    assert javob.json()[0]["holat"] == "tasdiqlandi"
+
+
+def test_24_soatdan_eski_hal_qilingan_sorov_royxatdan_chiqadi(
+        client, operator_headers, db_session, hujjat):
+    # Chegaradan ANIQ ichkarida (23 soat) - ko'rinishi kerak
+    _sorov_qosh(db_session, hujjat["id"], "test_operator", "tasdiqlandi",
+                yaratilgan_vaqt=datetime.now() - timedelta(hours=23, minutes=30),
+                hal_qilingan_vaqt=datetime.now() - timedelta(hours=23))
+    # Chegaradan tashqarida (25 soat) - ko'rinmasligi kerak
+    _sorov_qosh(db_session, hujjat["id"], "test_operator", "rad_etildi",
+                yaratilgan_vaqt=datetime.now() - timedelta(hours=26),
+                hal_qilingan_vaqt=datetime.now() - timedelta(hours=25))
+
+    javob = client.get("/tuzatish_sorovlar/operator/test_operator", headers=operator_headers)
+    assert javob.status_code == 200
+    natijalar = javob.json()
+    assert len(natijalar) == 1
+    assert natijalar[0]["holat"] == "tasdiqlandi"
+
+
+def test_operator_royxati_50_bilan_cheklanadi(
+        client, operator_headers, db_session, hujjat):
+    hozir = datetime.now()
+    for i in range(60):
+        _sorov_qosh(db_session, hujjat["id"], "test_operator", "kutilmoqda",
+                    yaratilgan_vaqt=hozir - timedelta(seconds=i))
+
+    javob = client.get("/tuzatish_sorovlar/operator/test_operator", headers=operator_headers)
+    assert javob.status_code == 200
+    natijalar = javob.json()
+    assert len(natijalar) == 50
+    # Eng yangilari (kichik `i`, ya'ni eng katta yaratilgan_vaqt) qaytishi kerak
+    vaqtlar = [n["yaratilgan_vaqt"] for n in natijalar]
+    assert vaqtlar == sorted(vaqtlar, reverse=True)
+
+
+def test_boshqa_operatorning_hal_qilingan_sorovi_aralashmaydi(
+        client, operator_headers, db_session, hujjat):
+    """24-soat/limit filtri operator_login filtridan KEYIN emas, u bilan
+    BIRGA qo'llanishi kerak - boshqa operatorning yozuvi hech qachon
+    chiqmasligi kerak."""
+    _sorov_qosh(db_session, hujjat["id"], "boshqa_operator", "kutilmoqda")
+
+    javob = client.get("/tuzatish_sorovlar/operator/test_operator", headers=operator_headers)
+    assert javob.status_code == 200
+    assert javob.json() == []

@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Response, Request, 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Date
+from sqlalchemy import func, cast, Date, or_
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from database import engine, get_db, Base, SessionLocal
@@ -17,6 +17,7 @@ import io
 import threading
 import time
 import uuid
+from collections import namedtuple
 from pathlib import Path
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -733,6 +734,66 @@ def _olchovlar_jamlangan(olchovlar):
     jami_netto = sum(a["netto"] for a in aravalar.values() if a["netto"]) or None
     jami_konditsion = sum(a["konditsion"] for a in aravalar.values() if a["konditsion"]) or None
     return jami_tara, jami_brutto, jami_netto, jami_konditsion
+
+
+_MahsulotStatistikaQatori = namedtuple(
+    "_MahsulotStatistikaQatori", ["mahsulot_id", "soni", "jami_netto", "jami_konditsion"]
+)
+
+
+def _mahsulot_bosim_statistikasi(db, boshlanish_sana):
+    """/statistika/kunlik, /haftalik, /oylik, /mavsum uchun har mahsulot
+    bo'yicha soni/jami_netto/jami_konditsion hisoblaydi.
+
+    ESLATMA: avval bu yerda to'g'ridan-to'g'ri func.sum(Olchov.netto)
+    ishlatilgan edi - bu XATO edi, chunki bitta arava uchun bir nechta
+    Olchov qatori bo'lishi normal holat (operator avval faqat TARA,
+    keyin TARA+BRUTTO alohida qator sifatida saqlaydi - qarang:
+    _olchovlar_jamlangan()). Bunday holda oddiy SUM ikkala qatorni ham
+    qo'shib, tonnajni ikki baravar hisoblardi. Shu sabab bu yerda HAR
+    BIR HUJJAT uchun _olchovlar_jamlangan() qayta ishlatiladi (Excel
+    jurnali va nakladnoy bilan bir xil mantiq: har arava_raqam bo'yicha
+    eng oxirgi NULL bo'lmagan qiymat olinadi, SO'NGRA yig'iladi) - shu
+    orqali hujjat darajasida allaqachon to'g'ri jamlangan netto/konditsion
+    olinadi, keyin esa hujjatlar mahsulot bo'yicha qo'shiladi (bu qismda
+    takrorlanish yo'q - har hujjat faqat bitta marta hisoblanadi)."""
+    hujjatlar = (
+        db.query(Hujjat.id, Hujjat.mahsulot_id)
+        .filter(Hujjat.created_at >= boshlanish_sana, Hujjat.holat == HujjatHolati.TUGALLANDI)
+        .all()
+    )
+    if not hujjatlar:
+        return []
+    hujjat_idlar = [h.id for h in hujjatlar]
+    mahsulot_dict = {h.id: h.mahsulot_id for h in hujjatlar}
+
+    # Barcha Olchov qatorlari BIR so'rovda olinadi (N+1 qilmasdan) - qarang:
+    # GET /hujjatlar dagi xuddi shu naqsh.
+    olchovlar_dict = {}
+    for o in db.query(Olchov).filter(Olchov.hujjat_id.in_(hujjat_idlar)).order_by(Olchov.id.asc()).all():
+        olchovlar_dict.setdefault(o.hujjat_id, []).append(o)
+
+    mahsulotlar = {}
+    for hujjat_id in hujjat_idlar:
+        _, _, jami_netto, jami_konditsion = _olchovlar_jamlangan(olchovlar_dict.get(hujjat_id, []))
+        if not jami_netto or jami_netto <= 0:
+            continue
+        mahsulot_id = mahsulot_dict[hujjat_id]
+        m = mahsulotlar.setdefault(mahsulot_id, {"soni": 0, "jami_netto": 0.0, "jami_konditsion": 0.0})
+        m["soni"] += 1
+        m["jami_netto"] += jami_netto
+        if jami_konditsion:
+            m["jami_konditsion"] += jami_konditsion
+
+    return [
+        _MahsulotStatistikaQatori(
+            mahsulot_id=mahsulot_id,
+            soni=v["soni"],
+            jami_netto=v["jami_netto"],
+            jami_konditsion=v["jami_konditsion"],
+        )
+        for mahsulot_id, v in mahsulotlar.items()
+    ]
 
 
 def _hujjat_navbat_fallback(hujjat_qiymat, navbat, maydon_nomi):
@@ -1469,14 +1530,27 @@ def tuzatish_sorovlar_royxati(holat: str = None, limit: int = 500, db: Session =
 @app.get("/tuzatish_sorovlar/operator/{login}")
 def tuzatish_sorovlar_operator(login: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Operator o'z tuzatish so'rovlarini (va holatini) ko'radi. Operator
-    faqat O'Z loginini so'rashi mumkin; admin/hisobchi - istalganini."""
+    faqat O'Z loginini so'rashi mumkin; admin/hisobchi - istalganini.
+    Operator ekrani bu endpointni har 3 soniyada so'raydi (poll) - shu
+    sabab bu yerda cheklovsiz BARCHA yozuvlar emas, faqat operatorga
+    kerakli qism qaytariladi: hali "kutilmoqda" turgan so'rovlar
+    (cheksiz eski bo'lsa ham) + oxirgi 24 soat ichida hal qilingan
+    (tasdiqlandi/rad_etildi) so'rovlar (operator natijani ko'rishi
+    uchun). Aks holda mavsum davomida to'plangan yuzlab hal qilingan
+    eski so'rov har poll'da qayta-qayta qaytarilardi. Yakuniy limit -
+    50 ta (eng yangilari)."""
     if current_user.get("role") not in ("admin", "hisobchi") and current_user.get("sub") != login:
         raise HTTPException(status_code=403, detail="Faqat o'z so'rovlaringizni ko'rishingiz mumkin!")
+    so_nggi_24_soat = datetime.now() - timedelta(hours=24)
     yozuvlar = db.query(TuzatishSorovi, Hujjat.raqam).join(
         Hujjat, TuzatishSorovi.hujjat_id == Hujjat.id
     ).filter(
-        TuzatishSorovi.operator_login == login
-    ).order_by(TuzatishSorovi.yaratilgan_vaqt.desc()).all()
+        TuzatishSorovi.operator_login == login,
+        or_(
+            TuzatishSorovi.holat == "kutilmoqda",
+            TuzatishSorovi.hal_qilingan_vaqt >= so_nggi_24_soat,
+        ),
+    ).order_by(TuzatishSorovi.yaratilgan_vaqt.desc()).limit(50).all()
     return [_tuzatish_sorovi_dict(s, raqam) for s, raqam in yozuvlar]
 
 
@@ -1874,18 +1948,7 @@ def kunlik_statistika(db: Session = Depends(get_db), current_user: dict = Depend
     from models import Navbat as NavbatModel
     navbat_soni = db.query(NavbatModel).filter(NavbatModel.tugallandi == False).count()
 
-    natijalar = db.query(
-        Hujjat.mahsulot_id,
-        func.count(func.distinct(Hujjat.id)).label('soni'),
-        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
-    ).outerjoin(
-        Olchov, Olchov.hujjat_id == Hujjat.id
-    ).filter(
-        Hujjat.created_at >= bugun,
-        Hujjat.holat == HujjatHolati.TUGALLANDI,
-        Olchov.netto > 0,
-    ).group_by(Hujjat.mahsulot_id).all()
+    natijalar = _mahsulot_bosim_statistikasi(db, bugun)
 
     natija = {}
     for row in natijalar:
@@ -1925,18 +1988,7 @@ def haftalik_statistika(db: Session = Depends(get_db), current_user: dict = Depe
         Hujjat.holat == HujjatHolati.BEKOR_QILINDI, Hujjat.created_at >= hafta_boshi
     ).count()
 
-    natijalar = db.query(
-        Hujjat.mahsulot_id,
-        func.count(func.distinct(Hujjat.id)).label('soni'),
-        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
-    ).outerjoin(
-        Olchov, Olchov.hujjat_id == Hujjat.id
-    ).filter(
-        Hujjat.created_at >= hafta_boshi,
-        Hujjat.holat == HujjatHolati.TUGALLANDI,
-        Olchov.netto > 0,
-    ).group_by(Hujjat.mahsulot_id).all()
+    natijalar = _mahsulot_bosim_statistikasi(db, hafta_boshi)
 
     natija = {}
     for row in natijalar:
@@ -1976,18 +2028,7 @@ def oylik_statistika(db: Session = Depends(get_db), current_user: dict = Depends
         Hujjat.holat == HujjatHolati.BEKOR_QILINDI, Hujjat.created_at >= oy_boshi
     ).count()
 
-    natijalar = db.query(
-        Hujjat.mahsulot_id,
-        func.count(func.distinct(Hujjat.id)).label('soni'),
-        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
-    ).outerjoin(
-        Olchov, Olchov.hujjat_id == Hujjat.id
-    ).filter(
-        Hujjat.created_at >= oy_boshi,
-        Hujjat.holat == HujjatHolati.TUGALLANDI,
-        Olchov.netto > 0,
-    ).group_by(Hujjat.mahsulot_id).all()
+    natijalar = _mahsulot_bosim_statistikasi(db, oy_boshi)
 
     natija = {}
     for row in natijalar:
@@ -2026,18 +2067,7 @@ def mavsum_statistika(db: Session = Depends(get_db), current_user: dict = Depend
         Hujjat.holat == HujjatHolati.BEKOR_QILINDI, Hujjat.created_at >= mavsum_boshi
     ).count()
 
-    natijalar = db.query(
-        Hujjat.mahsulot_id,
-        func.count(func.distinct(Hujjat.id)).label('soni'),
-        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
-    ).outerjoin(
-        Olchov, Olchov.hujjat_id == Hujjat.id
-    ).filter(
-        Hujjat.created_at >= mavsum_boshi,
-        Hujjat.holat == HujjatHolati.TUGALLANDI,
-        Olchov.netto > 0,
-    ).group_by(Hujjat.mahsulot_id).all()
+    natijalar = _mahsulot_bosim_statistikasi(db, mavsum_boshi)
 
     natija = {}
     for row in natijalar:

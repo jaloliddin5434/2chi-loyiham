@@ -663,7 +663,7 @@ def keyingi_hujjat_raqami(db: Session, yil: int, mahsulot_id: int) -> str:
     return f"{prefiks}-{yil}/{str(hisoblagich.oxirgi_raqam).zfill(3)}"
 
 @app.post("/hujjatlar")
-def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def hujjat_yaratish(hujjat: HujjatCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_role("operator", "admin"))):
     if hujjat.mijoz_kaliti:
         mavjud = db.query(Hujjat).filter(Hujjat.mijoz_kaliti == hujjat.mijoz_kaliti).first()
         if mavjud:
@@ -1664,7 +1664,7 @@ _OLCHOV_MINIMAL_OGIRLIK_KG = 10.0
 
 
 @app.post("/olchovlar")
-def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_role("operator", "admin"))):
     # hujjat_id mavjudligi OLDINDAN tekshiriladi - aks holda mavjud
     # bo'lmagan ID yuborilsa (masalan mijoz eskirgan/xato ma'lumot bilan),
     # Olchov.hujjat_id'dagi FK cheklovi keyinroq xom holda otilib,
@@ -1915,7 +1915,7 @@ def tugallanganlar_get(db: Session = Depends(get_db), current_user: dict = Depen
     return natija
 
 @app.post("/navbat/bekor")
-def navbat_bekor(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def navbat_bekor(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_role("operator", "admin"))):
     from models import Navbat
     navbat = db.query(Navbat).filter(Navbat.hujjat_id == data.get("hujjatId")).first()
     if navbat:
@@ -3801,7 +3801,7 @@ def _nakladnoy_nusxa_html(m: dict, sana: str, nusxa_nomi: str, qr_base64: str,
 
 
 @app.post("/nakladnoy/saqlash")
-def nakladnoy_saqlash(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def nakladnoy_saqlash(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_role("operator", "admin"))):
     try:
         hujjat_id = data.get("hujjat_id")
         if not hujjat_id:

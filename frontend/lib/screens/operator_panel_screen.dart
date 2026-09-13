@@ -10,6 +10,22 @@ import '../services/navbat_service.dart';
 import '../services/offline_service.dart';
 import '../services/offline_queue_service.dart';
 
+/// `maydonlar` dan qiymati NULL yoki bo'sh string ("") bo'lgan kalitlarni
+/// olib tashlaydi. Backend PUT /hujjatlar/{id} `exclude_unset=True` bilan
+/// ishlaydi - ya'ni payloadda UMUMAN YO'Q kalitni "o'zgarmasin" deb
+/// tushunadi, lekin bo'sh string qiymat bilan YUBORILGAN kalitni "operator
+/// ataylab bo'shatdi" deb qabul qilib, bazadagi MAVJUD qiymatni ustidan
+/// yozib yuboradi. Shu sabab operator hali to'ldirmagan (bo'sh) maydonlar
+/// hujjatYangilash chaqiruvidan OLDIN shu funksiya bilan chiqarib
+/// tashlanishi kerak. Nol (0) yoki false kabi haqiqiy qiymatlar
+/// saqlanadi - faqat aynan null va bo'sh string chiqariladi.
+Map<String, dynamic> faqatQiymatliMaydonlar(Map<String, dynamic> maydonlar) {
+  final natija = Map<String, dynamic>.from(maydonlar);
+  natija.removeWhere(
+      (_, qiymat) => qiymat == null || (qiymat is String && qiymat.isEmpty));
+  return natija;
+}
+
 class AravaData {
   double? tara;
   double? brutto;
@@ -1791,22 +1807,25 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
           }
         }
 
-        await ApiService.hujjatYangilash(tug.hujjatId, {
-          'firma': firmaCtrl.text,
-          'shofyor': shofyorCtrl.text,
-          'tiket_raqam': tiketRaqamCtrl.text,
-          'tuda_raqam': tudaRaqamCtrl.text,
-          'klass': _klassQiymati,
-          'sinf': _sinfQiymati,
-          'namlik': _namlikQiymati,
-          'ifloslik': _ifloslikQiymati,
-          'seleksiya_navi': _seleksiyaNaviQiymati,
-          'qabul_qildi': qabulQildiCtrl.text,
-          'yuk_olindi': yukOlindiCtrl.text,
-          'dostaverka': dostaverkaCtrl.text,
-          'dostaverka_vaqt': dostaverkaVaqtCtrl.text,
-          'sabab': 'Operator tomonidan yangilandi',
-        });
+        await ApiService.hujjatYangilash(
+          tug.hujjatId,
+          faqatQiymatliMaydonlar({
+            'firma': firmaCtrl.text,
+            'shofyor': shofyorCtrl.text,
+            'tiket_raqam': tiketRaqamCtrl.text,
+            'tuda_raqam': tudaRaqamCtrl.text,
+            'klass': _klassQiymati,
+            'sinf': _sinfQiymati,
+            'namlik': _namlikQiymati,
+            'ifloslik': _ifloslikQiymati,
+            'seleksiya_navi': _seleksiyaNaviQiymati,
+            'qabul_qildi': qabulQildiCtrl.text,
+            'yuk_olindi': yukOlindiCtrl.text,
+            'dostaverka': dostaverkaCtrl.text,
+            'dostaverka_vaqt': dostaverkaVaqtCtrl.text,
+            'sabab': 'Operator tomonidan yangilandi',
+          }),
+        );
 
         // Nakladnoy PDF saqlash - dostaverka/qabul_qildi/yuk_olindi endi
         // bazaga yozilgandan KEYIN chaqiriladi, shunda backend hujjat_id

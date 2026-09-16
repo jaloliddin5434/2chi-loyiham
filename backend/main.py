@@ -3062,6 +3062,35 @@ def tizim_xatosi_korildi(xato_id: int, db: Session = Depends(get_db), current_us
         db.commit()
     return {"status": "ok"}
 
+# ============ SEZON TOZALASH ============
+
+@app.delete("/admin/sezon-tozala")
+def sezon_tozala(data: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_role("admin"))):
+    """Yangi mavsum boshlanganda barcha SINOV/eski mavsum ma'lumotlarini
+    o'chiradi: hujjatlar, olchovlar, navbat, tahrir tarixi, tuzatish
+    so'rovlari (nakladnoy token Hujjat.nakladnoy_token ustuni bo'lgani
+    uchun hujjat bilan birga o'chadi - alohida jadval emas). Foydalanuvchilar,
+    sozlamalar, mahsulotlar va mashinalar TEGILMAYDI.
+
+    Qaytarib bo'lmaydigan amal - tasodifiy chaqirishning oldini olish
+    uchun so'rov tanasida aniq tasdiq talab qilinadi."""
+    if data.get("tasdiqlayman") is not True:
+        raise HTTPException(
+            status_code=400,
+            detail="Tasdiqlash kerak: {\"tasdiqlayman\": true} yuboring. Bu amal barcha hujjat, o'lchov va navbat ma'lumotlarini QAYTARIB BO'LMAYDIGAN tarzda o'chiradi!",
+        )
+    from models import Navbat
+
+    natija = {
+        "tahrir_tarixi": db.query(TahrirTarixi).delete(),
+        "tuzatish_sorovlari": db.query(TuzatishSorovi).delete(),
+        "olchovlar": db.query(Olchov).delete(),
+        "navbat": db.query(Navbat).delete(),
+        "hujjatlar": db.query(Hujjat).delete(),
+    }
+    db.commit()
+    return {"status": "ok", "ochirildi": natija}
+
 # ============ SERVER HOLATI ============
 import psutil
 

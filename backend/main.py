@@ -1384,6 +1384,22 @@ def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, background_tasks: Backg
     # bo'ladi - takroriy qator xavfi yo'q.
     if eski_holat != HujjatHolati.TUGALLANDI and hujjat.holat == HujjatHolati.TUGALLANDI:
         background_tasks.add_task(excel_qatorga_yoz_fon, hujjat_id)
+        # Operator ODATDA POST /navbat/tugallandi orqali yakunlaydi (shu
+        # yerda Navbat.tugallandi/tugallangan_vaqt ham yangilanadi) - lekin
+        # admin/hisobchi hujjatni shu umumiy tahrirlash oynasidan TO'G'RIDAN-
+        # TO'G'RI ham "tugallandi"ga o'tkazishi mumkin (masalan netto<=0
+        # kabi anomaliya tufayli operator ekranida oddiy yo'l bilan
+        # yakunlab bo'lmagan hujjatni qo'lda tuzatib yakunlaganda). Agar
+        # shu yo'l bilan Navbat qatori sinxronlanmasa, hujjat GET
+        # /navbat/tugallanganlar ro'yxatida (operator/admin "Tugallandi"
+        # ro'yxati) HECH QACHON ko'rinmay qolardi - garchi Hujjat.holat
+        # allaqachon TUGALLANDI bo'lsa ham.
+        from models import Navbat
+        navbat = db.query(Navbat).filter(Navbat.hujjat_id == hujjat_id).first()
+        if navbat is not None and not navbat.tugallandi:
+            navbat.tugallandi = True
+            navbat.tugallangan_vaqt = datetime.now()
+            db.commit()
 
     return hujjat
 

@@ -1342,6 +1342,22 @@ def hujjat_yangilash(hujjat_id: int, data: HujjatUpdate, background_tasks: Backg
     if "firma" in payload:
         firma_royxatga_qoshish(db, payload["firma"])
 
+    # Navbat jadvali o'zining firma/shofyor/tiket_raqam/tuda_raqam/klass/
+    # sinf/seleksiya_navi/namlik/ifloslik nusxasini saqlaydi (operator
+    # ekrani GET /navbat va /navbat/tugallanganlar'dan o'qiydi, Hujjat'dan
+    # emas - qarang: TUZATISH_NAVBAT_MAYDONLARI izohi). Avval bu faqat
+    # tuzatish so'rovi TASDIQLANGANDA sinxronlanardi - shu umumiy
+    # tahrirlash oynasidan (admin/hisobchi) to'g'ridan-to'g'ri o'zgartirilsa
+    # Navbat qatori eskirib qolardi (operator hali ESKI firma/klass va
+    # h.k.ni ko'rar edi).
+    navbat_sinxron_maydonlar = TUZATISH_NAVBAT_MAYDONLARI & set(payload.keys())
+    if navbat_sinxron_maydonlar:
+        from models import Navbat
+        navbat = db.query(Navbat).filter(Navbat.hujjat_id == hujjat_id).first()
+        if navbat is not None:
+            for maydon in navbat_sinxron_maydonlar:
+                setattr(navbat, maydon, payload[maydon])
+
     if olchov_ozgargan_maydonlar:
         for maydon in olchov_ozgargan_maydonlar:
             yangi_qiymat = payload[maydon]

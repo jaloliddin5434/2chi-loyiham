@@ -48,6 +48,7 @@ class NavbatMashina {
   final int hujjatId;
   final int mashinaId;
   String hujjatRaqam;
+  final int aravalarSoni;
   final DateTime kelganVaqt;
   bool tugallandi;
   DateTime? tugallanganVaqt;
@@ -75,6 +76,7 @@ class NavbatMashina {
     required this.hujjatId,
     required this.mashinaId,
     this.hujjatRaqam = '',
+    this.aravalarSoni = 1,
     required this.kelganVaqt,
     this.tugallandi = false,
     this.tugallanganVaqt,
@@ -405,6 +407,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       hujjatId: m['hujjatId'] ?? 0,
       mashinaId: m['mashinaId'] ?? 0,
       hujjatRaqam: m['hujjatRaqam'] ?? '',
+      aravalarSoni: (m['aravalarSoni'] as num?)?.toInt() ?? 1,
       kelganVaqt:
           DateTime.tryParse(m['kelganVaqt'] ?? '') ??
               DateTime.now(),
@@ -893,6 +896,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       aravalar: saqlangan,
       hujjatId: hujjatId!,
       mashinaId: mashinaId!,
+      aravalarSoni: aravalarSoni,
       kelganVaqt: mashinaKelganVaqt ?? DateTime.now(),
       tudaRaqam: tudaRaqamCtrl.text,
       tiketRaqam: tiketRaqamCtrl.text,
@@ -924,6 +928,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       'vaqt': mashina.vaqt,
       'mahsulotId': mashina.mahsulotId,
       'mahsulotNomi': mashina.mahsulotNomi,
+      'aravalarSoni': mashina.aravalarSoni,
       'kelganVaqt': mashina.kelganVaqt.toIso8601String(),
       'tudaRaqam': mashina.tudaRaqam,
       'tiketRaqam': mashina.tiketRaqam,
@@ -1135,6 +1140,11 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       hujjatId = mashina.hujjatId;
       mashinaId = mashina.mashinaId;
       bazagaSaqlandi = true;
+      // _keyingiBruttoSizArava() shu qiymat bo'yicha 1..aravalarSoni
+      // oralig'ida qidiradi - bu yerda tiklanmasa, eski (yoki standart 1)
+      // qiymatida qolib, ko'p aravali mashinada birinchi arava bruttosidan
+      // keyin "hammasi tugadi" deb noto'g'ri hisoblanadi.
+      aravalarSoni = mashina.aravalarSoni;
       mashinaKelganVaqt = mashina.kelganVaqt;
       if (mashina.tudaRaqam != null)
         tudaRaqamCtrl.text = mashina.tudaRaqam!;

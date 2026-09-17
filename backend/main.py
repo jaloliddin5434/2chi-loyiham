@@ -1832,10 +1832,11 @@ def navbat_get(db: Session = Depends(get_db), current_user: dict = Depends(get_c
     # (faqat .raqam olish uchun) ayniqsa ta'sirli edi. Endi barcha kerakli
     # hujjat_raqam BIR so'rovda oldindan olinadi.
     hujjat_idlar = [n.hujjat_id for n in navbat if n.hujjat_id]
-    hujjat_raqam_dict = {
-        h.id: h.raqam
-        for h in db.query(Hujjat.id, Hujjat.raqam).filter(Hujjat.id.in_(hujjat_idlar)).all()
-    }
+    hujjat_raqam_dict = {}
+    aravalar_soni_dict = {}
+    for h in db.query(Hujjat.id, Hujjat.raqam, Hujjat.aravalar_soni).filter(Hujjat.id.in_(hujjat_idlar)).all():
+        hujjat_raqam_dict[h.id] = h.raqam
+        aravalar_soni_dict[h.id] = h.aravalar_soni
 
     natija = []
     for n in navbat:
@@ -1859,8 +1860,14 @@ def navbat_get(db: Session = Depends(get_db), current_user: dict = Depends(get_c
             "ifloslik": n.ifloslik,
             "aravalar": json.loads(n.aravalar_json) if n.aravalar_json else {},
             "hujjatRaqam": hujjat_raqam_dict.get(n.hujjat_id, '') if n.hujjat_id else '',
+            # Hujjat.aravalar_soni - manba hisoblanadi (tara bosqichida
+            # o'rnatilgandan keyin o'zgarmaydi) - operator ekrani shu
+            # qiymat bo'yicha barcha aravalar bruttosi o'lchanganmi deb
+            # tekshiradi (qarang: aravalarSoni bo'lmasa/hujjat_id yo'q
+            # bo'lsa standart 1 arava deb olinadi).
+            "aravalarSoni": aravalar_soni_dict.get(n.hujjat_id) or 1,
         })
-        
+
     return natija
 
 @app.post("/navbat/tugallandi")
@@ -1929,6 +1936,11 @@ def tugallanganlar_get(db: Session = Depends(get_db), current_user: dict = Depen
         Navbat.tugallandi == True,
         Navbat.tugallangan_vaqt >= kun_oldin
     ).order_by(Navbat.tugallangan_vaqt.desc()).all()
+    hujjat_idlar = [n.hujjat_id for n in tugallanganlar if n.hujjat_id]
+    aravalar_soni_dict = {
+        h.id: h.aravalar_soni
+        for h in db.query(Hujjat.id, Hujjat.aravalar_soni).filter(Hujjat.id.in_(hujjat_idlar)).all()
+    }
     natija = []
     for n in tugallanganlar:
         natija.append({
@@ -1943,6 +1955,7 @@ def tugallanganlar_get(db: Session = Depends(get_db), current_user: dict = Depen
             "vaqt": n.vaqt,
             "tugallanganVaqt": str(n.tugallangan_vaqt) if n.tugallangan_vaqt else None,
             "aravalar": json.loads(n.aravalar_json) if n.aravalar_json else {},
+            "aravalarSoni": aravalar_soni_dict.get(n.hujjat_id) or 1,
         })
     return natija
 

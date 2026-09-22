@@ -1516,6 +1516,9 @@ Widget _mashinaGrafik() {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text("Jami: ${ro.length} ta hujjat",
                   style: const TextStyle(fontSize: 11, color: muted)),
+              const Text(
+                  "Barcha hujjatlar ko'rsatiladi (jarayonda + bekor + tugallangan)",
+                  style: TextStyle(fontSize: 11, color: muted)),
               const SizedBox(height: 10),
               yuklanmoqda
                   ? const Center(child: CircularProgressIndicator())
@@ -2680,6 +2683,12 @@ Widget _mashinaGrafik() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(14),
       child: Column(children: [
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text("Faqat tugallangan yuklar hisoblanadi (netto > 0)",
+              style: TextStyle(fontSize: 11, color: muted)),
+        ),
+        const SizedBox(height: 8),
        // MAHSULOT TABLARI
         Row(children: [
           ..._statMahsulotlar.map((nom) {

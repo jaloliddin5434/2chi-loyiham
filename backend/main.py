@@ -533,16 +533,33 @@ def _moliyaviy_davr_boshi(davr: str):
 def moliyaviy_hisobot(davr: str, db: Session = Depends(get_db), current_user: dict = Depends(require_moliyaviy_ruxsat)):
     davr_boshi = _moliyaviy_davr_boshi(davr)
 
-    # Har hujjat uchun alohida netto/konditsion jami - N+1 so'rovsiz,
-    # bitta JOIN+GROUP BY orqali (Olchov.hujjat_id bo'yicha).
-    satrlar = db.query(
-        Hujjat.id, Hujjat.mahsulot_id, Hujjat.created_at,
-        func.coalesce(func.sum(Olchov.netto), 0).label('netto'),
-        func.coalesce(func.sum(Olchov.konditsion), 0).label('konditsion'),
-    ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
+    # Har hujjat uchun alohida netto/konditsion jami.
+    # ESLATMA: avval bu yerda to'g'ridan-to'g'ri func.sum(Olchov.netto)/
+    # func.sum(Olchov.konditsion) ishlatilgan edi - _mahsulot_bosim_
+    # statistikasidagi eski xatoga o'xshab bu XATO edi: bitta arava
+    # uchun bir nechta Olchov qatori bo'lsa, SQL SUM ularni ikki marta
+    # qo'shib, daromadni ikki baravar hisoblardi. Endi HAR BIR HUJJAT
+    # uchun _olchovlar_jamlangan() qayta ishlatiladi (Excel jurnali,
+    # nakladnoy va _mahsulot_bosim_statistikasi bilan bir xil mantiq) -
+    # N+1 bo'lmasligi uchun Olchov qatorlari bitta so'rovda olinadi.
+    hujjatlar = db.query(Hujjat.id, Hujjat.mahsulot_id, Hujjat.created_at).filter(
         Hujjat.holat == HujjatHolati.TUGALLANDI,
         Hujjat.created_at >= davr_boshi,
-    ).group_by(Hujjat.id, Hujjat.mahsulot_id, Hujjat.created_at).all()
+    ).all()
+
+    hujjat_idlar = [h.id for h in hujjatlar]
+    olchovlar_dict = {}
+    for o in db.query(Olchov).filter(Olchov.hujjat_id.in_(hujjat_idlar)).order_by(Olchov.id.asc()).all():
+        olchovlar_dict.setdefault(o.hujjat_id, []).append(o)
+
+    _MoliyaviySatr = namedtuple("_MoliyaviySatr", ["mahsulot_id", "created_at", "netto", "konditsion"])
+    satrlar = []
+    for h in hujjatlar:
+        _, _, jami_netto, jami_konditsion = _olchovlar_jamlangan(olchovlar_dict.get(h.id, []))
+        satrlar.append(_MoliyaviySatr(
+            mahsulot_id=h.mahsulot_id, created_at=h.created_at,
+            netto=jami_netto or 0, konditsion=jami_konditsion or 0,
+        ))
 
     mahsulotlar = {m.id: m for m in db.query(Mahsulot).all()}
 
@@ -2159,6 +2176,70 @@ def _davr_boshlanishi(davr: str):
     return bugun.replace(day=1)  # oylik (standart)
 
 
+def _firma_haydovchi_statistikasi(db, boshlanish, maydon_nomi, sinov_qiymatlari=None):
+    """/statistika/firmalar va /statistika/haydovchilar uchun umumiy
+    hisoblash (guruhlash maydoni - Hujjat.firma yoki Hujjat.shofyor).
+
+    ESLATMA: avval bu yerda to'g'ridan-to'g'ri func.sum(Olchov.netto)/
+    func.sum(Olchov.konditsion) ishlatilgan edi - bu XATO edi (xuddi
+    _mahsulot_bosim_statistikasidagi eski xatoga o'xshab): bitta arava
+    uchun bir nechta Olchov qatori bo'lsa (masalan tozalanmagan tarixiy
+    takrorlanish), SQL SUM ularni ikki marta qo'shib, tonnajni ikki
+    baravar hisoblardi. Endi HAR BIR HUJJAT uchun _olchovlar_jamlangan()
+    qayta ishlatiladi (Excel jurnali, nakladnoy va
+    _mahsulot_bosim_statistikasi bilan bir xil mantiq), SO'NGRA shu
+    hujjat darajasida allaqachon to'g'ri jamlangan netto/konditsion
+    guruh (firma/haydovchi) bo'yicha qo'shiladi - har hujjat faqat bitta
+    marta hisoblanadi."""
+    maydon = getattr(Hujjat, maydon_nomi)
+    hujjatlar_sorovi = db.query(Hujjat.id, maydon).filter(
+        Hujjat.created_at >= boshlanish,
+        Hujjat.holat == HujjatHolati.TUGALLANDI,
+        maydon.isnot(None),
+        maydon != "",
+    )
+    if sinov_qiymatlari:
+        hujjatlar_sorovi = hujjatlar_sorovi.filter(maydon.notin_(sinov_qiymatlari))
+    hujjatlar = hujjatlar_sorovi.all()
+    if not hujjatlar:
+        return []
+
+    hujjat_idlar = [h.id for h in hujjatlar]
+    guruh_dict = {h.id: getattr(h, maydon_nomi) for h in hujjatlar}
+
+    # Barcha Olchov qatorlari BIR so'rovda olinadi (N+1 qilmasdan) - qarang:
+    # _mahsulot_bosim_statistikasi().
+    olchovlar_dict = {}
+    for o in db.query(Olchov).filter(Olchov.hujjat_id.in_(hujjat_idlar)).order_by(Olchov.id.asc()).all():
+        olchovlar_dict.setdefault(o.hujjat_id, []).append(o)
+
+    guruhlar = {}
+    for hujjat_id in hujjat_idlar:
+        _, _, jami_netto, jami_konditsion = _olchovlar_jamlangan(olchovlar_dict.get(hujjat_id, []))
+        if not jami_netto or jami_netto <= 0:
+            continue
+        nom = guruh_dict[hujjat_id]
+        g = guruhlar.setdefault(nom, {"soni": 0, "jami_netto": 0.0, "jami_konditsion": 0.0})
+        g["soni"] += 1
+        g["jami_netto"] += jami_netto
+        if jami_konditsion:
+            g["jami_konditsion"] += jami_konditsion
+
+    natijalar = []
+    for nom, v in guruhlar.items():
+        jami_tonnaj = round(v["jami_netto"] / 1000, 2)
+        jami_konditsion = round(v["jami_konditsion"] / 1000, 2)
+        natijalar.append({
+            "nom": nom,
+            "soni": v["soni"],
+            "jami_tonnaj": jami_tonnaj,
+            "jami_konditsion": jami_konditsion,
+            "ortacha_konditsion": round(jami_konditsion / v["soni"], 2) if v["soni"] else 0.0,
+        })
+    natijalar.sort(key=lambda x: x["jami_tonnaj"], reverse=True)
+    return natijalar
+
+
 @app.get("/statistika/firmalar")
 def firmalar_statistika(davr: str = "oylik", db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Firma boyicha jami hujjat soni/tonnaj/konditsion - eng kop
@@ -2167,35 +2248,7 @@ def firmalar_statistika(davr: str = "oylik", db: Session = Depends(get_db), curr
     Sinov yozuvlari ("Test Firma", "Sinov Firma") ataylab chiqarib
     tashlanadi."""
     boshlanish = _davr_boshlanishi(davr)
-
-    natijalar = db.query(
-        Hujjat.firma,
-        func.count(func.distinct(Hujjat.id)).label('soni'),
-        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
-    ).outerjoin(
-        Olchov, Olchov.hujjat_id == Hujjat.id
-    ).filter(
-        Hujjat.created_at >= boshlanish,
-        Hujjat.holat == HujjatHolati.TUGALLANDI,
-        Olchov.netto > 0,
-        Hujjat.firma.isnot(None),
-        Hujjat.firma != "",
-        Hujjat.firma.notin_(_SINOV_FIRMALARI),
-    ).group_by(Hujjat.firma).order_by(func.coalesce(func.sum(Olchov.netto), 0).desc()).all()
-
-    firmalar = []
-    for row in natijalar:
-        jami_tonnaj = round(row.jami_netto / 1000, 2)
-        jami_konditsion = round(row.jami_konditsion / 1000, 2)
-        firmalar.append({
-            "nom": row.firma,
-            "soni": row.soni,
-            "jami_tonnaj": jami_tonnaj,
-            "jami_konditsion": jami_konditsion,
-            "ortacha_konditsion": round(jami_konditsion / row.soni, 2) if row.soni else 0.0,
-        })
-
+    firmalar = _firma_haydovchi_statistikasi(db, boshlanish, "firma", sinov_qiymatlari=_SINOV_FIRMALARI)
     return {"davr": davr, "boshlanish": str(boshlanish), "firmalar": firmalar}
 
 
@@ -2205,34 +2258,7 @@ def haydovchilar_statistika(davr: str = "oylik", db: Session = Depends(get_db), 
     tonnajdan boshlab saralangan. Faqat "tugallandi" holatidagi hujjatlar
     hisoblanadi (jarayondagi va bekor qilinganlar chiqarib tashlanadi)."""
     boshlanish = _davr_boshlanishi(davr)
-
-    natijalar = db.query(
-        Hujjat.shofyor,
-        func.count(func.distinct(Hujjat.id)).label('soni'),
-        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
-    ).outerjoin(
-        Olchov, Olchov.hujjat_id == Hujjat.id
-    ).filter(
-        Hujjat.created_at >= boshlanish,
-        Hujjat.holat == HujjatHolati.TUGALLANDI,
-        Olchov.netto > 0,
-        Hujjat.shofyor.isnot(None),
-        Hujjat.shofyor != "",
-    ).group_by(Hujjat.shofyor).order_by(func.coalesce(func.sum(Olchov.netto), 0).desc()).all()
-
-    haydovchilar = []
-    for row in natijalar:
-        jami_tonnaj = round(row.jami_netto / 1000, 2)
-        jami_konditsion = round(row.jami_konditsion / 1000, 2)
-        haydovchilar.append({
-            "nom": row.shofyor,
-            "soni": row.soni,
-            "jami_tonnaj": jami_tonnaj,
-            "jami_konditsion": jami_konditsion,
-            "ortacha_konditsion": round(jami_konditsion / row.soni, 2) if row.soni else 0.0,
-        })
-
+    haydovchilar = _firma_haydovchi_statistikasi(db, boshlanish, "shofyor")
     return {"davr": davr, "boshlanish": str(boshlanish), "haydovchilar": haydovchilar}
 
     # ============ BACKUP ============

@@ -2889,48 +2889,61 @@ try {
                                   color: muted)),
                           const SizedBox(width: 6),
                           for (int i = 1; i <= 3; i++)
-                            GestureDetector(
-                              onTap: () => setState(
-                                  () =>
-                                      aravalarSoni =
-                                          i),
-                              child: Container(
-                                width: 28,
-                                height: 28,
-                                margin: const EdgeInsets
-                                    .only(left: 4),
-                                alignment:
-                                    Alignment.center,
-                                decoration:
-                                    BoxDecoration(
-                                  color: aravalarSoni ==
-                                          i
-                                      ? brandGreen
-                                      : Colors.white
-                                          .withValues(
-                                              alpha:
-                                                  0.7),
-                                  border: Border.all(
-                                      color:
-                                          aravalarSoni ==
-                                                  i
-                                              ? brandGreen
-                                              : brandGreenBorder),
-                                  borderRadius:
-                                      BorderRadius
-                                          .circular(6),
+                            Tooltip(
+                              message: bazagaSaqlandi
+                                  ? "Tara saqlangandan keyin o'zgartirib bo'lmaydi"
+                                  : "",
+                              child: GestureDetector(
+                                onTap: bazagaSaqlandi
+                                    ? null
+                                    : () => setState(
+                                        () =>
+                                            aravalarSoni =
+                                                i),
+                                child: Opacity(
+                                  opacity:
+                                      bazagaSaqlandi
+                                          ? 0.4
+                                          : 1,
+                                  child: Container(
+                                    width: 28,
+                                    height: 28,
+                                    margin: const EdgeInsets
+                                        .only(left: 4),
+                                    alignment:
+                                        Alignment.center,
+                                    decoration:
+                                        BoxDecoration(
+                                      color: aravalarSoni ==
+                                              i
+                                          ? brandGreen
+                                          : Colors.white
+                                              .withValues(
+                                                  alpha:
+                                                      0.7),
+                                      border: Border.all(
+                                          color:
+                                              aravalarSoni ==
+                                                      i
+                                                  ? brandGreen
+                                                  : brandGreenBorder),
+                                      borderRadius:
+                                          BorderRadius
+                                              .circular(6),
+                                    ),
+                                    child: Text("$i",
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight:
+                                                FontWeight
+                                                    .w700,
+                                            color: aravalarSoni ==
+                                                    i
+                                                ? Colors
+                                                    .white
+                                                : mutedText)),
+                                  ),
                                 ),
-                                child: Text("$i",
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight:
-                                            FontWeight
-                                                .w700,
-                                        color: aravalarSoni ==
-                                                i
-                                            ? Colors
-                                                .white
-                                            : mutedText)),
                               ),
                             ),
                         ]),

@@ -8,11 +8,13 @@ import 'offline_queue_executors.dart';
 /// zaxiraga va [ApiService]ga ulash shu faylda, ilova ishga tushganda
 /// BIR MARTA bajariladi.
 ///
-/// DIQQAT: [OfflineQueueService.storageOqi]/[storageYoz] SINXRON
-/// chaqiriladi, lekin `shared_preferences` o'zi asinxron - shu sabab
-/// qiymatlar ishga tushishda xotiraga (`_xotira`) oldindan yuklab
-/// olinadi, o'qish shu xotiradan sinxron amalga oshiriladi, yozishda esa
-/// ham xotira, ham haqiqiy zaxira (`SharedPreferences`) yangilanadi.
+/// DIQQAT: [OfflineQueueService.storageOqi] SINXRON chaqiriladi, lekin
+/// `shared_preferences` o'zi asinxron - shu sabab qiymatlar ishga
+/// tushishda xotiraga (`xotira`) oldindan yuklab olinadi, o'qish shu
+/// xotiradan sinxron amalga oshiriladi. [storageYoz] esa endi
+/// `Future<void>` qaytaradi - xotira darhol (sinxron) yangilanadi,
+/// haqiqiy zaxiraga (`SharedPreferences`) yozish esa AWAIT qilinadi
+/// (chaqiruvchi xohlasa kutishi mumkin - qarang: [OfflineQueueService.qoshish]).
 class OfflineQueueBootstrap {
   static bool _ishgaTushirilgan = false;
 
@@ -25,9 +27,16 @@ class OfflineQueueBootstrap {
 
     OfflineQueueService.storageOqi =
         (key) => xotira[key] ?? prefs.getString(key);
-    OfflineQueueService.storageYoz = (key, value) {
+    OfflineQueueService.storageYoz = (key, value) async {
+      // `xotira` YANGILANISHI await'dan OLDIN, sinxron sodir bo'ladi
+      // (Dart async funksiya birinchi await'gacha sinxron ishlaydi) -
+      // shu sabab darhol keyingi o'qishlar (storageOqi) hamon eng so'nggi
+      // qiymatni ko'radi, diskka yozish tugashini kutish shart emas.
+      // Haqiqiy diskka yozish esa endi AWAIT qilinadi - avval bu
+      // Future'ni hech kim kutmasdi, ilova shu yozuv platforma kanaliga
+      // yetib bormasdan o'chirilsa, amal yo'qolib qolishi mumkin edi.
       xotira[key] = value;
-      prefs.setString(key, value);
+      await prefs.setString(key, value);
     };
 
     OfflineQueueExecutors.baseUrlOluvchi = () => ApiService.baseUrl;

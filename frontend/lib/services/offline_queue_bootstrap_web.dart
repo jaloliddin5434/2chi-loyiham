@@ -15,8 +15,11 @@ class OfflineQueueBootstrap {
     _ishgaTushirilgan = true;
 
     OfflineQueueService.storageOqi = (key) => html.window.localStorage[key];
-    OfflineQueueService.storageYoz =
-        (key, value) => html.window.localStorage[key] = value;
+    // `localStorage` yozuvi o'zi sinxron - `async` faqat [storageYoz]ning
+    // (endi `Future<void>` qaytaradigan) turiga mos kelishi uchun kerak.
+    OfflineQueueService.storageYoz = (key, value) async {
+      html.window.localStorage[key] = value;
+    };
 
     OfflineQueueExecutors.baseUrlOluvchi = () => ApiService.baseUrl;
     OfflineQueueExecutors.headerOluvchi = () => ApiService.authHeaders();

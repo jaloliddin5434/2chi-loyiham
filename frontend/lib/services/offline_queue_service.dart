@@ -127,7 +127,13 @@ class OfflineQueueService {
   /// "no-op" - shuning uchun bu fayl hozircha hech qanday real
   /// ma'lumotga ta'sir qilmaydi.
   static String? Function(String key) storageOqi = (_) => null;
-  static void Function(String key, String value) storageYoz = (_, __) {};
+  // DIQQAT: Future<void> qaytaradi (avval oddiy `void` edi) - shu bilan
+  // [qoshish] haqiqiy diskka yozish TUGAGUNICHA kutishi mumkin (masalan
+  // SharedPreferences.setString() ni await qilib) - aks holda ilova shu
+  // yozuv hali disk(platforma kanali)ga yetib bormasdan o'chirilsa, yangi
+  // qo'shilgan amal yo'qolib qolishi mumkin edi.
+  static Future<void> Function(String key, String value) storageYoz =
+      (_, __) async {};
 
   static final Map<String, OfflineOpBajaruvchi> _bajaruvchilar = {};
   static bool _ishlamoqda = false;
@@ -193,8 +199,8 @@ class OfflineQueueService {
     }
   }
 
-  static void _navbatniSaqlash(List<OfflineOperation> royxat) {
-    storageYoz(_navbatKaliti, jsonEncode(royxat.map((o) => o.toJson()).toList()));
+  static Future<void> _navbatniSaqlash(List<OfflineOperation> royxat) async {
+    await storageYoz(_navbatKaliti, jsonEncode(royxat.map((o) => o.toJson()).toList()));
   }
 
   static Map<String, dynamic> _xaritaniOqish() {
@@ -228,7 +234,10 @@ class OfflineQueueService {
       malumot: malumot,
       yaratadiganKalit: yaratadiganKalit,
     ));
-    _navbatniSaqlash(royxat);
+    // Diskka YOZISH TUGAGUNICHA kutiladi - shu bilan chaqiruvchi (masalan
+    // ApiService) bu amal HAQIQATAN saqlanganidan keyingina davom etadi,
+    // ilova shu oraliqda o'chirilsa ham amal yo'qolib qolmaydi.
+    await _navbatniSaqlash(royxat);
   }
 
   static List<OfflineOperation> navbatdagilar() =>

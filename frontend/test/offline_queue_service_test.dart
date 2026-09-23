@@ -17,7 +17,7 @@ void main() {
   setUp(() {
     soxtaSaqlash = {};
     OfflineQueueService.storageOqi = (key) => soxtaSaqlash[key];
-    OfflineQueueService.storageYoz = (key, value) => soxtaSaqlash[key] = value;
+    OfflineQueueService.storageYoz = (key, value) async => soxtaSaqlash[key] = value;
     OfflineQueueService.hammasiniTozalash();
     OfflineQueueService.bajaruvchilarniTozala();
   });

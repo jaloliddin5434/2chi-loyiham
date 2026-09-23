@@ -30,7 +30,7 @@ void main() {
 
   setUp(() async {
     OfflineQueueService.storageOqi = (_) => null;
-    OfflineQueueService.storageYoz = (_, __) {};
+    OfflineQueueService.storageYoz = (_, __) async {};
     OfflineQueueService.hammasiniTozalash();
     OfflineQueueService.bajaruvchilarniTozala();
     OfflineQueueExecutors.barchasiniRoyxatgaOl();
@@ -52,7 +52,7 @@ void main() {
   test('1-STSENARIY: sinxronizatsiya ortasida qayta offline bolib qolish - keyingi siklda togri davom etadi', () async {
     final soxtaSaqlash = <String, String>{};
     OfflineQueueService.storageOqi = (key) => soxtaSaqlash[key];
-    OfflineQueueService.storageYoz = (key, value) => soxtaSaqlash[key] = value;
+    OfflineQueueService.storageYoz = (key, value) async => soxtaSaqlash[key] = value;
 
     final testDavlatRaqami = 'TEST-OFFQ6-1-${DateTime.now().microsecondsSinceEpoch}';
     final mashinaKaliti = OfflineQueueService.yangiMahalliyKalit();
@@ -130,7 +130,7 @@ void main() {
   test('3-STSENARIY: uzoq offline - 8 ta mashina (24 ta amal) togri tartibda, xatosiz sinxronlanadi', () async {
     final soxtaSaqlash = <String, String>{};
     OfflineQueueService.storageOqi = (key) => soxtaSaqlash[key];
-    OfflineQueueService.storageYoz = (key, value) => soxtaSaqlash[key] = value;
+    OfflineQueueService.storageYoz = (key, value) async => soxtaSaqlash[key] = value;
 
     const mashinaSoni = 8;
     final davlatRaqamlari = <String>[];

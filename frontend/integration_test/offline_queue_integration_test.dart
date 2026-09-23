@@ -32,7 +32,7 @@ void main() {
 
   setUp(() async {
     OfflineQueueService.storageOqi = (_) => null;
-    OfflineQueueService.storageYoz = (_, __) {};
+    OfflineQueueService.storageYoz = (_, __) async {};
     OfflineQueueService.hammasiniTozalash();
     OfflineQueueService.bajaruvchilarniTozala();
     OfflineQueueExecutors.barchasiniRoyxatgaOl();
@@ -48,7 +48,7 @@ void main() {
   test('mashina + hujjat zanjiri REAL backendga mahalliy kalit orqali togri sinxronlanadi', () async {
     final soxtaSaqlash = <String, String>{};
     OfflineQueueService.storageOqi = (key) => soxtaSaqlash[key];
-    OfflineQueueService.storageYoz = (key, value) => soxtaSaqlash[key] = value;
+    OfflineQueueService.storageYoz = (key, value) async => soxtaSaqlash[key] = value;
 
     final testDavlatRaqami =
         'TEST-OFFQ3B-${DateTime.now().microsecondsSinceEpoch}';
@@ -138,7 +138,7 @@ void main() {
 
     final soxtaSaqlash = <String, String>{};
     OfflineQueueService.storageOqi = (key) => soxtaSaqlash[key];
-    OfflineQueueService.storageYoz = (key, value) => soxtaSaqlash[key] = value;
+    OfflineQueueService.storageYoz = (key, value) async => soxtaSaqlash[key] = value;
 
     await OfflineQueueService.qoshish('olchov_saqlash', {
       'hujjat_id': hujjatId,
@@ -175,7 +175,7 @@ void main() {
 
     final soxtaSaqlash = <String, String>{};
     OfflineQueueService.storageOqi = (key) => soxtaSaqlash[key];
-    OfflineQueueService.storageYoz = (key, value) => soxtaSaqlash[key] = value;
+    OfflineQueueService.storageYoz = (key, value) async => soxtaSaqlash[key] = value;
 
     await OfflineQueueService.qoshish('navbat_qosh', {
       'hujjatId': hujjatId,
@@ -235,7 +235,7 @@ void main() {
     // to'g'ri tartibda haqiqiy backendga yetib borishi kerak.
     final soxtaSaqlash = <String, String>{};
     OfflineQueueService.storageOqi = (key) => soxtaSaqlash[key];
-    OfflineQueueService.storageYoz = (key, value) => soxtaSaqlash[key] = value;
+    OfflineQueueService.storageYoz = (key, value) async => soxtaSaqlash[key] = value;
 
     final testDavlatRaqami = 'TEST-OFFQ4C-${DateTime.now().microsecondsSinceEpoch}';
     final mashinaKaliti = OfflineQueueService.yangiMahalliyKalit();

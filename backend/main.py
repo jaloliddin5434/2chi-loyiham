@@ -1204,7 +1204,20 @@ def hujjatlar_eksport(
     papka.mkdir(parents=True, exist_ok=True)
     davr = f"{sana_dan or 'boshidan'}_{sana_gacha or 'hozirgacha'}"
     fayl_nomi = f"{mahsulot.nom.replace(' ', '_')}_{davr}.xlsx"
-    wb.save(papka / fayl_nomi)
+    # DIQQAT (race condition tuzatildi): bu yerda avval hech qanday
+    # qulfsiz to'g'ridan-to'g'ri wb.save(...) chaqirilardi - agar ikki
+    # kishi AYNAN bir xil mahsulot+sana oralig'i uchun bir vaqtda shu
+    # eksportni so'rasa, ikkalasining ham wb.save() chaqiruvi bir xil
+    # fayl yo'liga bir vaqtda yozishga urinib, fayl buzilishi (xlsx -
+    # zip konteyner, aralashib yozilgan baytlar) mumkin edi. Mavjud
+    # excel_qatorga_yoz()dagi bilan BIR XIL, shu FAYLGA xos qulf
+    # (_excel_fayl_qulfi) endi shu yerda ham ishlatiladi - boshqa fayl
+    # (masalan boshqa mahsulot yoki boshqa sana oralig'i)ga yozish bilan
+    # to'sqinlik qilmaydi, faqat AYNAN shu fayl yo'liga bir vaqtda
+    # yozilishi mumkin bo'lgan so'rovlar navbatga turadi.
+    fayl_yol = str(papka / fayl_nomi)
+    with _excel_fayl_qulfi(fayl_yol):
+        wb.save(fayl_yol)
 
     buffer = io.BytesIO()
     wb.save(buffer)

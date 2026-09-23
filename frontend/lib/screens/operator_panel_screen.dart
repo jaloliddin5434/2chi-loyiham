@@ -1667,6 +1667,18 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
 
   Future<void> saqlash() async {
     if (saqlanmoqda || tanlanganArava == 0) return;
+    // DIQQAT (qayta-bosish himoyasi): saqlanmoqda ENDI shu yerda, har
+    // qanday await'dan OLDIN, darhol true qilinadi - aks holda operator
+    // "Saqlash"ni ikki marta tez bossa (masalan birinchi Tara saqlashda),
+    // ikkinchi bosish yuqoridagi tekshiruvdan hali saqlanmoqda=false
+    // holida o'tib ketib, _bazagaSaqla() ikki marta chaqirilib, IKKITA
+    // mashina/hujjat yaratilishi mumkin edi (saqlanmoqda avval faqat
+    // pastda, _bazagaSaqla() kutilib bo'lgandan KEYIN true qilinardi).
+    // Pastdagi har bir "haqiqiy saqlashgacha" erta return - validatsiya
+    // xatosi, dialog bekor qilinishi, _bazagaSaqla() muvaffaqiyatsiz
+    // bo'lishi - shu bayroqni QAYTA false qiladi (aks holda tugma
+    // sabab-sababsiz 10 soniyaga qulflanib qolardi).
+    saqlanmoqda = true;
 
     // Operator biror narsa kiritgan (maydon bo'sh emas), lekin son sifatida
     // o'qib bo'lmayapti (masalan harflar aralashgan, bir nechta vergul/nuqta
@@ -1676,11 +1688,13 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     if (konditsionBor) {
       final namlikMatn = namlikCtrl.text.trim();
       if (namlikMatn.isNotEmpty && _namlikQiymati == null) {
+        saqlanmoqda = false;
         _xabar("❌ Namlik % noto'g'ri kiritildi (\"$namlikMatn\") - faqat son kiriting!");
         return;
       }
       final ifloslikMatn = ifloslikCtrl.text.trim();
       if (ifloslikMatn.isNotEmpty && _ifloslikQiymati == null) {
+        saqlanmoqda = false;
         _xabar("❌ Ifloslik % noto'g'ri kiritildi (\"$ifloslikMatn\") - faqat son kiriting!");
         return;
       }
@@ -1699,6 +1713,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
 
     if (faqatBrutto) {
       if (bruttoS) {
+        saqlanmoqda = false;
         _xabar(
             "❌ $tanlanganArava-arava bruttosi saqlangan!");
         return;
@@ -1709,6 +1724,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       // HUJJAT/DOSTAVERNA kartalarida kiritiladi.
       if (firmaCtrl.text.trim().isEmpty ||
           tiketRaqamCtrl.text.trim().isEmpty) {
+        saqlanmoqda = false;
         _xabar(
             "❌ Brutto'dan oldin firma va tiket raqamini kiriting!");
         return;
@@ -1762,7 +1778,10 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
           ],
         ),
       );
-      if (tasdiqlandi != true) return;
+      if (tasdiqlandi != true) {
+        setState(() => saqlanmoqda = false);
+        return;
+      }
 
       final arava = aravalar[tanlanganArava]!;
       setState(() {
@@ -1919,12 +1938,16 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
     }
 
     if (taraS) {
+      saqlanmoqda = false;
       _xabar(
           "❌ $tanlanganArava-arava tarasi saqlangan!");
       return;
     }
     await _bazagaSaqla();
-    if (!bazagaSaqlandi) return;
+    if (!bazagaSaqlandi) {
+      setState(() => saqlanmoqda = false);
+      return;
+    }
     if (mashinaKelganVaqt == null)
       mashinaKelganVaqt = DateTime.now();
 

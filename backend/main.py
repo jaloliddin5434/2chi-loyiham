@@ -813,6 +813,49 @@ def _mahsulot_bosim_statistikasi(db, boshlanish_sana):
     ]
 
 
+def _hujjatlar_guruh_boyicha_jamlangan(db, boshlanish, tugash=None, mahsulot_id=None):
+    """/statistika/grafik-detal/{kunlik,haftalik,oylik,mavsum} va
+    /telegram/kunlik uchun umumiy hisoblash - _mahsulot_bosim_statistikasi()
+    va _firma_haydovchi_statistikasi()dagi BILAN BIR XIL mantiq.
+
+    ESLATMA: avval bu 5 endpointda ham to'g'ridan-to'g'ri
+    func.sum(Olchov.netto)/func.sum(Olchov.konditsion) ishlatilgan edi -
+    xuddi yuqoridagi ikkitasidagi eski xatoga o'xshab bu ham XATO edi:
+    bitta arava uchun bir nechta Olchov qatori bo'lsa, SQL SUM ularni
+    ikki marta qo'shib, tonnajni ikki baravar hisoblardi. Bu funksiya
+    berilgan davr (va ixtiyoriy mahsulot_id) uchun TUGALLANDI hujjatlarni
+    oladi, HAR BIR HUJJAT uchun _olchovlar_jamlangan() orqali to'g'ri
+    jamlangan netto/konditsion hisoblaydi (N+1 bo'lmasligi uchun Olchov
+    qatorlari bitta so'rovda olinadi) va (Hujjat, jami_netto,
+    jami_konditsion) uchligi ro'yxatini qaytaradi - chaqiruvchi o'zi
+    kerakli guruhlash kalitini (soat/kun/oy/mahsulot_id) Hujjat
+    obyektidan chiqarib, guruhlab yig'adi."""
+    query = db.query(Hujjat).filter(
+        Hujjat.holat == HujjatHolati.TUGALLANDI,
+        Hujjat.created_at >= boshlanish,
+    )
+    if tugash is not None:
+        query = query.filter(Hujjat.created_at < tugash)
+    if mahsulot_id is not None:
+        query = query.filter(Hujjat.mahsulot_id == mahsulot_id)
+    hujjatlar = query.all()
+    if not hujjatlar:
+        return []
+
+    hujjat_idlar = [h.id for h in hujjatlar]
+    olchovlar_dict = {}
+    for o in db.query(Olchov).filter(Olchov.hujjat_id.in_(hujjat_idlar)).order_by(Olchov.id.asc()).all():
+        olchovlar_dict.setdefault(o.hujjat_id, []).append(o)
+
+    natija = []
+    for h in hujjatlar:
+        _, _, jami_netto, jami_konditsion = _olchovlar_jamlangan(olchovlar_dict.get(h.id, []))
+        if not jami_netto or jami_netto <= 0:
+            continue
+        natija.append((h, jami_netto, jami_konditsion or 0.0))
+    return natija
+
+
 def _hujjat_navbat_fallback(hujjat_qiymat, navbat, maydon_nomi):
     """Operator ekrani klass/sinf/seleksiya_navi/terim_turi/tiket_raqam/
     tuda_raqam ni to'g'ridan-to'g'ri Hujjat'ga emas, alohida Navbat
@@ -3609,33 +3652,25 @@ def telegram_kunlik(db: Session = Depends(get_db), current_user: dict = Depends(
 
     bosh3 = (0, 0.0, 0.0)
 
-    bugun_natijalar = db.query(
-        Hujjat.mahsulot_id,
-        func.count(func.distinct(Hujjat.id)).label('soni'),
-        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
-    ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
-        Hujjat.created_at >= bugun,
-        Hujjat.holat == HujjatHolati.TUGALLANDI,
-        Olchov.netto > 0,
-    ).group_by(Hujjat.mahsulot_id).all()
-    yb = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in bugun_natijalar}
+    def _mahsulot_boyicha_guruhlash(natijalar):
+        guruhlar = {}
+        for h, jami_netto, jami_konditsion in natijalar:
+            g = guruhlar.setdefault(h.mahsulot_id, [0, 0.0, 0.0])
+            g[0] += 1
+            g[1] += jami_netto
+            g[2] += jami_konditsion
+        return {mid: (soni, round(netto / 1000, 2), round(kond / 1000, 2))
+                for mid, (soni, netto, kond) in guruhlar.items()}
+
+    yb = _mahsulot_boyicha_guruhlash(
+        _hujjatlar_guruh_boyicha_jamlangan(db, bugun))
     chigit_son, chigit_netto, chigit_kond = yb.get(1, bosh3)
     chiganoq_son, chiganoq_netto, _ = yb.get(2, bosh3)
     pochog_son, pochog_netto, _ = yb.get(3, bosh3)
     patoz_son, patoz_netto, _ = yb.get(4, bosh3)
 
-    mavsum_natijalar = db.query(
-        Hujjat.mahsulot_id,
-        func.count(func.distinct(Hujjat.id)).label('soni'),
-        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-        func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
-    ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
-        Hujjat.created_at >= mavsum_boshi,
-        Hujjat.holat == HujjatHolati.TUGALLANDI,
-        Olchov.netto > 0,
-    ).group_by(Hujjat.mahsulot_id).all()
-    ym = {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2), round(r.jami_konditsion/1000, 2)) for r in mavsum_natijalar}
+    ym = _mahsulot_boyicha_guruhlash(
+        _hujjatlar_guruh_boyicha_jamlangan(db, mavsum_boshi))
     mchigit_son, mchigit_netto, mchigit_kond = ym.get(1, bosh3)
     mchiganoq_son, mchiganoq_netto, _ = ym.get(2, bosh3)
     mpochog_son, mpochog_netto, _ = ym.get(3, bosh3)
@@ -4521,22 +4556,12 @@ def grafik_detal_kunlik(mahsulot: str, db: Session = Depends(get_db), current_us
     bugun = date.today()
     ertaga = bugun + timedelta(days=1)
 
-    soat_ustuni = func.date_part('hour', Hujjat.created_at)
-    qatorlar = db.query(
-        soat_ustuni.label('soat'),
-        func.count(func.distinct(Hujjat.id)).label('soni'),
-        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-    ).outerjoin(
-        Olchov, Olchov.hujjat_id == Hujjat.id
-    ).filter(
-        Hujjat.mahsulot_id == mahsulot_id,
-        Hujjat.created_at >= bugun,
-        Hujjat.created_at < ertaga,
-        Hujjat.holat == HujjatHolati.TUGALLANDI,
-        Olchov.netto > 0,
-    ).group_by(soat_ustuni).all()
-
-    soat_dict = {int(row.soat): (row.soni, row.jami_netto) for row in qatorlar}
+    soat_dict = {}
+    for h, jami_netto, _ in _hujjatlar_guruh_boyicha_jamlangan(
+            db, bugun, ertaga, mahsulot_id=mahsulot_id):
+        soat = h.created_at.hour
+        soni, netto = soat_dict.get(soat, (0, 0.0))
+        soat_dict[soat] = (soni + 1, netto + jami_netto)
 
     natija = []
     for soat in range(24):
@@ -4557,22 +4582,12 @@ def grafik_detal_haftalik(mahsulot: str, db: Session = Depends(get_db), current_
     hafta_boshi = bugun - timedelta(days=bugun.weekday())
     keyingi_hafta = hafta_boshi + timedelta(days=7)
 
-    kun_ustuni = func.date_part('isodow', Hujjat.created_at)
-    qatorlar = db.query(
-        kun_ustuni.label('kun'),
-        func.count(func.distinct(Hujjat.id)).label('soni'),
-        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-    ).outerjoin(
-        Olchov, Olchov.hujjat_id == Hujjat.id
-    ).filter(
-        Hujjat.mahsulot_id == mahsulot_id,
-        Hujjat.created_at >= hafta_boshi,
-        Hujjat.created_at < keyingi_hafta,
-        Hujjat.holat == HujjatHolati.TUGALLANDI,
-        Olchov.netto > 0,
-    ).group_by(kun_ustuni).all()
-
-    kun_dict = {int(row.kun): (row.soni, row.jami_netto) for row in qatorlar}
+    kun_dict = {}
+    for h, jami_netto, _ in _hujjatlar_guruh_boyicha_jamlangan(
+            db, hafta_boshi, keyingi_hafta, mahsulot_id=mahsulot_id):
+        kun = h.created_at.isoweekday()
+        soni, netto = kun_dict.get(kun, (0, 0.0))
+        kun_dict[kun] = (soni + 1, netto + jami_netto)
 
     natija = []
     for kun_raqami in range(1, 8):
@@ -4597,22 +4612,12 @@ def grafik_detal_oylik(mahsulot: str, db: Session = Depends(get_db), current_use
         keyingi_oy = date(oy_boshi.year, oy_boshi.month + 1, 1)
     kunlar_soni = (keyingi_oy - oy_boshi).days
 
-    kun_ustuni = func.date_part('day', Hujjat.created_at)
-    qatorlar = db.query(
-        kun_ustuni.label('kun'),
-        func.count(func.distinct(Hujjat.id)).label('soni'),
-        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-    ).outerjoin(
-        Olchov, Olchov.hujjat_id == Hujjat.id
-    ).filter(
-        Hujjat.mahsulot_id == mahsulot_id,
-        Hujjat.created_at >= oy_boshi,
-        Hujjat.created_at < keyingi_oy,
-        Hujjat.holat == HujjatHolati.TUGALLANDI,
-        Olchov.netto > 0,
-    ).group_by(kun_ustuni).all()
-
-    kun_dict = {int(row.kun): (row.soni, row.jami_netto) for row in qatorlar}
+    kun_dict = {}
+    for h, jami_netto, _ in _hujjatlar_guruh_boyicha_jamlangan(
+            db, oy_boshi, keyingi_oy, mahsulot_id=mahsulot_id):
+        kun = h.created_at.day
+        soni, netto = kun_dict.get(kun, (0, 0.0))
+        kun_dict[kun] = (soni + 1, netto + jami_netto)
 
     natija = []
     for kun in range(1, kunlar_soni + 1):
@@ -4638,22 +4643,12 @@ def grafik_detal_mavsum(mahsulot: str, db: Session = Depends(get_db), current_us
     except ValueError:
         mavsum_oxiri = date(mavsum_boshi.year + 1, 3, 1)
 
-    oy_ustuni = func.date_trunc('month', Hujjat.created_at)
-    qatorlar = db.query(
-        oy_ustuni.label('oy'),
-        func.count(func.distinct(Hujjat.id)).label('soni'),
-        func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-    ).outerjoin(
-        Olchov, Olchov.hujjat_id == Hujjat.id
-    ).filter(
-        Hujjat.mahsulot_id == mahsulot_id,
-        Hujjat.created_at >= mavsum_boshi,
-        Hujjat.created_at < mavsum_oxiri,
-        Hujjat.holat == HujjatHolati.TUGALLANDI,
-        Olchov.netto > 0,
-    ).group_by(oy_ustuni).all()
-
-    oy_dict = {(row.oy.year, row.oy.month): (row.soni, row.jami_netto) for row in qatorlar}
+    oy_dict = {}
+    for h, jami_netto, _ in _hujjatlar_guruh_boyicha_jamlangan(
+            db, mavsum_boshi, mavsum_oxiri, mahsulot_id=mahsulot_id):
+        kalit = (h.created_at.year, h.created_at.month)
+        soni, netto = oy_dict.get(kalit, (0, 0.0))
+        oy_dict[kalit] = (soni + 1, netto + jami_netto)
 
     natija = []
     oy = mavsum_boshi

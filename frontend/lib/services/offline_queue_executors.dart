@@ -99,6 +99,17 @@ class OfflineQueueExecutors {
     if (javob.statusCode == 200) {
       return jsonDecode(utf8.decode(javob.bodyBytes)) as Map<String, dynamic>;
     }
+    if (javob.statusCode == 404) {
+      // Navbat topilmadi - bu odatda DOIMIY xato EMAS, balki bu amal
+      // ALLAQACHON bajarilgan degani (masalan avvalgi urinish serverga
+      // yetib borgan va navbat qatorini o'chirib ulgurgan, lekin
+      // mijozga javob yo'qolgan/aloqa uzilgan - shu sabab qayta
+      // yuborilgan). Idempotent - muvaffaqiyat sifatida hisoblanadi,
+      // aks holda haqiqatan muvaffaqiyatli bo'lgan amal doimiy "xato"
+      // (OfflineServerXatosi) deb belgilanib, operatorga soxta
+      // muammo sifatida ko'rsatilardi.
+      return {'status': 'ok'};
+    }
     _xatoOtish(javob, "Navbat tugallanmadi");
   }
 
@@ -151,6 +162,12 @@ class OfflineQueueExecutors {
       throw OfflineTarmoqXatosi(e.toString());
     }
     if (javob.statusCode == 200) {
+      return {'status': 'ok'};
+    }
+    if (javob.statusCode == 404) {
+      // navbatTugallandiBajaruvchisi'dagi bilan bir xil mulohaza:
+      // navbat allaqachon topilmasa, bu odatda amal ALLAQACHON
+      // bajarilgan degani - doimiy xato emas, idempotent muvaffaqiyat.
       return {'status': 'ok'};
     }
     _xatoOtish(javob, "Navbatdan o'chirilmadi");

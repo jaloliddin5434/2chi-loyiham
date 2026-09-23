@@ -1720,7 +1720,26 @@ def olchov_saqlash(olchov: OlchovCreate, db: Session = Depends(get_db), current_
     # chiroyli 404 o'rniga tushunarsiz 500 xato berardi (xuddi
     # hujjat_yaratish()da mahsulot_id/mashina_id uchun qilingan
     # tekshiruv kabi).
-    if not db.query(Hujjat.id).filter(Hujjat.id == olchov.hujjat_id).first():
+    #
+    # DIQQAT (race condition tuzatildi): shu tekshiruv ENDI `FOR UPDATE`
+    # bilan Hujjat qatorini QULFLAYDI. Sabab: pastda "shu (hujjat_id,
+    # arava_raqam) uchun mavjud Olchov qatorini top, bo'lsa YANGILA,
+    # bo'lmasa YARAT" tekshiruvi (SELECT-then-INSERT) o'zi ATOM EMAS -
+    # Olchov'da (hujjat_id, arava_raqam) bo'yicha UNIQUE cheklov yo'q.
+    # Ikki parallel so'rov (masalan tarozi ikki marta ketma-ket tez
+    # yuborsa, yoki offline-sync bilan operator qo'lda saqlashi bir
+    # vaqtga to'g'ri kelsa) bir xil arava uchun ikkalasi ham "hali
+    # qator yo'q" deb ko'rib, IKKITA alohida qator yaratishi mumkin edi
+    # - natijada netto (tara bitta qatorda, brutto ikkinchisida qolib)
+    # HECH QAYSI qatorda hisoblanmay qolardi. Endi shu Hujjat qatoriga
+    # `FOR UPDATE` qulfi olinadi (u COMMIT'gacha ushlab turiladi) - shu
+    # hujjat uchun ikkinchi parallel so'rov pastdagi Olchov so'rovi
+    # BOSHLANISHIDAN OLDIN shu yerda to'xtab qoladi, birinchisi commit
+    # qilgandan keyingina davom etadi va ENDI mavjud qatorni ko'rib,
+    # yangi qator o'rniga o'shani yangilaydi (xuddi keyingi_hujjat_
+    # raqami()dagi FOR UPDATE naqshi kabi).
+    hujjat = db.query(Hujjat).filter(Hujjat.id == olchov.hujjat_id).with_for_update().first()
+    if not hujjat:
         raise HTTPException(
             status_code=404, detail=f"Hujjat topilmadi (id={olchov.hujjat_id})")
 

@@ -784,7 +784,20 @@ class ApiService {
       if (sanaGacha != null) 'sana_gacha': sanaGacha,
     };
     final uri = Uri.parse('$baseUrl/hujjatlar').replace(queryParameters: params);
-    final response = await http.get(uri, headers: _headers()).timeout(_httpTimeout);
+    http.Response response;
+    try {
+      response = await http.get(uri, headers: _headers()).timeout(_httpTimeout);
+    } catch (e) {
+      // Boshqa 27 ta ApiService funksiyasida bo'lgani kabi - tarmoq
+      // xatosida ApiService LAN'ga o'tish kerakligini (tarmoqXatosi())
+      // bilishi SHART, aks holda LAN fallback hech qachon ishga
+      // tushmasdi (admin panelidagi hujjatlar ro'yxati tarmoq uzilganda
+      // ham doim "internet" rejimida qolib ketardi - bu funksiyada
+      // hech qanday try/catch UMUMAN yo'q edi).
+      debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
+      throw Exception('Hujjatlar yuklanmadi');
+    }
     _check401(response);
     if (response.statusCode == 200) {
       return jsonDecode(utf8.decode(response.bodyBytes));

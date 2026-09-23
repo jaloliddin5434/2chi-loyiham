@@ -114,6 +114,60 @@ def test_kunlik_hisobot_matni_faqat_tugallandi_va_netto(db_session):
     assert "Jami: <b>3 ta</b>" in matn
 
 
+# ---------- 5-band: arava takror hisoblanmasligi (real production regressiya) ----------
+
+def test_kunlik_hisobot_matni_arava_takror_hisoblanmaydi(db_session):
+    """Real production'da har kuni soat 08:30'da yuboriladigan hisobotda
+    kuzatilgan regressiya: bitta arava_raqam=1 uchun IKKITA netto>0 qator
+    bo'lsa (masalan qayta o'lchash) - ikkalasi ham eski to'g'ridan-to'g'ri
+    func.sum(Olchov.netto) filtridan o'tib, QO'SHILIB YUBORARDI
+    (4000+5000=9000). To'g'ri natija faqat ENG OXIRGI (id bo'yicha)
+    qiymat - 5000 kg = 5.0 t bo'lishi kerak, "KECHAGI KUN" qismida ham,
+    "MAVSUM JAMI" qismida ham (ikkalasi ham shu hujjatni qamraydi)."""
+    db_session.add(Mahsulot(id=1, nom="Chigit", konditsiya_bor=True, is_active=True))
+    db_session.commit()
+    bugun = date.today()
+    kecha = bugun - timedelta(days=1)
+    kv = datetime.combine(kecha, datetime.min.time()) + timedelta(hours=10)
+
+    h = Hujjat(mahsulot_id=1, raqam="ARAVATAKROR-1",
+               holat=HujjatHolati.TUGALLANDI, created_at=kv)
+    db_session.add(h)
+    db_session.flush()
+    db_session.add(Olchov(hujjat_id=h.id, arava_raqam=1, tara=18000, brutto=22000, netto=4000))
+    db_session.add(Olchov(hujjat_id=h.id, arava_raqam=1, tara=18000, brutto=23000, netto=5000))
+    db_session.commit()
+
+    matn = main._kunlik_hisobot_matni(db_session, kecha, bugun)
+
+    assert "Netto: <b>5.0 t</b>" in matn, "kechagi kun qismi"
+    assert "Chigit: 1 ta | 5.0 t" in matn, "mavsum jami qismi"
+    assert "9.0 t" not in matn
+
+
+def test_kunlik_hisobot_matni_ikkita_haqiqiy_arava_togri_qoshiladi(db_session):
+    """Ikki xil arava_raqam (haqiqiy ikki arava) - bular takrorlanish
+    EMAS, ikkalasi ham yig'indiga qo'shilishi kerak (tuzatish UNDER-count
+    qilib qo'ymasligi uchun)."""
+    db_session.add(Mahsulot(id=1, nom="Chigit", konditsiya_bor=True, is_active=True))
+    db_session.commit()
+    bugun = date.today()
+    kecha = bugun - timedelta(days=1)
+    kv = datetime.combine(kecha, datetime.min.time()) + timedelta(hours=10)
+
+    h = Hujjat(mahsulot_id=1, raqam="IKKIARAVA-1",
+               holat=HujjatHolati.TUGALLANDI, created_at=kv)
+    db_session.add(h)
+    db_session.flush()
+    db_session.add(Olchov(hujjat_id=h.id, arava_raqam=1, tara=18000, brutto=23000, netto=5000))
+    db_session.add(Olchov(hujjat_id=h.id, arava_raqam=2, tara=17000, brutto=21000, netto=4000))
+    db_session.commit()
+
+    matn = main._kunlik_hisobot_matni(db_session, kecha, bugun)
+
+    assert "Netto: <b>9.0 t</b>" in matn
+
+
 # ---------- 2-band: idempotentlik + commit rollback ----------
 
 def test_avtomatik_hisobot_bir_urinish_kuniga_bir_marta(db_session):

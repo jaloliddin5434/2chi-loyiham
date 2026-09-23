@@ -2412,26 +2412,32 @@ def _kunlik_hisobot_matni(db, kecha, bugun):
     FAQAT holat='tugallandi' VA netto > 0 bo'lgan Olchov qatorlari
     hisoblanadi (test/simulyator/bekor qatorlari statistikani buzmasin) -
     GET /telegram/kunlik endpointi bilan bir xil filtr. `mashinalar_soni`
-    esa (endpoint kabi) BARCHA hujjatlarni sanaydi."""
+    esa (endpoint kabi) BARCHA hujjatlarni sanaydi.
+
+    DIQQAT: avval bu yerda to'g'ridan-to'g'ri func.sum(Olchov.netto)/
+    func.sum(Olchov.konditsion) ishlatilgan edi - xuddi GET /telegram/
+    kunlikdagi eski xatoga o'xshab bu ham XATO edi: bitta arava uchun
+    bir nechta Olchov qatori bo'lsa (ikkalasi ham netto>0), SQL SUM
+    ularni ikki marta qo'shib, tonnajni ikki baravar hisoblardi. GET
+    /telegram/kunlik'dagi shu xato oldinroq tuzatilgan edi, lekin bu -
+    HAR KUNI soat 08:30'da AVTOMATIK yuboriladigan hisobotning matni -
+    alohida funksiya bo'lgani uchun o'sha tuzatish bunga tegmagan edi.
+    Endi _hujjatlar_guruh_boyicha_jamlangan() orqali (xuddi GET
+    /telegram/kunlik'dagi bilan bir xil mantiq) hisoblanadi."""
     mavsum_boshi = _mavsum_boshi_sanasi(kecha, db)
     mashinalar_soni = db.query(Hujjat).filter(
         Hujjat.created_at >= kecha, Hujjat.created_at < bugun).count()
     bosh3 = (0, 0.0, 0.0)
 
     def _jamla(boshi, oxiri):
-        qatorlar = db.query(
-            Hujjat.mahsulot_id,
-            func.count(func.distinct(Hujjat.id)).label('soni'),
-            func.coalesce(func.sum(Olchov.netto), 0).label('jami_netto'),
-            func.coalesce(func.sum(Olchov.konditsion), 0).label('jami_konditsion'),
-        ).outerjoin(Olchov, Olchov.hujjat_id == Hujjat.id).filter(
-            Hujjat.created_at >= boshi, Hujjat.created_at < oxiri,
-            Hujjat.holat == HujjatHolati.TUGALLANDI,
-            Olchov.netto > 0,
-        ).group_by(Hujjat.mahsulot_id).all()
-        return {r.mahsulot_id: (r.soni, round(r.jami_netto/1000, 2),
-                                round(r.jami_konditsion/1000, 2))
-                for r in qatorlar}
+        guruhlar = {}
+        for h, jami_netto, jami_konditsion in _hujjatlar_guruh_boyicha_jamlangan(db, boshi, oxiri):
+            g = guruhlar.setdefault(h.mahsulot_id, [0, 0.0, 0.0])
+            g[0] += 1
+            g[1] += jami_netto
+            g[2] += jami_konditsion
+        return {mid: (soni, round(netto / 1000, 2), round(kond / 1000, 2))
+                for mid, (soni, netto, kond) in guruhlar.items()}
 
     yb = _jamla(kecha, bugun)
     chigit_son, chigit_netto, chigit_kond = yb.get(1, bosh3)

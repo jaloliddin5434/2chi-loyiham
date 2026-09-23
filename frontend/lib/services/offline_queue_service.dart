@@ -312,6 +312,13 @@ class OfflineQueueService {
       final xarita = _xaritaniOqish();
       int muvaffaqiyatli = 0;
       int xato = 0;
+      // "Ota" amal (masalan mashina_yaratish) shu SIKLDA VAQTINCHALIK
+      // server xatosi (5xx) bilan muvaffaqiyatsiz bo'lsa, uning
+      // yaratadiganKaliti shu yerga qo'shiladi - pastda unga bog'liq
+      // "bola" amallar (hali xarita'da yo'q, chunki ota muvaffaqiyatsiz
+      // bo'ldi) DOIMIY xato deb emas, balki "keyingi siklda ota bilan
+      // birga qayta sinaladigan" deb belgilanishi uchun ishlatiladi.
+      final vaqtinchaMuvaffaqiyatsizKalitlar = <String>{};
 
       for (final op in royxat) {
         if (op.holati != OfflineOpHolati.navbatda) continue;
@@ -324,12 +331,16 @@ class OfflineQueueService {
         // ishora, o'zgarishsiz (string sifatida) yuboriladi.
         final ochirilganMalumot = <String, dynamic>{};
         var bloklangan = false;
+        var vaqtinchaBloklanganmi = false;
         for (final e in op.malumot.entries) {
           if (mahalliyKalitmi(e.value) && e.value != op.yaratadiganKalit) {
             if (xarita.containsKey(e.value)) {
               ochirilganMalumot[e.key] = xarita[e.value];
             } else {
               bloklangan = true;
+              if (vaqtinchaMuvaffaqiyatsizKalitlar.contains(e.value)) {
+                vaqtinchaBloklanganmi = true;
+              }
               break;
             }
           } else {
@@ -338,6 +349,14 @@ class OfflineQueueService {
         }
 
         if (bloklangan) {
+          if (vaqtinchaBloklanganmi) {
+            // Ota amal shu siklda VAQTINCHALIK (5xx) xato bilan
+            // muvaffaqiyatsiz bo'ldi va qayta urinish uchun navbatda
+            // qoldirildi - bu bola amal DOIMIY xato deb belgilanmaydi,
+            // holati o'zgarishsiz ("navbatda") qoladi va ota bilan
+            // birga KEYINGI sinxronizatsiya siklida qayta sinaladi.
+            continue;
+          }
           _opNiYangila(op.opId,
               holat: OfflineOpHolati.xato,
               oxirgiXato: "Bog'liq yozuv hali sinxronlanmagan yoki muvaffaqiyatsiz bo'lgan");
@@ -373,8 +392,26 @@ class OfflineQueueService {
             _xaritaniSaqlash(xarita);
           }
         } on OfflineServerXatosi catch (e) {
-          _opNiYangila(op.opId, holat: OfflineOpHolati.xato, oxirgiXato: e.xabar);
-          xato++;
+          // 5xx - server o'zi vaqtinchalik muammoga duch keldi (masalan
+          // 500 - ichki xato, 502/503/504 - vaqtinchalik ishlamay
+          // qolish). Bu DOIMIY rad etish EMAS - ma'lumotning o'zi
+          // noto'g'ri emas, shu sabab amal xato deb belgilanmaydi,
+          // navbatda qoladi (keyingi siklda qayta sinaladi), va unga
+          // bog'liq "bola" amallar ham (yuqoridagi
+          // vaqtinchaMuvaffaqiyatsizKalitlar orqali) shu siklda xato
+          // deb belgilanmaydi. Faqat haqiqiy DOIMIY rad etish (400,
+          // 403, 404 va h.k. - 5xx bo'lmagan barcha holatlar) uchun
+          // amal (va unga bog'liq bolalar) xato deb belgilanadi.
+          final vaqtinchami = e.statusKod != null && e.statusKod! >= 500;
+          if (vaqtinchami) {
+            _opNiYangila(op.opId, urinishOshir: true, oxirgiXato: e.xabar);
+            if (op.yaratadiganKalit != null) {
+              vaqtinchaMuvaffaqiyatsizKalitlar.add(op.yaratadiganKalit!);
+            }
+          } else {
+            _opNiYangila(op.opId, holat: OfflineOpHolati.xato, oxirgiXato: e.xabar);
+            xato++;
+          }
         } on OfflineTarmoqXatosi catch (e) {
           _opNiYangila(op.opId, urinishOshir: true, oxirgiXato: e.xabar);
           // Tarmoq o'zi ishlamayapti - qolgan yozuvlarni ham urinib

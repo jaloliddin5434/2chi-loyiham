@@ -124,6 +124,139 @@ void main() {
     );
   });
 
+  test(
+      "ota amal VAQTINCHALIK (5xx) server xatosi bilan muvaffaqiyatsiz bo'lsa, "
+      "farzand amal XATO deb belgilanmaydi, ikkalasi ham navbatda qoladi",
+      () async {
+    var hujjatBajaruvchisiChaqirildimi = false;
+
+    OfflineQueueService.turiniRoyxatgaOl('mashina_yaratish', (malumot) async {
+      throw OfflineServerXatosi("Ichki server xatosi", 500);
+    });
+    OfflineQueueService.turiniRoyxatgaOl('hujjat_yaratish', (malumot) async {
+      hujjatBajaruvchisiChaqirildimi = true;
+      return {'id': 777};
+    });
+
+    final mashinaKaliti = OfflineQueueService.yangiMahalliyKalit();
+    await OfflineQueueService.qoshish(
+      'mashina_yaratish',
+      {'davlat_raqami': "01A777AA"},
+      yaratadiganKalit: mashinaKaliti,
+      vaqt: 100,
+    );
+    await OfflineQueueService.qoshish(
+      'hujjat_yaratish',
+      {'mashina_id': mashinaKaliti},
+      vaqt: 200,
+    );
+
+    final natija = await OfflineQueueService.sinxronlash();
+
+    // Eski (tuzatilmagan) xatti-harakat: ikkalasi ham "xato" - operator
+    // qayta kiritishi kerak edi. Tuzatilgandan keyin: hech biri DOIMIY
+    // xato emas, ikkalasi ham "navbatda" qolib, keyingi siklda qayta
+    // sinaladi.
+    expect(natija.muvaffaqiyatli, 0);
+    expect(natija.xato, 0,
+        reason: "5xx vaqtinchalik xato - hech narsa DOIMIY xato deb "
+            "belgilanmasligi kerak");
+    expect(hujjatBajaruvchisiChaqirildimi, false,
+        reason: "hujjat hali mashina ID'sisiz yuborilmasligi kerak");
+
+    expect(OfflineQueueService.xatoliklar().length, 0,
+        reason: "hech qanday yozuv DOIMIY xato ro'yxatiga tushmasligi kerak");
+
+    final navbatdagilar = OfflineQueueService.navbatdagilar();
+    expect(navbatdagilar.length, 2,
+        reason: "ikkalasi ham (ota va farzand) navbatda qolib, "
+            "qayta kiritish talab qilinmasligi kerak");
+    expect(
+        navbatdagilar.firstWhere((o) => o.turi == 'mashina_yaratish').urinishSoni,
+        1,
+        reason: "ota amalning urinish soni oshishi kerak (retry)");
+  });
+
+  test(
+      "ota amal VAQTINCHALIK xatodan keyingi siklda tuzalsa, ikkalasi ham "
+      "(ota va farzand) muvaffaqiyatli sinxronlanadi",
+      () async {
+    var mashinaUrinish = 0;
+    Map<String, dynamic>? hujjatgaYetibKelganMalumot;
+
+    OfflineQueueService.turiniRoyxatgaOl('mashina_yaratish', (malumot) async {
+      mashinaUrinish++;
+      if (mashinaUrinish == 1) {
+        throw OfflineServerXatosi("Ichki server xatosi", 500);
+      }
+      return {'id': 42, 'davlat_raqami': malumot['davlat_raqami']};
+    });
+    OfflineQueueService.turiniRoyxatgaOl('hujjat_yaratish', (malumot) async {
+      hujjatgaYetibKelganMalumot = malumot;
+      return {'id': 777};
+    });
+
+    final mashinaKaliti = OfflineQueueService.yangiMahalliyKalit();
+    await OfflineQueueService.qoshish(
+      'mashina_yaratish',
+      {'davlat_raqami': "01A777AA"},
+      yaratadiganKalit: mashinaKaliti,
+      vaqt: 100,
+    );
+    await OfflineQueueService.qoshish(
+      'hujjat_yaratish',
+      {'mashina_id': mashinaKaliti},
+      vaqt: 200,
+    );
+
+    final birinchiSikl = await OfflineQueueService.sinxronlash();
+    expect(birinchiSikl.muvaffaqiyatli, 0);
+    expect(birinchiSikl.xato, 0);
+
+    // Ikkinchi sikl - server endi tuzalgan (mashina yaratiladi).
+    final ikkinchiSikl = await OfflineQueueService.sinxronlash();
+    expect(ikkinchiSikl.muvaffaqiyatli, 2);
+    expect(ikkinchiSikl.xato, 0);
+    expect(hujjatgaYetibKelganMalumot, isNotNull);
+    expect(hujjatgaYetibKelganMalumot!['mashina_id'], 42,
+        reason: "farzand endi otaning HAQIQIY (mahalliy kalit emas) "
+            "ID'sini olishi kerak");
+    expect(OfflineQueueService.navbatdagilar().length, 0);
+  });
+
+  test(
+      "ota amal DOIMIY (404) xato bilan rad etilsa, farzand amal hamon "
+      "XATO deb belgilanadi (eski xatti-harakat saqlanadi)",
+      () async {
+    OfflineQueueService.turiniRoyxatgaOl('mashina_yaratish', (malumot) async {
+      throw OfflineServerXatosi("Topilmadi", 404);
+    });
+    OfflineQueueService.turiniRoyxatgaOl('hujjat_yaratish', (malumot) async {
+      return {'id': 777};
+    });
+
+    final mashinaKaliti = OfflineQueueService.yangiMahalliyKalit();
+    await OfflineQueueService.qoshish(
+      'mashina_yaratish',
+      {'davlat_raqami': "01A777AA"},
+      yaratadiganKalit: mashinaKaliti,
+      vaqt: 100,
+    );
+    await OfflineQueueService.qoshish(
+      'hujjat_yaratish',
+      {'mashina_id': mashinaKaliti},
+      vaqt: 200,
+    );
+
+    final natija = await OfflineQueueService.sinxronlash();
+
+    expect(natija.muvaffaqiyatli, 0);
+    expect(natija.xato, 2,
+        reason: "404 - DOIMIY xato, ota HAM farzand xato deb "
+            "belgilanishi kerak (5xx dan farqli)");
+    expect(OfflineQueueService.xatoliklar().length, 2);
+  });
+
   test('tarmoq xatosida qolgan navbat tegilmay saqlanadi, keyingi siklga qoladi', () async {
     var ikkinchiAmalChaqirildimi = false;
 

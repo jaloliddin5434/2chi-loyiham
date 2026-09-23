@@ -1101,7 +1101,7 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       }
     } catch (e) {}
   }
-  void navbatdanTanlash(NavbatMashina mashina) {
+  Future<void> navbatdanTanlash(NavbatMashina mashina) async {
     setState(() {
       tanlanganNavbat = mashina;
       // Boshqa (oldingi) mashinaning eski suratlari shu yerda hali
@@ -1190,6 +1190,53 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       tanlanganArava = 1;
     });
     _xabar("🚛 ${mashina.raqam} — BRUTTO o'lchang!");
+
+    // DIQQAT: yuqoridagi taraSaqlangan/bruttoSaqlangan bayroqlari
+    // Navbat.aravalar_json'dan (mashina.aravalar) o'rnatildi - bu shu
+    // mashina navbatga QO'YILGAN paytdagi "muzlatilgan" holat, undan
+    // keyin YANGILANMAYDI. Agar tara BOSHQA kompyuterdan (yoki shu
+    // mashina navbatga qo'yilgandan keyin) o'lchangan bo'lsa, bu yerda
+    // ko'rinmasligi mumkin - natijada ko'p aravali mashinada 1-arava
+    // bruttosi saqlangach, 2-arava hali tara OLMAGAN deb (demak "brutto
+    // shart emas" deb) noto'g'ri hisoblanib, hujjat vaqtidan oldin
+    // tugallanib qolardi. Shu sabab endi HAQIQIY (eng so'nggi) holat
+    // har bir arava bo'yicha alohida (GET /olchovlar/{hujjat_id})
+    // backenddan qayta tekshiriladi.
+    //
+    // Yerli (hali serverga sinxronlanmagan, manfiy) ID uchun bu
+    // so'rovning ma'nosi yo'q - backendda bu hujjat hali umuman mavjud
+    // emas.
+    if (OfflineQueueService.yerliIdmi(mashina.hujjatId)) return;
+
+    final olchovlar = await ApiService.getOlchovlar(mashina.hujjatId);
+    // `null` - tarmoq xatosi (qarang: ApiService.getOlchovlar) - eski
+    // (yuqorida o'rnatilgan) holat saqlanib qoladi, HECH NARSA
+    // tozalanmaydi. Operator shu oraliqda BOSHQA mashina tanlagan
+    // bo'lsa ham (tanlanganNavbat endi boshqa hujjatga ishora qilsa),
+    // bu natija shu (eskirgan) tanlovga qo'llanmaydi.
+    if (olchovlar == null) return;
+    if (!mounted || tanlanganNavbat?.hujjatId != mashina.hujjatId) return;
+
+    setState(() {
+      for (final xom in olchovlar) {
+        final o = xom as Map<String, dynamic>;
+        final n = (o['arava_raqam'] as num?)?.toInt();
+        if (n == null || n < 1 || n > 3) continue;
+        final a = aravalar[n]!;
+        final tara = (o['tara'] as num?)?.toDouble();
+        final brutto = (o['brutto'] as num?)?.toDouble();
+        final konditsion = (o['konditsion'] as num?)?.toDouble();
+        if (tara != null) a.tara = tara;
+        if (brutto != null) a.brutto = brutto;
+        if (konditsion != null) a.konditsion = konditsion;
+      }
+      taraSaqlangan1 = aravalar[1]?.tara != null;
+      taraSaqlangan2 = aravalar[2]?.tara != null;
+      taraSaqlangan3 = aravalar[3]?.tara != null;
+      bruttoSaqlangan1 = aravalar[1]?.brutto != null;
+      bruttoSaqlangan2 = aravalar[2]?.brutto != null;
+      bruttoSaqlangan3 = aravalar[3]?.brutto != null;
+    });
   }
 
   // Tuzatish so'rovi yuborish mumkin bo'lgan maydonlar: (backend kaliti,

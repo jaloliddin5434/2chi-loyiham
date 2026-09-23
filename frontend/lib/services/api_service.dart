@@ -826,6 +826,41 @@ class ApiService {
     return null;
   }
 
+  /// Hujjatning HAR ARAVA bo'yicha alohida Olchov qatorlarini (arava_raqam,
+  /// tara, brutto, ...) qaytaradi - GET /hujjatlar/{id}dan farqli, u faqat
+  /// JAMLANGAN (barcha aravalar qo'shilgan) bitta tara/brutto beradi, ko'p
+  /// aravali mashinada qaysi aravaga nima o'lchanganini ajrata olmaydi.
+  /// Qarang: navbatdanTanlash() (operator_panel_screen.dart) - navbat
+  /// ro'yxatidagi "muzlatilgan" Navbat.aravalar_json o'rniga shu orqali
+  /// HAQIQIY (eng so'nggi) holatni tekshiradi.
+  ///
+  /// DIQQAT: `null` (tarmoq xatosi) va `[]` (hujjatda HAQIQATAN hali
+  /// birorta olchov yo'q) ATAYLAB FARQLANADI - chaqiruvchi tarmoq
+  /// xatosida ESKI (mahalliy) holatni saqlab qolishi, faqat HAQIQIY
+  /// bo'sh ro'yxatga ishonishi kerak (aks holda vaqtinchalik tarmoq
+  /// uzilishi allaqachon saqlangan tara/brutto bayroqlarini noto'g'ri
+  /// tozalab qo'yishi mumkin edi).
+  static Future<List<dynamic>?> getOlchovlar(int hujjatId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/olchovlar/$hujjatId'),
+        headers: _headers(),
+      ).timeout(_httpTimeout);
+      _check401(response);
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+    } catch (e) {
+      // Avval bu yerda xato butunlay yutilardi - agar bu chindan ham
+      // tarmoq xatosi emas, balki dasturdagi haqiqiy nuqson bo'lsa
+      // (masalan JSON formatida kutilmagan o'zgarish), buni
+      // konsolda ko'rish imkoni umuman yo'q edi.
+      debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
+    }
+    return null;
+  }
+
   static Future<List<dynamic>> getTahrirTarixi(int hujjatId) async {
     try {
       final response = await http.get(

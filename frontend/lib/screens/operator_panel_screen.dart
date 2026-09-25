@@ -874,6 +874,18 @@ class _OperatorPanelScreenState extends State<OperatorPanelScreen>
       _xabar("❌ Avval tara o'lchang!");
       return;
     }
+    // faqatBrutto (navbatdan tanlangan, brutto o'lchash jarayoni) paytida
+    // tugma UI'da disabled qilingan, lekin bu yerda ham bloklaymiz - aks
+    // holda mashina navbatdan o'chirilib qayta qo'shiladi va hali
+    // saqlanmagan 2-arava bruttosi yo'qolib qolishi mumkin edi.
+    if (faqatBrutto) {
+      _xabar("❌ Brutto o'lchash tugamaguncha keyingi mashinaga o'tib bo'lmaydi!");
+      return;
+    }
+    if (_keyingiTaraSizArava() != null) {
+      _xabar("❌ Barcha aravalar tara olmaguncha keyingi mashinaga o'tib bo'lmaydi!");
+      return;
+    }
     final Map<int, AravaData> saqlangan = {};
     for (var e in aravalar.entries) {
       final a = AravaData();
@@ -3235,7 +3247,8 @@ try {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
-                          onPressed: keyingiMashina,
+                          onPressed:
+                              faqatBrutto ? null : keyingiMashina,
                           icon: const Icon(
                               Icons.arrow_forward,
                               size: 16,

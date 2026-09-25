@@ -605,6 +605,148 @@ class ApiService {
     });
   }
 
+  /// Admin panelidagi hujjat tahrirlash/bekor qilish uchun -
+  /// hujjatYangilash()dan farqli, SERVER YETIB BORIB RAD ETSA (masalan
+  /// 403/404) xatoni jimgina offline navbatga qo'ymaydi - to'g'ridan-to'g'ri
+  /// chaqiruvchiga aniq xato matni bilan otadi (admin buni SnackBar'da
+  /// ko'rishi kerak). Faqat HAQIQIY tarmoq uzilishida (server umuman javob
+  /// bermadi) offline navbatga qo'yiladi. Qaytadi: `true` - darhol
+  /// serverga yuborildi, `false` - tarmoq yo'qligi sabab navbatga qo'yildi.
+  static Future<bool> adminHujjatTahrirlash(
+      int hujjatId, Map<String, dynamic> maydonlar) async {
+    http.Response? response;
+    try {
+      response = await http.put(
+        Uri.parse('$baseUrl/hujjatlar/$hujjatId'),
+        headers: _headers(),
+        body: jsonEncode(maydonlar),
+      ).timeout(_httpTimeout);
+    } catch (e) {
+      debugPrint('ApiService xato: $e');
+      response = null;
+    }
+    if (response != null) {
+      _check401(response);
+      if (response.statusCode == 200) return true;
+      if (response.statusCode != 401) {
+        String xabar = "Hujjat yangilanmadi (status ${response.statusCode})";
+        try {
+          final tanasi = jsonDecode(utf8.decode(response.bodyBytes));
+          if (tanasi is Map && tanasi['detail'] != null) {
+            xabar = tanasi['detail'].toString();
+          }
+        } catch (_) {}
+        throw Exception(xabar);
+      }
+      // 401 - token tugagan; pastdagi offline navbatga tushadi.
+    } else {
+      // response == null -> haqiqiy tarmoq uzilishi (server umuman
+      // yetib bormadi) - LAN fallback qayta tekshirilishi kerak.
+      tarmoqXatosi();
+    }
+    await OfflineQueueService.qoshish('hujjat_yangilash', {
+      'hujjat_id': hujjatId,
+      'maydonlar': maydonlar,
+    });
+    return false;
+  }
+
+  /// Admin: barcha foydalanuvchilar ro'yxati.
+  static Future<List<dynamic>> getFoydalanuvchilar() async {
+    http.Response response;
+    try {
+      response = await http.get(Uri.parse('$baseUrl/users'), headers: _headers())
+          .timeout(_httpTimeout);
+    } catch (e) {
+      debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
+      throw Exception('Foydalanuvchilar yuklanmadi');
+    }
+    _check401(response);
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    }
+    throw Exception('Foydalanuvchilar yuklanmadi (status ${response.statusCode})');
+  }
+
+  /// Admin: yangi foydalanuvchi qo'shadi. Muvaffaqiyatli bo'lsa `null`,
+  /// aks holda xato matni.
+  static Future<String?> foydalanuvchiQoshish(
+      String username, String password, String role) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/users'),
+        headers: _headers(),
+        body: jsonEncode({
+          'username': username,
+          'password': password,
+          'role': role,
+        }),
+      ).timeout(_httpTimeout);
+      _check401(response);
+      if (response.statusCode == 200) return null;
+      return _xatoDetalOl(response, "Foydalanuvchi qo'shishda xatolik yuz berdi!");
+    } catch (e) {
+      debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
+      return "Serverga ulanib bo'lmadi.";
+    }
+  }
+
+  /// Admin: foydalanuvchi parolini o'zgartiradi. Muvaffaqiyatli bo'lsa
+  /// `null`, aks holda xato matni.
+  static Future<String?> foydalanuvchiParolOzgartir(
+      int userId, String yangiParol) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/users/$userId/parol'),
+        headers: _headers(),
+        body: jsonEncode({'yangi_parol': yangiParol}),
+      ).timeout(_httpTimeout);
+      _check401(response);
+      if (response.statusCode == 200) return null;
+      return _xatoDetalOl(response, "Parolni o'zgartirishda xatolik yuz berdi!");
+    } catch (e) {
+      debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
+      return "Serverga ulanib bo'lmadi.";
+    }
+  }
+
+  /// Admin: foydalanuvchini faollashtiradi/faolsizlantiradi.
+  /// Muvaffaqiyatli bo'lsa `null`, aks holda xato matni.
+  static Future<String?> foydalanuvchiHolatiniOzgartir(
+      int userId, bool isActive) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/users/$userId/holat'),
+        headers: _headers(),
+        body: jsonEncode({'is_active': isActive}),
+      ).timeout(_httpTimeout);
+      _check401(response);
+      if (response.statusCode == 200) return null;
+      return _xatoDetalOl(response, "Holatni o'zgartirishda xatolik yuz berdi!");
+    } catch (e) {
+      debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
+      return "Serverga ulanib bo'lmadi.";
+    }
+  }
+
+  static String _xatoDetalOl(http.Response response, String standart) {
+    try {
+      final govda = jsonDecode(utf8.decode(response.bodyBytes));
+      final detail = govda['detail'];
+      if (detail is String) return detail;
+      if (detail is List && detail.isNotEmpty) {
+        return detail
+            .map((d) => d is Map ? (d['msg'] ?? d.toString()) : d.toString())
+            .join(', ');
+      }
+    } catch (_) {}
+    return standart;
+  }
+
   static Future<Map<String, dynamic>> olchovSaqlash({
     required int hujjatId,
     required int aravaRaqam,
@@ -1027,8 +1169,19 @@ class ApiService {
       _grafikDetalOl('mavsum', mahsulot);
 
   static Future<Map<String, dynamic>> _statistikaOl(String davr) async {
-    final response = await http.get(
-        Uri.parse('$baseUrl/statistika/$davr'), headers: _headers()).timeout(_httpTimeout);
+    http.Response response;
+    try {
+      response = await http.get(
+          Uri.parse('$baseUrl/statistika/$davr'), headers: _headers()).timeout(_httpTimeout);
+    } catch (e) {
+      // Avval bu yerda try/catch UMUMAN yo'q edi - tarmoq xatosida
+      // istisno to'g'ridan-to'g'ri chaqiruvchiga otilib ketardi va
+      // tarmoqXatosi() hech qachon chaqirilmasdi (LAN fallback ishga
+      // tushmasdi).
+      debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
+      throw Exception('Statistika ($davr) yuklanmadi');
+    }
     _check401(response);
     if (response.statusCode == 200) {
       return jsonDecode(utf8.decode(response.bodyBytes));
@@ -1043,6 +1196,48 @@ class ApiService {
   static Future<Map<String, dynamic>> getOylikStat() => _statistikaOl('oylik');
 
   static Future<Map<String, dynamic>> getMavsumStat() => _statistikaOl('mavsum');
+
+  static Future<List<dynamic>> _grafikOl(String davr) async {
+    http.Response response;
+    try {
+      response = await http.get(
+          Uri.parse('$baseUrl/statistika/grafik/$davr'), headers: _headers()).timeout(_httpTimeout);
+    } catch (e) {
+      debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
+      throw Exception('Grafik ($davr) yuklanmadi');
+    }
+    _check401(response);
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    }
+    throw Exception('Grafik ($davr) yuklanmadi (status ${response.statusCode})');
+  }
+
+  static Future<List<dynamic>> getGrafikKunlik() => _grafikOl('kunlik');
+
+  static Future<List<dynamic>> getGrafikHaftalik() => _grafikOl('haftalik');
+
+  static Future<List<dynamic>> getGrafikOylik() => _grafikOl('oylik');
+
+  static Future<List<dynamic>> getGrafikMavsum() => _grafikOl('mavsum');
+
+  static Future<Map<String, dynamic>> getServerHolat() async {
+    http.Response response;
+    try {
+      response = await http.get(
+          Uri.parse('$baseUrl/server/holat'), headers: _headers()).timeout(_httpTimeout);
+    } catch (e) {
+      debugPrint('ApiService xato: $e');
+      tarmoqXatosi();
+      throw Exception('Server holati yuklanmadi');
+    }
+    _check401(response);
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    }
+    throw Exception('Server holati yuklanmadi (status ${response.statusCode})');
+  }
 
   static Future<List<dynamic>> getFirmalarStat(String davr) async {
     final uri = Uri.parse('$baseUrl/statistika/firmalar')

@@ -1,15 +1,12 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart';
 import 'operator_panel_screen.dart';
 import 'firma_haydovchi_tahlili.dart';
 import '../services/navbat_service.dart';
 import '../services/api_service.dart';
 import '../services/excel_export_service.dart';
-import '../services/offline_queue_service.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   final String username;
@@ -236,42 +233,34 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     try {
       final navbatData = await ApiService.navbatOl();
       final tugallanganData = await ApiService.tugallanganlarOl();
-      final kunlik = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/kunlik'), headers: ApiService.authHeaders());
-      final haftalik = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/haftalik'), headers: ApiService.authHeaders());
-      final oylik = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/oylik'), headers: ApiService.authHeaders());
-      final mavsum = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/mavsum'), headers: ApiService.authHeaders());
+      final kunlik = await ApiService.getKunlikStat();
+      final haftalik = await ApiService.getHaftalikStat();
+      final oylik = await ApiService.getOylikStat();
+      final mavsum = await ApiService.getMavsumStat();
       if (mounted) {
         setState(() {
           serverUlangan = true;
           backendNavbat = navbatData;
           backendTugallangan = tugallanganData;
-          if (kunlik.statusCode == 200)
-            kunlikStat = jsonDecode(utf8.decode(kunlik.bodyBytes));
-          if (haftalik.statusCode == 200)
-            haftalikStat = jsonDecode(utf8.decode(haftalik.bodyBytes));
-         if (oylik.statusCode == 200)
-            oylikStat = jsonDecode(utf8.decode(oylik.bodyBytes));
-          if (mavsum.statusCode == 200)
-            mavsumStat = jsonDecode(utf8.decode(mavsum.bodyBytes));
+          kunlikStat = kunlik;
+          haftalikStat = haftalik;
+          oylikStat = oylik;
+          mavsumStat = mavsum;
         });
-        final kunlikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/kunlik'), headers: ApiService.authHeaders());
-        if (kunlikG.statusCode == 200)
-          setState(() => kunlikGrafik = jsonDecode(utf8.decode(kunlikG.bodyBytes)));
+        final kunlikG = await ApiService.getGrafikKunlik();
+        setState(() => kunlikGrafik = kunlikG);
 
-        final haftalikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/haftalik'), headers: ApiService.authHeaders());
-        if (haftalikG.statusCode == 200)
-          setState(() => haftalikGrafik = jsonDecode(utf8.decode(haftalikG.bodyBytes)));
+        final haftalikG = await ApiService.getGrafikHaftalik();
+        setState(() => haftalikGrafik = haftalikG);
 
-        final oylikG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/oylik'), headers: ApiService.authHeaders());
-        if (oylikG.statusCode == 200)
-          setState(() => oylikGrafik = jsonDecode(utf8.decode(oylikG.bodyBytes)));
-        final mavsumG = await http.get(Uri.parse('${ApiService.baseUrl}/statistika/grafik/mavsum'), headers: ApiService.authHeaders());
-        if (mavsumG.statusCode == 200)
-          setState(() => mavsumGrafik = jsonDecode(utf8.decode(mavsumG.bodyBytes)));
+        final oylikG = await ApiService.getGrafikOylik();
+        setState(() => oylikGrafik = oylikG);
 
-        final serverH = await http.get(Uri.parse('${ApiService.baseUrl}/server/holat'), headers: ApiService.authHeaders());
-        if (serverH.statusCode == 200)
-          setState(() => serverHolati = jsonDecode(utf8.decode(serverH.bodyBytes)));
+        final mavsumG = await ApiService.getGrafikMavsum();
+        setState(() => mavsumGrafik = mavsumG);
+
+        final serverH = await ApiService.getServerHolat();
+        setState(() => serverHolati = serverH);
       }
     } catch (e) {
       print('navbatYangilash xato: $e');
@@ -2091,7 +2080,6 @@ Widget _mashinaGrafik() {
                   payload['bekor_sabab'] = sababCtrl.text.trim();
                 }
 
-                bool muvaffaqiyatli = false;
                 // Tarmoq/server umuman javob bermadi (masalan aloqa
                 // uzilgan) - bu HOLAT/MA'LUMOT rad etilishidan (4xx)
                 // TUBDAN farq qiladi: operator panelidagi
@@ -2102,45 +2090,18 @@ Widget _mashinaGrafik() {
                 bool tarmoqXatosi = false;
                 String? xatoMatni;
                 try {
-                  final javob = await http.put(
-                    Uri.parse(
-                        '${ApiService.baseUrl}/hujjatlar/${hujjat['id']}'),
-                    headers: ApiService.authHeaders(),
-                    body: jsonEncode(payload),
-                  );
-                  muvaffaqiyatli = javob.statusCode == 200;
-                  if (!muvaffaqiyatli) {
-                    try {
-                      final govda = jsonDecode(
-                          utf8.decode(javob.bodyBytes));
-                      final detail = govda['detail'];
-                      if (detail is String) {
-                        xatoMatni = detail;
-                      } else if (detail is List &&
-                          detail.isNotEmpty) {
-                        xatoMatni = detail
-                            .map((d) => d is Map
-                                ? (d['msg'] ?? d.toString())
-                                : d.toString())
-                            .join(', ');
-                      }
-                    } catch (_) {}
-                  }
+                  final darholYuborildi =
+                      await ApiService.adminHujjatTahrirlash(
+                          hujjat['id'], payload);
+                  tarmoqXatosi = !darholYuborildi;
                 } catch (e) {
-                  tarmoqXatosi = true;
+                  xatoMatni = e.toString().replaceFirst('Exception: ', '');
                 }
-                if (tarmoqXatosi) {
-                  await OfflineQueueService.qoshish('hujjat_yangilash', {
-                    'hujjat_id': hujjat['id'],
-                    'maydonlar': payload,
-                  });
-                  if (!mounted) return;
-                }
-                if (!muvaffaqiyatli && !tarmoqXatosi) {
+                if (!mounted) return;
+                if (xatoMatni != null) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
                     SnackBar(
-                        content: Text(xatoMatni ??
-                            "Saqlashda xatolik yuz berdi!"),
+                        content: Text(xatoMatni),
                         backgroundColor: Colors.red),
                   );
                   return;
@@ -2240,33 +2201,24 @@ Widget _mashinaGrafik() {
       ),
     );
     if (tasdiqlandi == true) {
-      bool muvaffaqiyatli = false;
       // Tarmoq/server umuman javob bermadi - operator panelidagi
       // ApiService.hujjatYangilash() bilan bir xil yondashuvda, bu
       // amal offline navbatga qo'yiladi (yo'qotilmaydi).
       bool tarmoqXatosi = false;
+      String? xatoMatni;
       final maydonlar = {
         'holat': 'bekor',
         'bekor_sabab': sababCtrl2.text.trim(),
       };
       try {
-        final javob = await http.put(
-          Uri.parse('${ApiService.baseUrl}/hujjatlar/$id'),
-          headers: ApiService.authHeaders(),
-          body: jsonEncode(maydonlar),
-        );
-        muvaffaqiyatli = javob.statusCode == 200;
+        final darholYuborildi =
+            await ApiService.adminHujjatTahrirlash(id, maydonlar);
+        tarmoqXatosi = !darholYuborildi;
       } catch (e) {
-        tarmoqXatosi = true;
-      }
-      if (tarmoqXatosi) {
-        await OfflineQueueService.qoshish('hujjat_yangilash', {
-          'hujjat_id': id,
-          'maydonlar': maydonlar,
-        });
+        xatoMatni = e.toString().replaceFirst('Exception: ', '');
       }
       if (!mounted) return;
-      if (muvaffaqiyatli || tarmoqXatosi) {
+      if (xatoMatni == null) {
         setState(
             () => hujjatlar.removeWhere((h) => h['id'] == id));
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2281,9 +2233,7 @@ Widget _mashinaGrafik() {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text("O'chirishda xatolik yuz berdi!"),
-              backgroundColor: Colors.red),
+          SnackBar(content: Text(xatoMatni), backgroundColor: Colors.red),
         );
       }
     }
@@ -2391,19 +2341,13 @@ Widget _mashinaGrafik() {
   Future<void> foydalanuvchilarniYukla() async {
     setState(() => foydalanuvchilarYuklanmoqda = true);
     try {
-      final javob = await http.get(
-        Uri.parse('${ApiService.baseUrl}/users'),
-        headers: ApiService.authHeaders(),
-      );
-      if (javob.statusCode == 200) {
-        final natija = jsonDecode(utf8.decode(javob.bodyBytes));
-        if (!mounted) return;
-        setState(() {
-          foydalanuvchilar = natija;
-          foydalanuvchilarYuklanmoqda = false;
-        });
-        return;
-      }
+      final natija = await ApiService.getFoydalanuvchilar();
+      if (!mounted) return;
+      setState(() {
+        foydalanuvchilar = natija;
+        foydalanuvchilarYuklanmoqda = false;
+      });
+      return;
     } catch (e) {}
     if (!mounted) return;
     setState(() => foydalanuvchilarYuklanmoqda = false);
@@ -3129,30 +3073,13 @@ Widget _mashinaGrafik() {
                         );
                         return;
                       }
-                      bool muvaffaqiyatli = false;
-                      String? xatoMatni;
-                      try {
-                        final javob = await http.put(
-                          Uri.parse(
-                              '${ApiService.baseUrl}/users/${f['id']}/parol'),
-                          headers: ApiService.authHeaders(),
-                          body: jsonEncode({'yangi_parol': parolCtrl2.text}),
-                        );
-                        muvaffaqiyatli = javob.statusCode == 200;
-                        if (!muvaffaqiyatli) {
-                          try {
-                            final govda =
-                                jsonDecode(utf8.decode(javob.bodyBytes));
-                            final detail = govda['detail'];
-                            if (detail is String) xatoMatni = detail;
-                          } catch (_) {}
-                        }
-                      } catch (e) {}
-                      if (!muvaffaqiyatli) {
+                      final xatoMatni =
+                          await ApiService.foydalanuvchiParolOzgartir(
+                              f['id'], parolCtrl2.text);
+                      if (xatoMatni != null) {
                         ScaffoldMessenger.of(ctx).showSnackBar(
                           SnackBar(
-                              content: Text(xatoMatni ??
-                                  "Parolni o'zgartirishda xatolik yuz berdi!"),
+                              content: Text(xatoMatni),
                               backgroundColor: Colors.red),
                         );
                         return;
@@ -3220,29 +3147,14 @@ Widget _mashinaGrafik() {
     );
     if (tasdiqlandi != true) return;
 
-    bool muvaffaqiyatli = false;
-    String? xatoMatni;
-    try {
-      final javob = await http.put(
-        Uri.parse('${ApiService.baseUrl}/users/${f['id']}/holat'),
-        headers: ApiService.authHeaders(),
-        body: jsonEncode({'is_active': yangiHolat}),
-      );
-      muvaffaqiyatli = javob.statusCode == 200;
-      if (!muvaffaqiyatli) {
-        try {
-          final govda = jsonDecode(utf8.decode(javob.bodyBytes));
-          final detail = govda['detail'];
-          if (detail is String) xatoMatni = detail;
-        } catch (_) {}
-      }
-    } catch (e) {}
+    final xatoMatni = await ApiService.foydalanuvchiHolatiniOzgartir(
+        f['id'], yangiHolat);
 
     if (!mounted) return;
-    if (!muvaffaqiyatli) {
+    if (xatoMatni != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(xatoMatni ?? "Holatni o'zgartirishda xatolik yuz berdi!"),
+            content: Text(xatoMatni),
             backgroundColor: Colors.red),
       );
       return;
@@ -3346,41 +3258,15 @@ Widget _mashinaGrafik() {
                   );
                   return;
                 }
-                bool muvaffaqiyatli = false;
-                String? xatoMatni;
-                try {
-                  final javob = await http.post(
-                    Uri.parse('${ApiService.baseUrl}/users'),
-                    headers: ApiService.authHeaders(),
-                    body: jsonEncode({
-                      'username': yangiLoginCtrl.text.trim(),
-                      'password': yangiParolCtrl.text,
-                      'role': yangiRol,
-                    }),
-                  );
-                  muvaffaqiyatli = javob.statusCode == 200;
-                  if (!muvaffaqiyatli) {
-                    try {
-                      final govda =
-                          jsonDecode(utf8.decode(javob.bodyBytes));
-                      final detail = govda['detail'];
-                      if (detail is String) {
-                        xatoMatni = detail;
-                      } else if (detail is List && detail.isNotEmpty) {
-                        xatoMatni = detail
-                            .map((d) => d is Map
-                                ? (d['msg'] ?? d.toString())
-                                : d.toString())
-                            .join(', ');
-                      }
-                    } catch (_) {}
-                  }
-                } catch (e) {}
-                if (!muvaffaqiyatli) {
+                final xatoMatni = await ApiService.foydalanuvchiQoshish(
+                  yangiLoginCtrl.text.trim(),
+                  yangiParolCtrl.text,
+                  yangiRol,
+                );
+                if (xatoMatni != null) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
                     SnackBar(
-                        content: Text(xatoMatni ??
-                            "Foydalanuvchi qo'shishda xatolik yuz berdi!"),
+                        content: Text(xatoMatni),
                         backgroundColor: Colors.red),
                   );
                   return;

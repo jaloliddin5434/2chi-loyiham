@@ -2669,12 +2669,9 @@ def rasmlar_tarmoqqa_backup_yubor() -> bool:
 # 12:05'da C:/RASMLAR to'liq ko'chiriladi. Ikkalasi bir-biriga bog'liq
 # emas, biri ishlamasa ikkinchisiga ta'sir qilmaydi.
 RASMLAR_ZAXIRA_KOMPYUTER_IP = "10.112.30.66"
-# E$ - Windows administrativ (yashirin) ulashish - E: diskining
-# ILDIZIGA to'g'ridan-to'g'ri ruxsat beradi, alohida ulashish nomi
-# sozlash shart emas. Joriy xizmat hisobi zaxira kompyuterda ham
-# administrator bo'lishi kerak - aks holda robocopy "Access denied"
-# (5-xato kodi) bilan muvaffaqiyatsiz tugaydi.
-RASMLAR_ZAXIRA_YOL = fr"\\{RASMLAR_ZAXIRA_KOMPYUTER_IP}\E$\RASMLAR_ZAXIRA"
+# "RASMLAR_ZAXIRA" - zaxira kompyuterda oddiy (administrativ E$ EMAS)
+# nom bilan ulashilgan papka (E:\RASMLAR_ZAXIRA\).
+RASMLAR_ZAXIRA_YOL = fr"\\{RASMLAR_ZAXIRA_KOMPYUTER_IP}\RASMLAR_ZAXIRA"
 RASMLAR_ZAXIRA_SMB_PORT = 445
 RASMLAR_ZAXIRA_SOZLAMA_KALIT = "oxirgi_rasmlar_zaxira_sanasi"
 

@@ -9,6 +9,7 @@ import 'firma_haydovchi_tahlili.dart';
 import '../services/navbat_service.dart';
 import '../services/api_service.dart';
 import '../services/excel_export_service.dart';
+import '../services/offline_queue_service.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   final String username;
@@ -2091,6 +2092,14 @@ Widget _mashinaGrafik() {
                 }
 
                 bool muvaffaqiyatli = false;
+                // Tarmoq/server umuman javob bermadi (masalan aloqa
+                // uzilgan) - bu HOLAT/MA'LUMOT rad etilishidan (4xx)
+                // TUBDAN farq qiladi: operator panelidagi
+                // ApiService.hujjatYangilash() bilan bir xil
+                // yondashuvda, bu o'zgarish offline navbatga
+                // qo'yiladi (yo'qotilmaydi), server rad etgan holatda
+                // esa (masalan "sabab" xato) aniq xato ko'rsatiladi.
+                bool tarmoqXatosi = false;
                 String? xatoMatni;
                 try {
                   final javob = await http.put(
@@ -2117,8 +2126,17 @@ Widget _mashinaGrafik() {
                       }
                     } catch (_) {}
                   }
-                } catch (e) {}
-                if (!muvaffaqiyatli) {
+                } catch (e) {
+                  tarmoqXatosi = true;
+                }
+                if (tarmoqXatosi) {
+                  await OfflineQueueService.qoshish('hujjat_yangilash', {
+                    'hujjat_id': hujjat['id'],
+                    'maydonlar': payload,
+                  });
+                  if (!mounted) return;
+                }
+                if (!muvaffaqiyatli && !tarmoqXatosi) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
                     SnackBar(
                         content: Text(xatoMatni ??
@@ -2149,9 +2167,14 @@ Widget _mashinaGrafik() {
                 });
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text("Hujjat yangilandi!"),
-                      backgroundColor: Colors.green),
+                  tarmoqXatosi
+                      ? const SnackBar(
+                          content: Text(
+                              "⏳ Server bilan aloqa yo'q — o'zgarish navbatga qo'yildi, aloqa tiklangach avtomatik yuboriladi."),
+                          backgroundColor: Colors.orange)
+                      : const SnackBar(
+                          content: Text("Hujjat yangilandi!"),
+                          backgroundColor: Colors.green),
                 );
               },
               icon: const Icon(Icons.save, size: 16),
@@ -2218,25 +2241,43 @@ Widget _mashinaGrafik() {
     );
     if (tasdiqlandi == true) {
       bool muvaffaqiyatli = false;
+      // Tarmoq/server umuman javob bermadi - operator panelidagi
+      // ApiService.hujjatYangilash() bilan bir xil yondashuvda, bu
+      // amal offline navbatga qo'yiladi (yo'qotilmaydi).
+      bool tarmoqXatosi = false;
+      final maydonlar = {
+        'holat': 'bekor',
+        'bekor_sabab': sababCtrl2.text.trim(),
+      };
       try {
         final javob = await http.put(
           Uri.parse('${ApiService.baseUrl}/hujjatlar/$id'),
           headers: ApiService.authHeaders(),
-          body: jsonEncode({
-            'holat': 'bekor',
-            'bekor_sabab': sababCtrl2.text.trim(),
-          }),
+          body: jsonEncode(maydonlar),
         );
         muvaffaqiyatli = javob.statusCode == 200;
-      } catch (e) {}
+      } catch (e) {
+        tarmoqXatosi = true;
+      }
+      if (tarmoqXatosi) {
+        await OfflineQueueService.qoshish('hujjat_yangilash', {
+          'hujjat_id': id,
+          'maydonlar': maydonlar,
+        });
+      }
       if (!mounted) return;
-      if (muvaffaqiyatli) {
+      if (muvaffaqiyatli || tarmoqXatosi) {
         setState(
             () => hujjatlar.removeWhere((h) => h['id'] == id));
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text("Hujjat o'chirildi!"),
-              backgroundColor: Colors.red),
+          tarmoqXatosi
+              ? const SnackBar(
+                  content: Text(
+                      "⏳ Server bilan aloqa yo'q — o'chirish navbatga qo'yildi, aloqa tiklangach avtomatik yuboriladi."),
+                  backgroundColor: Colors.orange)
+              : const SnackBar(
+                  content: Text("Hujjat o'chirildi!"),
+                  backgroundColor: Colors.red),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

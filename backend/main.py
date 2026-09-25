@@ -2662,6 +2662,142 @@ def rasmlar_tarmoqqa_backup_yubor() -> bool:
         return False
 
 
+# ============ RASMLAR ZAXIRA (alohida, qattiq kodlangan zaxira kompyuter) ============
+# Bu MAVJUD, config orqali sozlanadigan (TARMOQ_BACKUP_IP/parol bilan)
+# rasmlar_tarmoqqa_backup_yubor() dan ALOHIDA, MUSTAQIL mexanizm -
+# uchinchi, maxsus "zaxira" kompyuteriga (10.112.30.66) kunlik soat
+# 12:05'da C:/RASMLAR to'liq ko'chiriladi. Ikkalasi bir-biriga bog'liq
+# emas, biri ishlamasa ikkinchisiga ta'sir qilmaydi.
+RASMLAR_ZAXIRA_KOMPYUTER_IP = "10.112.30.66"
+# E$ - Windows administrativ (yashirin) ulashish - E: diskining
+# ILDIZIGA to'g'ridan-to'g'ri ruxsat beradi, alohida ulashish nomi
+# sozlash shart emas. Joriy xizmat hisobi zaxira kompyuterda ham
+# administrator bo'lishi kerak - aks holda robocopy "Access denied"
+# (5-xato kodi) bilan muvaffaqiyatsiz tugaydi.
+RASMLAR_ZAXIRA_YOL = fr"\\{RASMLAR_ZAXIRA_KOMPYUTER_IP}\E$\RASMLAR_ZAXIRA"
+RASMLAR_ZAXIRA_SMB_PORT = 445
+RASMLAR_ZAXIRA_SOZLAMA_KALIT = "oxirgi_rasmlar_zaxira_sanasi"
+
+
+def _rasmlar_zaxira_kompyuter_ishlaydimi(timeout: float = 3.0) -> bool:
+    """RASMLAR_ZAXIRA_KOMPYUTER_IP tarmoqda javob beradimi - 445 (SMB)
+    portiga qisqa ulanish urinishi bilan tekshiradi. Bu kompyuter
+    ODATIY holatda O'CHIQ turishi mumkin (faqat davriy zaxira uchun
+    yoqiladi) - robocopy'ni to'g'ridan-to'g'ri chaqirish o'chiq
+    kompyuterda bir necha daqiqa "osilib" qolishi mumkin edi (SMB
+    ulanish timeout'i robocopy'ning o'zida ancha uzoq). Shu sabab avval
+    tez (bir necha soniyalik) socket tekshiruvi qilinadi - kompyuter
+    o'chiq bo'lsa, robocopy umuman chaqirilmaydi."""
+    import socket
+    try:
+        with socket.create_connection(
+                (RASMLAR_ZAXIRA_KOMPYUTER_IP, RASMLAR_ZAXIRA_SMB_PORT), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def rasmlar_zaxira_kompyuterga_kochir():
+    """C:/RASMLAR (kamera rasmlari, nakladnoy PDF/HTML) papkasini
+    RASMLAR_ZAXIRA_KOMPYUTER_IP kompyuterining E:/RASMLAR_ZAXIRA
+    papkasiga /MIR (to'liq ko'zgu nusxa - manbada o'chirilgan fayllar
+    zaxirada ham o'chiriladi) bilan zaxiralaydi.
+
+    Qaytadi: `True` - muvaffaqiyatli; `False` - zaxira kompyuter ishlab
+    turgan bo'lsa-da robocopy HAQIQIY xato bilan tugadi (masalan ruxsat
+    yo'q, disk to'la); `None` - zaxira kompyuter tarmoqda javob
+    bermadi (o'chiq) - bu XATO EMAS, chaqiruvchi buni jimgina
+    o'tkazib yuborishi kerak."""
+    if not os.path.isdir(RASMLAR_DIR):
+        return True  # hali birorta rasm yo'q - qilinadigan ish yo'q
+    if not _rasmlar_zaxira_kompyuter_ishlaydimi():
+        return None
+    import subprocess
+    try:
+        natija = subprocess.run(
+            ["robocopy", RASMLAR_DIR, RASMLAR_ZAXIRA_YOL, "/MIR", "/R:3", "/W:5"],
+            capture_output=True, text=True, errors="replace", timeout=1800,
+        )
+        # Robocopy: 0-7 = muvaffaqiyat (ba'zilari hech narsa
+        # ko'chirilmadi degani, xato emas), 8+ = xato.
+        if natija.returncode >= 8:
+            tizim_xatosini_saqla(
+                "rasmlar_zaxira",
+                f"robocopy xato kod bilan tugadi: {natija.returncode}")
+            return False
+        return True
+    except Exception as e:
+        tizim_xatosini_saqla("rasmlar_zaxira", str(e))
+        return False
+
+
+def _rasmlar_zaxira_yuborish_vaqtimi(now):
+    """Kunlik RASMLAR zaxirasi FAQAT 12:05-12:09 oralig'ida yuboriladi -
+    xuddi kunlik Telegram hisoboti 08:30-08:34'dagi bilan bir xil
+    naqsh (qarang: _hisobot_yuborish_vaqtimi) - 30 soniyalik siklda
+    ~10 urinish, kun davomida takroriy urinishlar oldini oladi."""
+    return (12, 5) <= (now.hour, now.minute) < (12, 10)
+
+
+def _rasmlar_zaxira_bir_urinish(db) -> bool:
+    """Bitta urinish sikli - qarang: _avtomatik_hisobot_bir_urinish
+    naqshi, shunda sinovlarda `while True`/`time.sleep`siz to'g'ridan-
+    to'g'ri chaqirish mumkin. Bugun allaqachon muvaffaqiyatli
+    bajarilgan bo'lsa hech narsa qilmaydi. Muvaffaqiyatli bo'lsa True
+    qaytaradi va guard sanasini belgilaydi (aks holda - shu jumladan
+    kompyuter o'chiq bo'lgan holatda ham - False qaytadi, shu kunning
+    12:05-12:09 oynasida keyingi 30 soniyalik tsiklda qayta sinaladi)."""
+    bugun = date.today()
+    sozlama = db.query(Sozlama).filter(
+        Sozlama.kalit == RASMLAR_ZAXIRA_SOZLAMA_KALIT).first()
+    if sozlama is not None and sozlama.qiymat == str(bugun):
+        return False
+
+    natija = rasmlar_zaxira_kompyuterga_kochir()
+    if natija is None:
+        # Zaxira kompyuter o'chiq - XATO EMAS, Telegram'ga hech narsa
+        # yuborilmaydi.
+        print("RASMLAR zaxira: kompyuter o'chiq, o'tkazib yuborildi")
+        return False
+    if natija is False:
+        telegram_xabar_yuborish("❌ RASMLAR zaxirasi xato")
+        return False
+
+    telegram_xabar_yuborish("✅ RASMLAR zaxirasi yuborildi")
+    if sozlama:
+        sozlama.qiymat = str(bugun)
+        sozlama.updated_at = datetime.now()
+    else:
+        db.add(Sozlama(kalit=RASMLAR_ZAXIRA_SOZLAMA_KALIT, qiymat=str(bugun)))
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    print("RASMLAR zaxirasi muvaffaqiyatli yuborildi")
+    return True
+
+
+def avtomatik_rasmlar_zaxira():
+    import time
+    while True:
+        now = datetime.now()
+        if _rasmlar_zaxira_yuborish_vaqtimi(now):
+            db = SessionLocal()
+            try:
+                _rasmlar_zaxira_bir_urinish(db)
+            except Exception as e:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                print(f"RASMLAR zaxira xato: {e}")
+                tizim_xatosini_saqla("rasmlar_zaxira", str(e))
+            finally:
+                db.close()
+        time.sleep(30)
+
+
 BACKUP_RETENSIYA_KUN = 30
 BACKUP_TOZALASH_SOZLAMA_KALIT = "oxirgi_backup_tozalash_sanasi"
 QORA_ROYXAT_TOZALASH_SOZLAMA_KALIT = "oxirgi_qora_royxat_tozalash_sanasi"
@@ -2850,6 +2986,8 @@ def avtomatik_backup():
 # Serverni ishga tushirganda backup thread boshlash
 backup_thread = threading.Thread(target=avtomatik_backup, daemon=True)
 backup_thread.start()
+rasmlar_zaxira_thread = threading.Thread(target=avtomatik_rasmlar_zaxira, daemon=True)
+rasmlar_zaxira_thread.start()
 # ============ EXCEL HISOBOT ============
 import openpyxl
 from openpyxl.styles import Font, PatternFill

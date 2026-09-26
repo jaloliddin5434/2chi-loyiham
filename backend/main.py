@@ -3793,7 +3793,11 @@ tunnel_xizmat_thread.start()
 
 @app.post("/telegram/test")
 def telegram_test(current_user: dict = Depends(require_role("admin"))):
-    telegram_xabar_yuborish("✅ Hazorasp Tekstil tarozi tizimi ulandi!")
+    if not telegram_xabar_yuborish("✅ Hazorasp Tekstil tarozi tizimi ulandi!"):
+        return {
+            "status": "xato",
+            "xabar": "Telegram xabari yuborilmadi - token/chat_id sozlanmagan yoki Telegram javob bermadi",
+        }
     return {"status": "ok"}
 
 @app.get("/telegram/kunlik")

@@ -62,6 +62,8 @@ def test_robocopy_muvaffaqiyatli_bolsa_true_qaytadi():
     javob.returncode = 1  # robocopy: 1 = fayllar ko'chirildi, muvaffaqiyat
     with patch("main.os.path.isdir", return_value=True), \
          patch("main._rasmlar_zaxira_kompyuter_ishlaydimi", return_value=True), \
+         patch("main._tarmoqqa_ulan") as mock_ulan, \
+         patch("main._tarmoqdan_uzil") as mock_uzil, \
          patch("subprocess.run", return_value=javob) as mock_run:
         natija = main.rasmlar_zaxira_kompyuterga_kochir()
     assert natija is True
@@ -72,6 +74,9 @@ def test_robocopy_muvaffaqiyatli_bolsa_true_qaytadi():
     assert "/MIR" in args
     assert "/R:3" in args
     assert "/W:5" in args
+    mock_ulan.assert_called_once_with(
+        main.RASMLAR_ZAXIRA_YOL, main.RASMLAR_ZAXIRA_FOYDALANUVCHI, main.ZAXIRA_KOMPYUTER_PAROL)
+    mock_uzil.assert_called_once_with(main.RASMLAR_ZAXIRA_YOL)
 
 
 def test_robocopy_xato_kod_bilan_tugasa_false_qaytadi():
@@ -79,9 +84,38 @@ def test_robocopy_xato_kod_bilan_tugasa_false_qaytadi():
     javob.returncode = 8  # 8+ = haqiqiy xato
     with patch("main.os.path.isdir", return_value=True), \
          patch("main._rasmlar_zaxira_kompyuter_ishlaydimi", return_value=True), \
+         patch("main._tarmoqqa_ulan"), \
+         patch("main._tarmoqdan_uzil") as mock_uzil, \
          patch("subprocess.run", return_value=javob):
         natija = main.rasmlar_zaxira_kompyuterga_kochir()
     assert natija is False
+    mock_uzil.assert_called_once()  # xato bo'lsa ham ulanish uzilishi kerak
+
+
+def test_ulanish_muvaffaqiyatsiz_bolsa_robocopy_chaqirilmaydi():
+    """Login/parol xato bo'lsa (_tarmoqqa_ulan OSError otsa) - robocopy
+    umuman chaqirilmasligi, xato tizim_xatolariga yozilishi kerak."""
+    with patch("main.os.path.isdir", return_value=True), \
+         patch("main._rasmlar_zaxira_kompyuter_ishlaydimi", return_value=True), \
+         patch("main._tarmoqqa_ulan", side_effect=OSError("WNetAddConnection2W xato kod bilan tugadi: 1326")), \
+         patch("subprocess.run") as mock_run:
+        natija = main.rasmlar_zaxira_kompyuterga_kochir()
+    assert natija is False
+    mock_run.assert_not_called()
+
+
+def test_robocopy_ozi_istisno_otsa_ham_ulanish_uziladi():
+    """finally bloki subprocess.run() kutilmagan istisno otsa ham
+    _tarmoqdan_uzil() chaqirilishini kafolatlaydi - aks holda ulanish
+    keyingi urinishlargacha ochiq qolib ketishi mumkin edi."""
+    with patch("main.os.path.isdir", return_value=True), \
+         patch("main._rasmlar_zaxira_kompyuter_ishlaydimi", return_value=True), \
+         patch("main._tarmoqqa_ulan"), \
+         patch("main._tarmoqdan_uzil") as mock_uzil, \
+         patch("subprocess.run", side_effect=TimeoutError("robocopy 1800s dan oshdi")):
+        natija = main.rasmlar_zaxira_kompyuterga_kochir()
+    assert natija is False
+    mock_uzil.assert_called_once()
 
 
 # ---------- _rasmlar_zaxira_bir_urinish() (Telegram + guard) ----------

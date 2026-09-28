@@ -56,6 +56,12 @@ class _Sozlamalar(BaseSettings):
     TARMOQ_BACKUP_FOYDALANUVCHI: str = ""
     TARMOQ_BACKUP_PAROL: str = ""
 
+    # RASMLAR zaxira kompyuteri (10.112.30.66, \\...\RASMLAR_ZAXIRA) -
+    # TARMOQ_BACKUP_* dan ALOHIDA, uchinchi kompyuter. Xizmat LocalSystem
+    # ostida ishlagani uchun ulashishga anonim ulansa "Access denied"
+    # beradi - shu sabab login/parol shart.
+    ZAXIRA_KOMPYUTER_PAROL: str = ""
+
     KAMERA_1_IP: Optional[str] = None
     KAMERA_2_IP: Optional[str] = None
     KAMERA_LOGIN: Optional[str] = None
@@ -138,6 +144,8 @@ TARMOQ_BACKUP_IP = _sozlama.TARMOQ_BACKUP_IP
 TARMOQ_BACKUP_SHARE = _sozlama.TARMOQ_BACKUP_SHARE
 TARMOQ_BACKUP_FOYDALANUVCHI = _sozlama.TARMOQ_BACKUP_FOYDALANUVCHI
 TARMOQ_BACKUP_PAROL = _sozlama.TARMOQ_BACKUP_PAROL
+
+ZAXIRA_KOMPYUTER_PAROL = _sozlama.ZAXIRA_KOMPYUTER_PAROL
 
 KAMERA_1_IP = _sozlama.KAMERA_1_IP
 KAMERA_2_IP = _sozlama.KAMERA_2_IP

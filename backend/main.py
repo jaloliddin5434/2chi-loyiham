@@ -9,7 +9,7 @@ from database import engine, get_db, Base, SessionLocal
 from models import User, Mahsulot, Mashina, Hujjat, Olchov, HujjatHolati, HujjatRaqamHisoblagich, TizimXatosi, TahrirTarixi, Firma, MahsulotNarxi, Sozlama, QoraRoyxatToken, TuzatishSorovi
 from schemas import UserLogin, Token, MashinaCreate, HujjatCreate, HujjatUpdate, OlchovCreate, UserCreate, UserParolYangilash, UserHolatYangilash, FirmaCreate, MahsulotNarxiCreate, PinOrnatish, PinTekshirish, TaroziYubor
 from auth import verify_password, create_access_token, hash_password, get_current_user, require_role, require_moliyaviy_ruxsat
-from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, TUNNEL_TEKSHIRUV_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL, TAROZI_AGENT_KEY, BACKUP_DIR, RASMLAR_DIR, API_HUJJATLARI_OCHIQ
+from config import PG_DUMP_YOL, KAMERA_1_IP, KAMERA_2_IP, KAMERA_LOGIN, KAMERA_PAROL, SERVER_ASOSIY_URL, TUNNEL_TEKSHIRUV_URL, ALLOWED_ORIGINS, DATABASE_URL, TARMOQ_BACKUP_IP, TARMOQ_BACKUP_SHARE, TARMOQ_BACKUP_FOYDALANUVCHI, TARMOQ_BACKUP_PAROL, TAROZI_AGENT_KEY, BACKUP_DIR, RASMLAR_DIR, API_HUJJATLARI_OCHIQ, ZAXIRA_KOMPYUTER_PAROL
 from utils import konditsion_hisobla, xavfsiz_papka_nomi, xavfsiz_sana
 from datetime import datetime, date, timedelta
 import html
@@ -2599,6 +2599,14 @@ def _tarmoqqa_ulan(unc_yol: str, foydalanuvchi: str, parol: str, timeout: int = 
         raise OSError(f"WNetAddConnection2W xato kod bilan tugadi: {kod}")
 
 
+def _tarmoqdan_uzil(unc_yol: str):
+    """_tarmoqqa_ulan() bilan ochilgan SMB ulanishni yopadi - ulanish
+    keraksiz saqlanib qolmasligi uchun."""
+    import ctypes
+    mpr = ctypes.WinDLL("mpr")
+    mpr.WNetCancelConnection2W(unc_yol, 0, True)
+
+
 def tarmoqqa_backup_yubor(backup_dir: str) -> bool:
     """Lokal backup papkasini (barcha .sql fayllar) ikkinchi kompyuterdagi
     SMB ulashuvga robocopy bilan nusxalaydi. Robocopy manba/manzilda mos
@@ -2672,6 +2680,11 @@ RASMLAR_ZAXIRA_KOMPYUTER_IP = "10.112.30.66"
 # "RASMLAR_ZAXIRA" - zaxira kompyuterda oddiy (administrativ E$ EMAS)
 # nom bilan ulashilgan papka (E:\RASMLAR_ZAXIRA\).
 RASMLAR_ZAXIRA_YOL = fr"\\{RASMLAR_ZAXIRA_KOMPYUTER_IP}\RASMLAR_ZAXIRA"
+# Xizmat (HazoraspBackend) LocalSystem ostida ishlaydi - ulashishga
+# anonim ulansa "Access denied" (robocopy 16-xato) beradi, shu sabab
+# TARMOQ_BACKUP_* bilan bir xil naqshda login/parol bilan ulanadi
+# (qarang: _tarmoqqa_ulan()). Parol .env dagi ZAXIRA_KOMPYUTER_PAROL'dan.
+RASMLAR_ZAXIRA_FOYDALANUVCHI = "user"
 RASMLAR_ZAXIRA_SMB_PORT = 445
 RASMLAR_ZAXIRA_SOZLAMA_KALIT = "oxirgi_rasmlar_zaxira_sanasi"
 
@@ -2711,10 +2724,14 @@ def rasmlar_zaxira_kompyuterga_kochir():
         return None
     import subprocess
     try:
-        natija = subprocess.run(
-            ["robocopy", RASMLAR_DIR, RASMLAR_ZAXIRA_YOL, "/MIR", "/R:3", "/W:5"],
-            capture_output=True, text=True, errors="replace", timeout=1800,
-        )
+        _tarmoqqa_ulan(RASMLAR_ZAXIRA_YOL, RASMLAR_ZAXIRA_FOYDALANUVCHI, ZAXIRA_KOMPYUTER_PAROL)
+        try:
+            natija = subprocess.run(
+                ["robocopy", RASMLAR_DIR, RASMLAR_ZAXIRA_YOL, "/MIR", "/R:3", "/W:5"],
+                capture_output=True, text=True, errors="replace", timeout=1800,
+            )
+        finally:
+            _tarmoqdan_uzil(RASMLAR_ZAXIRA_YOL)
         # Robocopy: 0-7 = muvaffaqiyat (ba'zilari hech narsa
         # ko'chirilmadi degani, xato emas), 8+ = xato.
         if natija.returncode >= 8:

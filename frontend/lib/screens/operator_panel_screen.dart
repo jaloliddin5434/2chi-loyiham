@@ -2638,9 +2638,11 @@ try {
     );
   }
 
+  // Kadr o'lchami chaqiruvchidan keladi (kameraKartasi'dagi qat'iy
+  // balandlikli to'r) - avval AspectRatio(1) edi: kvadrat kadr kenglik
+  // bilan birga o'sib, keng ekranda to'r ekranga sig'masdi.
   Widget camFrame(String label, {Uint8List? rasm}) {
-    return AspectRatio(
-      aspectRatio: 1,
+    return SizedBox.expand(
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
@@ -2658,7 +2660,9 @@ try {
         child: Stack(children: [
           if (rasm != null)
             Positioned.fill(
-                child: Image.memory(rasm, fit: BoxFit.cover))
+                // contain: past, keng kadrda cover rasmning yuqori/pastini
+                // (masalan davlat raqamini) kesib yuborardi.
+                child: Image.memory(rasm, fit: BoxFit.contain))
           else
             Center(
                 child: Column(
@@ -2934,6 +2938,7 @@ try {
   @override
   Widget build(BuildContext context) {
    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final isMobile = screenWidth < 700;
     final jami = tanlanganArava == 0;
     final arava =
@@ -3460,25 +3465,37 @@ try {
                         ),
                       ]),
                       const SizedBox(height: 10),
-                      Row(children: [
-                        Expanded(
-                            child: camFrame("Tara CAM-1",
-                                rasm: _kameraRasmi('tara_cam1'))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: camFrame("Tara CAM-2",
-                                rasm: _kameraRasmi('tara_cam2'))),
-                      ]),
-                      const SizedBox(height: 10),
-                      Row(children: [
-                        Expanded(
-                            child: camFrame("Brutto CAM-1",
-                                rasm: _kameraRasmi('brutto_cam1'))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: camFrame("Brutto CAM-2",
-                                rasm: _kameraRasmi('brutto_cam2'))),
-                      ]),
+                      // 2x2 to'r ekran balandligining ~32% ini oladi -
+                      // sahifani pastga surmasdan ko'rinsin.
+                      SizedBox(
+                        key: const ValueKey('kamera_rasmlar_tori'),
+                        height: screenHeight * 0.32,
+                        child: Column(children: [
+                          Expanded(
+                            child: Row(children: [
+                              Expanded(
+                                  child: camFrame("Tara CAM-1",
+                                      rasm: _kameraRasmi('tara_cam1'))),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                  child: camFrame("Tara CAM-2",
+                                      rasm: _kameraRasmi('tara_cam2'))),
+                            ]),
+                          ),
+                          const SizedBox(height: 10),
+                          Expanded(
+                            child: Row(children: [
+                              Expanded(
+                                  child: camFrame("Brutto CAM-1",
+                                      rasm: _kameraRasmi('brutto_cam1'))),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                  child: camFrame("Brutto CAM-2",
+                                      rasm: _kameraRasmi('brutto_cam2'))),
+                            ]),
+                          ),
+                        ]),
+                      ),
                     ]));
 
     final Widget? dostavernaKartasi =

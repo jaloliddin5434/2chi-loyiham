@@ -32,6 +32,26 @@
 
   <title>frontend</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Mobil brauzerda scroll'ni TO'LIQ Flutter boshqarsin. Flutter body'ga
+    touch-action:none qo'yadi, lekin overscroll-behavior "auto" qoladi -
+    sahifa pastga surilgach barmoq PASTGA surilganda (yuqoriga scroll)
+    Android Chrome buni pull-to-refresh, iOS esa elastik "bounce" deb
+    o'zi ushlab olib, Flutter'ga pointercancel yuborardi - natijada
+    yuqoriga qayta scroll ishlamasdi. Pastga scroll'ga ta'sir qilmasdi,
+    chunki bu imo-ishoralar faqat shu yo'nalishda ishga tushadi.
+  -->
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      overscroll-behavior: none;
+      -webkit-overflow-scrolling: auto;
+      touch-action: none;
+    }
+  </style>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

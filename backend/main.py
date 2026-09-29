@@ -2756,11 +2756,19 @@ def _rasmlar_zaxira_yuborish_vaqtimi(now):
 def _rasmlar_zaxira_bir_urinish(db) -> bool:
     """Bitta urinish sikli - qarang: _avtomatik_hisobot_bir_urinish
     naqshi, shunda sinovlarda `while True`/`time.sleep`siz to'g'ridan-
-    to'g'ri chaqirish mumkin. Bugun allaqachon muvaffaqiyatli
-    bajarilgan bo'lsa hech narsa qilmaydi. Muvaffaqiyatli bo'lsa True
-    qaytaradi va guard sanasini belgilaydi (aks holda - shu jumladan
-    kompyuter o'chiq bo'lgan holatda ham - False qaytadi, shu kunning
-    12:05-12:09 oynasida keyingi 30 soniyalik tsiklda qayta sinaladi)."""
+    to'g'ri chaqirish mumkin. Bugun allaqachon urinilgan (muvaffaqiyatli
+    YOKI xato bilan) bo'lsa hech narsa qilmaydi.
+
+    - Muvaffaqiyat -> guard qo'yiladi, "✅" yuboriladi, True.
+    - Haqiqiy xato -> guard BARIBIR qo'yiladi, "❌" faqat BIR marta
+      yuboriladi, False. Avval xatoda guard qo'yilmasdi - 12:05-12:09
+      oynasida har 30 soniyada qayta urinib ~10 ta "❌" xabar ketardi.
+    - Kompyuter o'chiq -> guard qo'yilmaydi, Telegram'ga hech narsa
+      yuborilmaydi (jimgina), False - oyna ichida kompyuter yoqilsa
+      keyingi tsiklda qayta sinaladi.
+
+    Guard Telegram'dan OLDIN commit qilinadi - commit yiqilsa xabar
+    ketmaydi, aks holda keyingi tsiklda takroriy xabar ketishi mumkin."""
     bugun = date.today()
     sozlama = db.query(Sozlama).filter(
         Sozlama.kalit == RASMLAR_ZAXIRA_SOZLAMA_KALIT).first()
@@ -2773,11 +2781,7 @@ def _rasmlar_zaxira_bir_urinish(db) -> bool:
         # yuborilmaydi.
         print("RASMLAR zaxira: kompyuter o'chiq, o'tkazib yuborildi")
         return False
-    if natija is False:
-        telegram_xabar_yuborish("❌ RASMLAR zaxirasi xato")
-        return False
 
-    telegram_xabar_yuborish("✅ RASMLAR zaxirasi yuborildi")
     if sozlama:
         sozlama.qiymat = str(bugun)
         sozlama.updated_at = datetime.now()
@@ -2788,6 +2792,13 @@ def _rasmlar_zaxira_bir_urinish(db) -> bool:
     except Exception:
         db.rollback()
         raise
+
+    if natija is False:
+        telegram_xabar_yuborish("❌ RASMLAR zaxirasi xato")
+        print("RASMLAR zaxirasi xato - bugun qayta urinilmaydi")
+        return False
+
+    telegram_xabar_yuborish("✅ RASMLAR zaxirasi yuborildi")
     print("RASMLAR zaxirasi muvaffaqiyatli yuborildi")
     return True
 

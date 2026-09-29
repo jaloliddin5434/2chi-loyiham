@@ -9,7 +9,8 @@ Muhim xatti-harakatlar:
   EMAS, jimgina o'tkazib yuboriladi, Telegram'ga hech narsa
   yuborilmaydi.
 - Zaxira kompyuter ishlab turgan holda robocopy HAQIQIY xato bilan
-  tugasa - Telegram'ga "❌ RASMLAR zaxirasi xato" yuboriladi.
+  tugasa - Telegram'ga "❌ RASMLAR zaxirasi xato" BIR marta yuboriladi
+  va guard belgilanadi (oyna davomida takroriy xabar ketmaydi).
 - Muvaffaqiyatli bo'lsa - Telegram'ga "✅ RASMLAR zaxirasi yuborildi"
   yuboriladi va bugungi kun uchun guard belgilanadi (qayta
   urinilmaydi).
@@ -144,7 +145,7 @@ def test_muvaffaqiyatli_bolsa_togri_xabar_yuboriladi_va_guard_belgilanadi(db_ses
     assert qoldi.qiymat == str(date.today())
 
 
-def test_haqiqiy_xato_bolsa_togri_xato_xabari_yuboriladi_guard_belgilanmaydi(db_session):
+def test_haqiqiy_xato_bolsa_xato_xabari_yuboriladi_va_guard_belgilanadi(db_session):
     with patch("main.rasmlar_zaxira_kompyuterga_kochir", return_value=False), \
          patch("main.telegram_xabar_yuborish") as mock_telegram:
         natija = main._rasmlar_zaxira_bir_urinish(db_session)
@@ -152,7 +153,68 @@ def test_haqiqiy_xato_bolsa_togri_xato_xabari_yuboriladi_guard_belgilanmaydi(db_
     mock_telegram.assert_called_once_with("❌ RASMLAR zaxirasi xato")
     qoldi = db_session.query(Sozlama).filter(
         Sozlama.kalit == main.RASMLAR_ZAXIRA_SOZLAMA_KALIT).first()
-    assert qoldi is None  # xato - keyingi tsiklda (shu kunning oynasida) qayta sinaladi
+    from datetime import date
+    # xato bo'lsa ham guard qo'yiladi - bugun qayta urinilmaydi
+    assert qoldi is not None and qoldi.qiymat == str(date.today())
+
+
+def test_butun_oyna_davomida_xato_bolsa_faqat_bitta_telegram_xabar(db_session):
+    """Regressiya: 12:05-12:09 oynasi (30 soniyalik siklda ~10 urinish)
+    davomida robocopy har safar xato bersa - avval har urinishda "❌"
+    ketardi (10 ta xabar). Endi faqat BIRINCHI urinish ishlaydi."""
+    with patch("main.rasmlar_zaxira_kompyuterga_kochir", return_value=False) as mock_kochir, \
+         patch("main.telegram_xabar_yuborish") as mock_telegram:
+        for _ in range(10):
+            main._rasmlar_zaxira_bir_urinish(db_session)
+    assert mock_kochir.call_count == 1
+    mock_telegram.assert_called_once_with("❌ RASMLAR zaxirasi xato")
+
+
+def test_butun_oyna_davomida_kompyuter_ochiq_bolsa_hech_qanday_telegram_yoq(db_session):
+    """Kompyuter o'chiq - oyna davomida jimgina qayta sinaladi (yoqilib
+    qolsa ishlashi uchun), lekin birorta ham Telegram xabar ketmaydi."""
+    with patch("main.rasmlar_zaxira_kompyuterga_kochir", return_value=None) as mock_kochir, \
+         patch("main.telegram_xabar_yuborish") as mock_telegram:
+        for _ in range(10):
+            main._rasmlar_zaxira_bir_urinish(db_session)
+    assert mock_kochir.call_count == 10
+    mock_telegram.assert_not_called()
+
+
+def test_kompyuter_oyna_ortasida_yoqilsa_bir_marta_muvaffaqiyat_xabari(db_session):
+    natijalar = [None, None, None, True, True, True]
+    with patch("main.rasmlar_zaxira_kompyuterga_kochir", side_effect=natijalar) as mock_kochir, \
+         patch("main.telegram_xabar_yuborish") as mock_telegram:
+        for _ in range(6):
+            main._rasmlar_zaxira_bir_urinish(db_session)
+    assert mock_kochir.call_count == 4
+    mock_telegram.assert_called_once_with("✅ RASMLAR zaxirasi yuborildi")
+
+
+def test_guard_commit_yiqilsa_telegram_yuborilmaydi(db_session):
+    """Guard Telegram'dan OLDIN saqlanadi - commit yiqilsa xabar ketmaydi
+    (aks holda keyingi tsiklda yana urinib, takroriy xabar ketardi)."""
+    with patch("main.rasmlar_zaxira_kompyuterga_kochir", return_value=False), \
+         patch("main.telegram_xabar_yuborish") as mock_telegram, \
+         patch.object(db_session, "commit", side_effect=RuntimeError("db yiqildi")):
+        try:
+            main._rasmlar_zaxira_bir_urinish(db_session)
+        except RuntimeError:
+            pass
+    mock_telegram.assert_not_called()
+
+
+def test_kecha_xato_bolgan_bolsa_bugun_qayta_urinadi(db_session):
+    from datetime import date, timedelta
+    db_session.add(Sozlama(kalit=main.RASMLAR_ZAXIRA_SOZLAMA_KALIT,
+                            qiymat=str(date.today() - timedelta(days=1))))
+    db_session.commit()
+    with patch("main.rasmlar_zaxira_kompyuterga_kochir", return_value=True) as mock_kochir, \
+         patch("main.telegram_xabar_yuborish") as mock_telegram:
+        natija = main._rasmlar_zaxira_bir_urinish(db_session)
+    assert natija is True
+    mock_kochir.assert_called_once()
+    mock_telegram.assert_called_once_with("✅ RASMLAR zaxirasi yuborildi")
 
 
 def test_bugun_allaqachon_bajarilgan_bolsa_qayta_urinmaydi(db_session):
